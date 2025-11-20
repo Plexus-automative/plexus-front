@@ -31,7 +31,7 @@ export default function Pricing() {
         <Typography variant="h6">
           The pricing provided is for demonstration purposes only. For actual product pricing, please refer to the official{' '}
           <Link color="warning.dark" underline="hover" variant="subtitle1" target="_blank" href={buyNowLink}>
-            Pricing Page
+            Pricing 
           </Link>
         </Typography>
       </Alert>
