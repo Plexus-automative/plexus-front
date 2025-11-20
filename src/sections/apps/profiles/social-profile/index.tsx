@@ -1,0 +1,16 @@
+export { default as ProfileHero } from './ProfileHero';
+export { default as Stories } from './Stories';
+export { default as CreatePost } from './CreatePost';
+export { default as Post1 } from './Post1';
+export { default as Post2 } from './Post2';
+export { default as Followers } from './Followers';
+export { default as BioBoard } from './BioBoard';
+export { default as Gallery } from './Gallery';
+export { default as Contact } from './Contact';
+export { default as Event } from './Event';
+export { default as FollowersList } from './FollowersList';
+export { default as TeamPages } from './TeamPages';
+export { default as TabProfile } from './TabProfile';
+export { default as TabFriends } from './TabFriends';
+export { default as TabFriendRequest } from './TabFriendRequest';
+export { default as TabGallery } from './TabGallery';
