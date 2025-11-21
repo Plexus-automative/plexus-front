@@ -14,6 +14,8 @@ import {
   Bill,
   UserSquare,
   ShoppingBag,
+  Note1,
+  TruckFast
 } from "@wandersonalwes/iconsax-react";
 
 // types
@@ -27,8 +29,10 @@ const icons = {
   kanban: Kanban,
   customer: Profile2User,
   invoice: Bill,
+  article: Note1,
   profile: UserSquare,
   ecommerce: ShoppingBag,
+  truck:TruckFast,
   add: Add,
   link: Link1,
   fileManager: DocumentFilter,
@@ -48,15 +52,15 @@ const applications: NavItemType = {
       title: "articles",
       type: "item",
       breadcrumbs: false,
-      icon: icons.customer,
+      icon: icons.article,
       url: "/apps/customer/customer-list",
     },
     {
       id: "commandes-emis",
       title: "commandes-emis",
-      type: "item",
+      type: "collapse",
       breadcrumbs: false,
-      icon: icons.customer,
+      icon: icons.invoice,
       url: "/pages/commandes-emis",
     },
     {
@@ -64,16 +68,16 @@ const applications: NavItemType = {
       title: "commandes-recus",
       type: "item",
       breadcrumbs: false,
-      icon: icons.customer,
-      url: "/apps/customer/customer-list",
+      icon: icons.invoice,
+      url: "/pages/commandes-recus",
     },
-     {
+    {
       id: "commandes-livrees",
       title: "commandes-livrees",
       type: "item",
       breadcrumbs: false,
-      icon: icons.customer,
-      url: "/apps/customer/customer-list",
+      icon: icons.invoice,
+      url: "/pages/commandes-livree",
     },
   ],
 };
