@@ -206,5 +206,8 @@
   "articles": "Articles",
   "commandes-emis": "Commandes émises",
   "commandes-recus": "Commandes reçues",
-  "commandes-livrees": "Commandes livrées"
+  "commandes-livrees": "Commandes livrées",
+  "non-traite": "Non traitées",
+  "traite": "Traitées",
+  "en-cours": "En cours"
 }
