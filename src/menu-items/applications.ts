@@ -58,7 +58,7 @@ const applications: NavItemType = {
     {
       id: "commandes-emis",
       title: "commandes-emis",
-      type: "collapse",
+      type: "item",
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-emis",
