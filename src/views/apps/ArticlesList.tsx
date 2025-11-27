@@ -129,22 +129,9 @@ function ReactTable({ data, columns, modalToggler }: Props) {
         />
 
         <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 2, alignItems: 'center' }}>
-          <Select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            displayEmpty
-            slotProps={{ input: { 'aria-label': 'Status Filter' } }}
-          >
-            <MenuItem value="">Tous les statuts</MenuItem>
-            <MenuItem value={1}>Non traitées</MenuItem>
-            <MenuItem value={2}>Traitées</MenuItem>
-            <MenuItem value={3}>En cours</MenuItem>
-          </Select>
           <SelectColumnSorting {...{ getState: table.getState, getAllColumns: table.getAllColumns, setSorting }} />
           <Stack direction="row" sx={{ gap: 2, alignItems: 'center' }}>
-            <Button variant="contained" startIcon={<Add />} onClick={modalToggler} size="large">
-              Add Customer
-            </Button>
+            
             <CSVExport
               {...{
                 data:
@@ -152,7 +139,7 @@ function ReactTable({ data, columns, modalToggler }: Props) {
                     ? data
                     : table.getSelectedRowModel().flatRows.map((row) => row.original),
                 headers,
-                filename: 'customer-list.csv'
+                filename: 'article-list.csv'
               }}
             />
           </Stack>
@@ -230,7 +217,7 @@ function ReactTable({ data, columns, modalToggler }: Props) {
 }
 // ==============================|| CUSTOMER LIST ||============================== //
 
-export default function CustomerListPage() {
+export default function ArticlesListPage() {
   const { customersLoading: loading, customers: lists } = useGetCustomer();
 
   const [open, setOpen] = useState<boolean>(false);
@@ -269,7 +256,7 @@ export default function CustomerListPage() {
       },
       { header: '#', accessorKey: 'id', meta: { align: 'center' } },
       {
-        header: 'Num commande',
+        header: 'Code article',
         accessorKey: 'name',
         cell: ({ row, getValue }) => (
           <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
@@ -282,8 +269,8 @@ export default function CustomerListPage() {
         )
       },
       {
-        header: 'Date commande',
-        accessorKey: 'contact',
+        header: 'Description',
+        accessorKey: 'description',
         cell: ({ getValue }) => <PatternFormat displayType="text" format="+1 (###) ###-####" mask="_" defaultValue={getValue() as number} />
       },
 
@@ -292,8 +279,13 @@ export default function CustomerListPage() {
         accessorKey: 'fournisseur',
         cell: ({ getValue }) => <PatternFormat displayType="text" format="+1 (###) ###-####" mask="_" defaultValue={getValue() as number} />
       },
-
       {
+        header: 'Disponible',
+        accessorKey: 'disponible',
+        cell: ({ getValue }) => <PatternFormat displayType="text" format="+1 (###) ###-####" mask="_" defaultValue={getValue() as number} />
+      },
+
+      /*{
         header: 'Status',
         accessorKey: 'status',
         cell: (cell) => {
@@ -307,6 +299,11 @@ export default function CustomerListPage() {
               return <Chip color="info" label="Pending" size="small" variant="light" />;
           }
         }
+      },*/
+      {
+        header: 'Prix',
+        accessorKey: 'prix',
+        cell: ({ getValue }) => <PatternFormat displayType="text" format="+1 (###) ###-####" mask="_" defaultValue={getValue() as number} />
       },
       {
         header: 'Actions',

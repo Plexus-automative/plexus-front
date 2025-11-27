@@ -53,12 +53,12 @@ const applications: NavItemType = {
       type: "item",
       breadcrumbs: false,
       icon: icons.article,
-      url: "/apps/customer/customer-list",
+      url: "/pages/articles",
     },
     {
       id: "commandes-emis",
       title: "commandes-emis",
-      type: "collapse",
+      type: "item",
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-emis",
@@ -78,6 +78,23 @@ const applications: NavItemType = {
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-livree",
+    },
+    {
+      id: "e-commerce",
+      title: "e-commerce",
+      type: "collapse",
+      breadcrumbs: false,
+      icon: icons.ecommerce,
+      url: "/apps/e-commerce/checkout",
+      children: [
+    {
+      id: "product-list",
+      title: "product-list",
+      type: "item",
+      breadcrumbs: false,
+      url: "/apps/e-commerce/product-list",
+    },
+     ]
     },
   ],
 };
