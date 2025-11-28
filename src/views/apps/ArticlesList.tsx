@@ -260,7 +260,6 @@ export default function ArticlesListPage() {
         accessorKey: 'name',
         cell: ({ row, getValue }) => (
           <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
-            <Avatar alt="Avatar" size="sm" src={`${avatarImage}/avatar-${!row.original.avatar ? 1 : row.original.avatar}.png`} />
             <Stack>
               <Typography variant="subtitle1">{getValue() as string}</Typography>
               <Typography sx={{ color: 'text.secondary' }}>{row.original.email as string}</Typography>
