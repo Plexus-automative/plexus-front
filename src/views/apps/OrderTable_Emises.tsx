@@ -20,7 +20,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function OrderTable({ lines, onClose }: Props) {
+export default function OrderTableEmises({ lines, onClose }: Props) {
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>

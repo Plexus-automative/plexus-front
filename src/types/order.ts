@@ -12,9 +12,17 @@ export interface OrderLine {
 
 export interface Order {
   id: number;
-  name: string; // order number
+  name: string; 
   dateCommande: string;
   fournisseur: string;
+  status: 1 | 2 | 3;
+  lines: OrderLine[];
+}
+export interface OrderRecues {
+  id: number;
+  name: string; 
+  dateCommande: string;
+  client: string;
   status: 1 | 2 | 3;
   lines: OrderLine[];
 }

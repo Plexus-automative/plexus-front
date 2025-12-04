@@ -23,7 +23,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function OrderEdit({ lines, onClose }: Props) {
+export default function OrderEdit_Emises({ lines, onClose }: Props) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Partial<OrderLine>>({});
   const [localLines, setLocalLines] = useState<OrderLine[]>(lines);

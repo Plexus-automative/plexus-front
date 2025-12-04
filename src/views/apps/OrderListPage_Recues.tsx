@@ -17,7 +17,11 @@ import {
     TableRow,
     Tooltip,
     Box,
-    Collapse
+    Collapse,
+    DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogActions
 } from '@mui/material';
 
 import {
@@ -36,17 +40,17 @@ import MainCard from 'components/MainCard';
 import { CSVExport, DebouncedInput, HeaderSort, IndeterminateCheckbox, RowSelection, SelectColumnSorting, TablePagination } from 'components/third-party/react-table';
 import IconButton from 'components/@extended/IconButton';
 import { Add, Edit, Eye, Trash } from '@wandersonalwes/iconsax-react';
-import OrderEdit from './OrderEdit';
-import OrderTable from './OrderTable';
-import { Order } from 'types/order';
+import OrderEdit from './OrderEdit_Emises';
+import OrderTable from './OrderTable_Emises';
+import { Order, OrderRecues } from 'types/order';
 
-export default function OrderListPage() {
-    const [orders] = useState<Order[]>([
+export default function OrderListPage_Recues() {
+    const [OrderRecues] = useState<OrderRecues[]>([
         {
             id: 1,
             name: 'ORD-001',
             dateCommande: '2025-11-28',
-            fournisseur: 'Supplier A',
+            client: 'Supplier A',
             status: 1,
             lines: [
                 {
@@ -77,7 +81,7 @@ export default function OrderListPage() {
             id: 2,
             name: 'ORD-002',
             dateCommande: '2025-11-28',
-            fournisseur: 'Supplier B',
+            client: 'Supplier B',
             status: 2,
             lines: [
                 {
@@ -101,13 +105,14 @@ export default function OrderListPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+    const [editOrder, setEditOrder] = useState<OrderRecues | null>(null);
 
     const filteredData = useMemo(() => {
-        if (statusFilter === '') return orders;
-        return orders.filter(order => order.status === statusFilter);
-    }, [statusFilter, orders]);
+        if (statusFilter === '') return OrderRecues;
+        return OrderRecues.filter(order => order.status === statusFilter);
+    }, [statusFilter, OrderRecues]);
 
-    const columns = useMemo<ColumnDef<Order>[]>(() => [
+    const columns = useMemo<ColumnDef<OrderRecues>[]>(() => [
         {
             id: 'select',
             header: ({ table }) => (
@@ -129,7 +134,7 @@ export default function OrderListPage() {
         { header: '#', accessorKey: 'id', meta: { align: 'center' } },
         { header: 'Num Commande', accessorKey: 'name' },
         { header: 'Date Commande', accessorKey: 'dateCommande' },
-        { header: 'Fournisseur', accessorKey: 'fournisseur' },
+        { header: 'Client', accessorKey: 'client' },
         {
             header: 'Status',
             accessorKey: 'status',
@@ -159,13 +164,13 @@ export default function OrderListPage() {
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Edit">
-                        <IconButton color="primary" onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation();
-                            setExpandedRows(prev => ({
-                                ...prev,
-                                [row.id]: prev[row.id] === 'edit' ? null : 'edit'
-                            }));
-                        }}>
+                        <IconButton
+                            color="primary"
+                            onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                                e.stopPropagation();
+                                setEditOrder(row.original);   // open modal
+                            }}
+                        >
                             <Edit />
                         </IconButton>
                     </Tooltip>
@@ -179,7 +184,7 @@ export default function OrderListPage() {
         }
     ], []);
 
-    const table = useReactTable({
+    const table = useReactTable<OrderRecues>({
         data: filteredData,
         columns,
         state: { sorting, globalFilter, rowSelection, columnFilters },
@@ -195,6 +200,7 @@ export default function OrderListPage() {
         getPaginationRowModel: getPaginationRowModel()
     });
 
+
     const headers = table.getAllColumns().map(col => ({
         label: typeof col.columnDef.header === 'string' ? col.columnDef.header : '#',
         key: (col.columnDef as any).accessorKey ?? ''
@@ -207,24 +213,8 @@ export default function OrderListPage() {
     return (
         <MainCard content={false}>
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
-                <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder={`Search ${orders.length} records...`} />
-                <Stack direction={{ xs: 'column', sm: 'row' }} gap={2} alignItems="center">
-                    <Select value={statusFilter} onChange={e => setStatusFilter(Number(e.target.value))} displayEmpty>
-                        <MenuItem value="">All Status</MenuItem>
-                        <MenuItem value={1}>Non traitées</MenuItem>
-                        <MenuItem value={2}>Traitées</MenuItem>
-                        <MenuItem value={3}>En cours</MenuItem>
-                    </Select>
-                    <SelectColumnSorting {...{ getState: table.getState, getAllColumns: table.getAllColumns, setSorting }} />
-                    <Stack direction="row" gap={2} alignItems="center">
-                        <Button variant="contained" startIcon={<Add />}>Add Order</Button>
-                        <CSVExport
-                            data={table.getSelectedRowModel().flatRows.length === 0 ? orders : table.getSelectedRowModel().flatRows.map(r => r.original)}
-                            headers={headers}
-                            filename="order-list.csv"
-                        />
-                    </Stack>
-                </Stack>
+                <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder={`Search ${OrderRecues.length} records...`} />
+                
             </Stack>
 
             <Stack>
@@ -299,6 +289,27 @@ export default function OrderListPage() {
                     />
                 </Box>
             </Stack>
+            <Dialog
+                open={editOrder !== null}
+                onClose={() => setEditOrder(null)}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>Edit Order</DialogTitle>
+
+                <DialogContent dividers>
+                    {editOrder && (
+                        <OrderEdit
+                            lines={editOrder.lines}
+                            onClose={() => setEditOrder(null)}
+                        />
+                    )}
+                </DialogContent>
+
+                <DialogActions>
+                    <Button onClick={() => setEditOrder(null)} variant="contained">Close</Button>
+                </DialogActions>
+            </Dialog>
         </MainCard>
     );
 }
