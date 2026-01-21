@@ -15,6 +15,7 @@ import {
   UserSquare,
   ShoppingBag,
   Note1,
+  NoteAdd,
   TruckFast
 } from "@wandersonalwes/iconsax-react";
 
@@ -32,11 +33,12 @@ const icons = {
   article: Note1,
   profile: UserSquare,
   ecommerce: ShoppingBag,
-  truck:TruckFast,
+  truck: TruckFast,
   add: Add,
   link: Link1,
   fileManager: DocumentFilter,
   mail: DirectInbox,
+  reference : NoteAdd
 };
 
 // ==============================|| MENU ITEMS - APPLICATIONS ||============================== //
@@ -53,7 +55,7 @@ const applications: NavItemType = {
       type: "item",
       breadcrumbs: false,
       icon: icons.article,
-      url: "/apps/customer/customer-list",
+      url: "/pages/articles",
     },
     {
       id: "commandes-emis",
@@ -62,6 +64,30 @@ const applications: NavItemType = {
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-emis",
+      children: [
+        {
+          id: "non-traite",
+          title: "non-traite",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-emis",
+        },
+        {
+          id: "traite",
+          title: "traite",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-emis",
+        },
+
+        {
+          id: "en-cours",
+          title: "en-cours",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-emis",
+        },
+      ]
     },
     {
       id: "commandes-recus",
@@ -78,6 +104,31 @@ const applications: NavItemType = {
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-livree",
+    },
+    {
+      id: "e-commerce",
+      title: "e-commerce",
+      type: "collapse",
+      breadcrumbs: false,
+      icon: icons.ecommerce,
+      url: "/apps/e-commerce/checkout",
+      children: [
+        {
+          id: "product-list",
+          title: "product-list",
+          type: "item",
+          breadcrumbs: false,
+          url: "/apps/e-commerce/product-list",
+        },
+      ]
+    },
+    {
+      id: "add-reference",
+      title: "add-reference",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.reference,
+      url: "/pages/reference",
     },
   ],
 };

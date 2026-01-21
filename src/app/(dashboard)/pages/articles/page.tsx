@@ -1,8 +1,7 @@
 // project-imports
-import OrderListPage_Recues from 'views/apps/OrderListPage_Recues';
-
+import ArticlesListPage from "views/apps/ArticlesList";
 // ==============================|| CUSTOMER - LIST ||============================== //
 
 export default function CustomerListPage() {
-  return <OrderListPage_Recues />;
+  return <ArticlesListPage />;
 }
