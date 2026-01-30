@@ -38,6 +38,7 @@
     "@mui/system": "7.3.2",
     "@mui/x-date-pickers": "8.11.2",
     "@mui/x-tree-view": "8.11.0",
+    "@netlify/plugin-nextjs": "^5.15.7",
     "@react-pdf/renderer": "4.3.0",
     "@svgr/webpack": "8.1.0",
     "@tanstack/match-sorter-utils": "8.19.4",

@@ -1491,6 +1491,11 @@
     reselect "^5.1.1"
     use-sync-external-store "^1.5.0"
 
+"@netlify/plugin-nextjs@^5.15.7":
+  version "5.15.7"
+  resolved "https://registry.npmjs.org/@netlify/plugin-nextjs/-/plugin-nextjs-5.15.7.tgz"
+  integrity sha512-tSlGTwOR/dFZMrjhCxynlwc/NkOwY+bc0gurOranLtwASH5wat2WqZaPkyIdfVdNd/zNpmGxgbkH0uppg1Lsxg==
+
 "@next/env@15.5.11":
   version "15.5.11"
   resolved "https://registry.npmjs.org/@next/env/-/env-15.5.11.tgz"
