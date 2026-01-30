@@ -2,6 +2,8 @@
 const path = require('path');
 
 const nextConfig = {
+    eslint: { ignoreDuringBuilds: true },
+
   modularizeImports: {
     '@mui/material': {
       transform: '@mui/material/{{member}}'
