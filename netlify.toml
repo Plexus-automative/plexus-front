@@ -1,0 +1,6 @@
+[functions]
+  timeout = 30  # Increase from default 10s (max is 30s for Pro)
+  # If you have specific functions:
+  [[functions]]
+    function = "your-slow-function"
+    timeout = 30
