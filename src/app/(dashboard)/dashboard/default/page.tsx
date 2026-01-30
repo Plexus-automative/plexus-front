@@ -1,3 +1,6 @@
+// app/(dashboard)/dashboard/default/page.js
+'use client';
+
 // project-imports
 import DashboardDefault from 'views/dashboard/DashboardDefault';
 
