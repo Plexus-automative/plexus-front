@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, useCallback, Fragment } from 'react';
 import {
     Box,
     Stack,
@@ -56,17 +56,23 @@ export default function ReferenceTablePage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
 
-    const update = (index: number, key: keyof ReferenceLine, value: string) => {
-        const copy = [...rows];
-        copy[index][key] = value;
-        setRows(copy);
-    };
+    // Use useCallback to memoize the update function
+    const update = useCallback((index: number, key: keyof ReferenceLine, value: string) => {
+        setRows(prevRows => {
+            const copy = [...prevRows];
+            copy[index][key] = value;
+            return copy;
+        });
+    }, []);
 
-    const addRow = () =>
-        setRows([...rows, { reference: '', designation: '', marque: '' }]);
+    // Use useCallback to memoize the removeRow function
+    const removeRow = useCallback((index: number) => {
+        setRows(prevRows => prevRows.filter((_, i) => i !== index));
+    }, []);
 
-    const removeRow = (index: number) =>
-        setRows(rows.filter((_, i) => i !== index));
+    const addRow = useCallback(() => {
+        setRows(prevRows => [...prevRows, { reference: '', designation: '', marque: '' }]);
+    }, []);
 
     // TABLE COLUMNS
     const columns = useMemo<ColumnDef<ReferenceLine>[]>(() => [
@@ -148,7 +154,7 @@ export default function ReferenceTablePage() {
             ),
             size: 60
         }
-    ], [rows]);
+    ], [update, removeRow]); // Only depend on update and removeRow, not rows
 
     // REACT TABLE CONFIG
     const table = useReactTable<ReferenceLine>({
@@ -161,7 +167,8 @@ export default function ReferenceTablePage() {
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getSortedRowModel: getSortedRowModel(),
-        getPaginationRowModel: getPaginationRowModel()
+        getPaginationRowModel: getPaginationRowModel(),
+        autoResetPageIndex: false,
     });
 
     return (
