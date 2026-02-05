@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, useCallback, Fragment } from 'react';
 import {
     Box,
     Stack,
@@ -56,17 +56,23 @@ export default function ReferenceTablePage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
 
-    const update = (index: number, key: keyof ReferenceLine, value: string) => {
-        const copy = [...rows];
-        copy[index][key] = value;
-        setRows(copy);
-    };
+    // Use useCallback to memoize the update function
+    const update = useCallback((index: number, key: keyof ReferenceLine, value: string) => {
+        setRows(prevRows => {
+            const copy = [...prevRows];
+            copy[index][key] = value;
+            return copy;
+        });
+    }, []);
 
-    const addRow = () =>
-        setRows([...rows, { reference: '', designation: '', marque: '' }]);
+    // Use useCallback to memoize the removeRow function
+    const removeRow = useCallback((index: number) => {
+        setRows(prevRows => prevRows.filter((_, i) => i !== index));
+    }, []);
 
-    const removeRow = (index: number) =>
-        setRows(rows.filter((_, i) => i !== index));
+    const addRow = useCallback(() => {
+        setRows(prevRows => [...prevRows, { reference: '', designation: '', marque: '' }]);
+    }, []);
 
     // TABLE COLUMNS
     const columns = useMemo<ColumnDef<ReferenceLine>[]>(() => [
@@ -129,10 +135,47 @@ export default function ReferenceTablePage() {
                     displayEmpty
                 >
                     <MenuItem value="">Choisir la marque</MenuItem>
+
+                    <MenuItem value="AUTRES">Autres</MenuItem>
+                    <MenuItem value="BMW">BMW</MenuItem>
+                    <MenuItem value="DONGFENG">DONGFENG</MenuItem>
+                    <MenuItem value="FORD">Ford</MenuItem>
                     <MenuItem value="HYUNDAI">HYUNDAI</MenuItem>
-                    <MenuItem value="KIA">KIA</MenuItem>
-                    <MenuItem value="FORD">FORD</MenuItem>
-                    <MenuItem value="TOYOTA">TOYOTA</MenuItem>
+
+                    <MenuItem value="ITALCAR">
+                        Groupe Fiat / Alfa Romeo / Lancia / Jeep
+                    </MenuItem>
+
+                    <MenuItem value="IVECO">IVECO</MenuItem>
+
+                    <MenuItem value="KIA">
+                        Groupe Kia / Hyundai
+                    </MenuItem>
+
+                    <MenuItem value="MAZ">Mazda</MenuItem>
+                    <MenuItem value="MER">Mercedes</MenuItem>
+                    <MenuItem value="MITS">Mitsubishi</MenuItem>
+                    <MenuItem value="NISS">Nissan</MenuItem>
+                    <MenuItem value="OPEL">Opel</MenuItem>
+
+                    <MenuItem value="PC">
+                        Peugeot / Citroën
+                    </MenuItem>
+
+                    <MenuItem value="PLEXUS">PLEXUS</MenuItem>
+                    <MenuItem value="PORSCHE">Porsche</MenuItem>
+
+                    <MenuItem value="REN">
+                        Renault / Dacia
+                    </MenuItem>
+
+                    <MenuItem value="SUZUKI">SUZUKI</MenuItem>
+                    <MenuItem value="TOY">Toyota</MenuItem>
+
+                    <MenuItem value="VW">
+                        Groupe Audi / Seat / Skoda / Volkswagen
+                    </MenuItem>
+
                 </Select>
             )
         },
@@ -148,7 +191,7 @@ export default function ReferenceTablePage() {
             ),
             size: 60
         }
-    ], [rows]);
+    ], [update, removeRow]); // Only depend on update and removeRow, not rows
 
     // REACT TABLE CONFIG
     const table = useReactTable<ReferenceLine>({
@@ -161,7 +204,8 @@ export default function ReferenceTablePage() {
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getSortedRowModel: getSortedRowModel(),
-        getPaginationRowModel: getPaginationRowModel()
+        getPaginationRowModel: getPaginationRowModel(),
+        autoResetPageIndex: false,
     });
 
     return (
