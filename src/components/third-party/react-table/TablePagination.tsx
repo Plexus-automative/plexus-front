@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 // material-ui
 import FormControl from '@mui/material/FormControl';
@@ -23,22 +23,25 @@ interface TablePaginationProps {
   initialPageSize?: number;
 }
 
-// ==============================|| TABLE PAGINATION ||============================== //
-
-export default function TablePagination({ getPageCount, setPageIndex, setPageSize, getState, initialPageSize }: TablePaginationProps) {
+export default function TablePagination({ 
+  getPageCount, 
+  setPageIndex, 
+  setPageSize, 
+  getState, 
+  initialPageSize 
+}: TablePaginationProps) {
   const [open, setOpen] = useState(false);
-  let options: number[] = [10, 25, 50, 100];
+  
+  // Generate options, include initialPageSize if provided
+  const getOptions = () => {
+    const baseOptions = [10, 25, 50, 100];
+    if (initialPageSize && !baseOptions.includes(initialPageSize)) {
+      return [...baseOptions, initialPageSize].sort((a, b) => a - b);
+    }
+    return baseOptions;
+  };
 
-  if (initialPageSize) {
-    options = [...options, initialPageSize]
-      .filter((item, index) => [...options, initialPageSize].indexOf(item) === index)
-      .sort(function (a, b) {
-        return a - b;
-      });
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => setPageSize(initialPageSize || 10), []);
+  const options = getOptions();
 
   const handleClose = () => {
     setOpen(false);
@@ -94,7 +97,13 @@ export default function TablePagination({ getPageCount, setPageIndex, setPageSiz
               const page = e.target.value ? Number(e.target.value) - 1 : 0;
               setPageIndex(page);
             }}
-            slotProps={{ htmlInput: { sx: { py: 0.75, px: 1.25, width: 36 } } }}
+            slotProps={{ 
+              htmlInput: { 
+                sx: { py: 0.75, px: 1.25, width: 36 },
+                min: 1,
+                max: getPageCount()
+              } 
+            }}
           />
         </Stack>
       </Grid>

@@ -36,7 +36,7 @@ const imgSms = '/assets/images/auth/sms.svg';
 const imgSmsLight = '/assets/images/auth/smsLight.svg';
 const imgFacebook = '/assets/images/auth/facebook.svg';
 const imgTwitter = '/assets/images/auth/twitter.svg';
-const imgGoogle = '/assets/images/auth/google.svg';
+
 
 const steps = ['1', '2', '3', '4', '5'];
 
@@ -151,8 +151,7 @@ export default function Login3Page() {
                         </Grid>
                         <Grid size={12}>
                           <AuthSocButton>
-                            <CardMedia component="img" src={imgGoogle} alt="Google" sx={{ my: 0, mx: 1.25, width: 'auto' }} /> Sign In with
-                            Google
+                            
                           </AuthSocButton>
                         </Grid>
                       </Grid>
