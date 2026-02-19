@@ -299,7 +299,7 @@ export default function ArticlesListPage() {
           vendorName: item.vendorName,
           description: item.ItemDescription,
           vendor: item.vendorName || '',
-          price: item.unitPrice || 0
+          price: item.ItemunitPrive || 0
         }));
         setItems(data);
       } catch (err) {
