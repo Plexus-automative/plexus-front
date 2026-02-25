@@ -1,7 +1,6 @@
-// app/api/services/NonTraiteeEmises.ts
 
 import { Traitee } from 'types/Traitee';
-import { recuesApi } from '../lib/RecusApi';
+import { recuesApi } from '../../lib/RecusApi';
 
 export const fetchTraitees = async (
   token: string,

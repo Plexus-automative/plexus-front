@@ -24,7 +24,9 @@ import {
     CircularProgress,
     Alert,
     MenuItem,
-    Snackbar
+    Snackbar,
+    Checkbox,
+    Input
 } from '@mui/material';
 import { Typography } from '@mui/material';
 
@@ -50,9 +52,9 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
+import { Eye, Edit } from '@wandersonalwes/iconsax-react';
 
-import { fetchEncours } from 'app/api/services/Emises/EncoursEmises';
+import { fetchEncours } from 'app/api/services/Recues/EncoursRecues';
 import { Encours, PurchaseOrderLine } from 'types/Encours';
 
 // Extend the PurchaseOrderLine type to include local UI properties
@@ -69,7 +71,7 @@ interface ExtendedEncours extends Omit<Encours, 'plexuspurchaseOrderLines'> {
     plexuspurchaseOrderLines?: ExtendedPurchaseOrderLine[];
 }
 
-export default function EmisesEncours() {
+export default function RecuesEncours() {
     const [data, setData] = useState<Encours[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
@@ -119,12 +121,13 @@ export default function EmisesEncours() {
                         payToVendorNumber: o.payToVendorNumber || '',
                         fullyReceived: o.fullyReceived ?? false,
                         status: o.status,
+                        ShippingAdvice: o.ShippingAdvice || '',
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
                 );
                 setTotalCount(result.totalCount || 0);
-
+                console.log('Data loaded:', result.data);
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch data');
                 console.error('Error loading data:', err);
@@ -213,15 +216,15 @@ export default function EmisesEncours() {
         },
         {
             header: 'Status',
-            accessorKey: 'status',
+            accessorKey: 'ShippingAdvice',
             enableSorting: false,
             cell: ({ getValue }) => {
-                const status = getValue<string>();
-                switch (status) {
-                    case 'Released':
-                        return <Chip color="success" label="Released" size="small" variant="light" />;
-                    case 'Open':
-                        return <Chip color="info" label="Open" size="small" variant="light" />;
+                const ShippingAdvice = getValue<string>();
+                switch (ShippingAdvice) {
+                    case 'Totalité':
+                        return <Chip color="success" label="Totalité" size="small" variant="light" />;
+                    case 'ConfirmationPartielle':
+                        return <Chip color="info" label="Confirmation Partielle" size="small" variant="light" />;
                     case 'Draft':
                         return <Chip color="warning" label="Draft" size="small" variant="light" />;
                     default:
@@ -254,11 +257,7 @@ export default function EmisesEncours() {
                             <Edit />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Delete">
-                        <IconButton color="error">
-                            <Trash />
-                        </IconButton>
-                    </Tooltip>
+                    {/* Delete action removed */}
                 </Stack>
             )
         }
@@ -456,16 +455,16 @@ export default function EmisesEncours() {
                                 <Table size="small" sx={{ mt: 2 }}>
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell>Item No</TableCell>
+                                            <TableCell>Num article</TableCell>
                                             <TableCell>Description</TableCell>
-                                            <TableCell>Qté</TableCell>
                                             <TableCell>Prix unitaire</TableCell>
-                                            <TableCell>Ancien prix</TableCell>
+                                            <TableCell>Qté</TableCell>
                                             <TableCell>Qté disponible</TableCell>
-                                            <TableCell>Qté valide</TableCell>
-                                            <TableCell>Qté expediee</TableCell>
-                                            <TableCell>Qté recue</TableCell>
-                                            <TableCell>Decision</TableCell>
+                                            <TableCell>Qté livree</TableCell>
+                                            <TableCell>Confirmation</TableCell>
+                                            <TableCell>Qté a livree</TableCell>
+                                            <TableCell>Date Livraison</TableCell>
+                                            <TableCell></TableCell>
                                         </TableRow>
                                     </TableHead>
 
@@ -477,16 +476,7 @@ export default function EmisesEncours() {
                                                     {/* Disabled but still showing text */}
                                                     <Typography variant="body2">{line.description || ''}</Typography>
                                                 </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        value={line.quantity ?? ''}
-                                                        disabled
-                                                        InputProps={{
-                                                            readOnly: true,
-                                                        }}
-                                                    />
-                                                </TableCell>
+
 
                                                 <TableCell>
                                                     <TextField
@@ -512,23 +502,14 @@ export default function EmisesEncours() {
                                                 <TableCell>
                                                     <TextField
                                                         size="small"
-                                                        value={line.OldUnitPrice ?? ''}
+                                                        value={line.quantity ?? ''}
                                                         disabled
                                                         InputProps={{
                                                             readOnly: true,
-                                                            style: {
-                                                                color: '#d32f2f',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                        sx={{
-                                                            '& .MuiInputBase-input.Mui-disabled': {
-                                                                WebkitTextFillColor: '#d32f2f',
-                                                                fontWeight: 'bold'
-                                                            }
                                                         }}
                                                     />
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <TextField
                                                         size="small"
@@ -600,36 +581,8 @@ export default function EmisesEncours() {
                                                     />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        disabled
-                                                        value={line.receivedQuantity ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.quantity) || 0;
+                                                    <Typography variant="body2">{line.Decision || ''}</Typography>
 
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receivedQuantity: numValue } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.deliveryQuantity) > Number(line.quantity)}
-                                                    />
                                                 </TableCell>
                                                 <TableCell>
                                                     <TextField
@@ -664,7 +617,12 @@ export default function EmisesEncours() {
                                                     />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Typography variant="body2">{line.Decision || ''}</Typography>
+                                                    <Input type="date"
+                                                        size="small"
+                                                        value={line.deliveryDate ? line.deliveryDate.split('T')[0] : ''} ></Input>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Checkbox></Checkbox>
 
                                                 </TableCell>
                                             </TableRow>
@@ -680,174 +638,14 @@ export default function EmisesEncours() {
                     ) : null}
                 </DialogContent>
                 <DialogActions>
-                    <Button
-                        variant="contained"
-                        onClick={async () => {
-                            if (!editedOrderLocal) return;
-
-                            try {
-                                const token = process.env.TOKEN || '';
-                                const companyId = '683ADB98-EA07-F111-8405-7CED8D83AA60';
-                                const orderId = editedOrderLocal.id;
-
-                                // Shipping advice = Totalité
-                                const shippingAdvice = 'Totalité';
-
-                                const orderUpdateBody: any = {
-                                    ShippingAdvice: shippingAdvice
-                                };
-
-                                // Update main order
-                                await fetch(
-                                    `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrders(${orderId})`,
-                                    {
-                                        method: 'PATCH',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${token}`,
-                                            'If-Match': '*'
-                                        },
-                                        body: JSON.stringify(orderUpdateBody)
-                                    }
-                                );
-
-                                // Update lines
-                                if (editedOrderLocal.plexuspurchaseOrderLines) {
-                                    for (const line of editedOrderLocal.plexuspurchaseOrderLines) {
-                                        const originalLine = editOrder?.plexuspurchaseOrderLines?.find(
-                                            (l: ExtendedPurchaseOrderLine) => l.id === line.id
-                                        );
-
-                                        if (!originalLine) continue;
-
-                                        const lineUpdateBody: any = {};
-
-                                        // Send receiveQuantity and Decision
-                                        if (Number(line.receiveQuantity) !== Number(originalLine.receiveQuantity)) {
-                                            lineUpdateBody.receiveQuantity = Number(line.receiveQuantity);
-                                        }
-
-                                        lineUpdateBody.Decision = "Disponible";
-
-                                        if (Object.keys(lineUpdateBody).length === 0) continue;
-
-                                        await fetch(
-                                            `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrderLines(${line.id})`,
-                                            {
-                                                method: 'PATCH',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                    Authorization: `Bearer ${token}`,
-                                                    'If-Match': '*'
-                                                },
-                                                body: JSON.stringify(lineUpdateBody)
-                                            }
-                                        );
-                                    }
-                                }
-
-                                // Update UI
-                                setData(prev =>
-                                    prev.map(d =>
-                                        d.id === editedOrderLocal.id ? editedOrderLocal as Encours : d
-                                    )
-                                );
-
-                                setEditOrder(null);
-                                setEditedOrderLocal(null);
-                                setShowSuccessAlert(true);
-
-                            } catch (error) {
-                                console.error('PATCH ERROR:', error);
-                                alert('Error while updating order');
-                            }
-                        }}
-                    >
-                        Totalité de disponible
+                    <Button variant="contained"  >
+                        Valider
                     </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={async () => {
-                            if (!editedOrderLocal) return;
 
-                            try {
-                                const token = process.env.TOKEN || '';
-                                const companyId = '683ADB98-EA07-F111-8405-7CED8D83AA60';
-                                const orderId = editedOrderLocal.id;
-
-                                // Shipping advice = LivraisonDispo
-                                const shippingAdvice = 'LivraisonDispo';
-
-                                await fetch(
-                                    `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrders(${orderId})`,
-                                    {
-                                        method: 'PATCH',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${token}`,
-                                            'If-Match': '*'
-                                        },
-                                        body: JSON.stringify({ ShippingAdvice: shippingAdvice })
-                                    }
-                                );
-
-                                if (editedOrderLocal.plexuspurchaseOrderLines) {
-                                    for (const line of editedOrderLocal.plexuspurchaseOrderLines) {
-                                        const originalLine = editOrder?.plexuspurchaseOrderLines?.find(
-                                            (l: ExtendedPurchaseOrderLine) => l.id === line.id
-                                        );
-
-                                        if (!originalLine) continue;
-
-                                        const lineUpdateBody: any = {
-                                            receiveQuantity: Number(line.quantity), // send quantity
-                                            Decision: "Disponible"
-                                        };
-
-                                        await fetch(
-                                            `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrderLines(${line.id})`,
-                                            {
-                                                method: 'PATCH',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                    Authorization: `Bearer ${token}`,
-                                                    'If-Match': '*'
-                                                },
-                                                body: JSON.stringify(lineUpdateBody)
-                                            }
-                                        );
-                                    }
-                                }
-
-                                setData(prev =>
-                                    prev.map(d =>
-                                        d.id === editedOrderLocal.id ? editedOrderLocal as Encours : d
-                                    )
-                                );
-
-                                setEditOrder(null);
-                                setEditedOrderLocal(null);
-                                setShowSuccessAlert(true);
-
-                            } catch (error) {
-                                console.error('PATCH ERROR:', error);
-                                alert('Error while updating order');
-                            }
-                        }}
-                    >
-                        Le disponible
-                    </Button>
                     <Button variant="outlined" >
                         Annuler
                     </Button>
-                    <Button
-                        onClick={handleAnnuler}
-                        variant="contained"
-                        color="error"
-                    >
-                        Quitter
-                    </Button>
+
 
 
 

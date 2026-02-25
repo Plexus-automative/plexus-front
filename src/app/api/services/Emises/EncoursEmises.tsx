@@ -1,7 +1,7 @@
 // app/api/services/NonTraiteeEmises.ts
 
 import { Encours } from 'types/Encours';
-import { emisesApi } from '../../api/lib/EmisesApi';
+import { emisesApi } from '../../lib/EmisesApi';
 
 export const fetchEncours = async (
     token: string,
@@ -25,11 +25,11 @@ export const fetchEncours = async (
         '@odata.count'?: number;
     }>(
         `/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)/PlexuspurchaseOrders` +
-        `?$filter=fullyReceived eq false and status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité')` +
+        `?$filter=status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle')` +
         `&$orderby=${orderBy}` +
         `&$skip=${skip}` +
         `&$top=${pageSize}` +
-        `&$count=true`
+        `&$count=true&$expand=PlexuspurchaseOrderLines`
 
         ,
         {

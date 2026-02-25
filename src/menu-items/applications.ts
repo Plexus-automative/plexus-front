@@ -131,19 +131,10 @@ const applications: NavItemType = {
     {
       id: "e-commerce",
       title: "e-commerce",
-      type: "collapse",
+      type: "item",
       breadcrumbs: false,
       icon: icons.ecommerce,
       url: "/apps/e-commerce/checkout",
-      children: [
-        {
-          id: "product-list",
-          title: "product-list",
-          type: "item",
-          breadcrumbs: false,
-          url: "/apps/e-commerce/product-list",
-        },
-      ]
     },
     {
       id: "add-reference",

@@ -49,18 +49,18 @@ import {
 import IconButton from 'components/@extended/IconButton';
 import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
 
-import { NonTraitee } from 'types/NonTraitee';
-import { fetchTraitees } from 'app/api/services/TraiteeEmises';
+import { fetchTraitees } from 'app/api/services/Emises/TraiteeEmises';
+import { Traitee } from 'types/Traitee';
 
 export default function EmisesTraitees() {
-    const [data, setData] = useState<NonTraitee[]>([]);
+    const [data, setData] = useState<Traitee[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
         { id: 'orderDate', desc: true }
     ]); const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-    const [editOrder, setEditOrder] = useState<NonTraitee | null>(null);
+    const [editOrder, setEditOrder] = useState<Traitee | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +91,7 @@ export default function EmisesTraitees() {
                     sort?.desc
                 );
                 setData(
-                    result.data.map((o: NonTraitee, index: number) => ({
+                    result.data.map((o: Traitee, index: number) => ({
                         id: pageIndex * pageSize + index + 1,
                         number: o.number,
                         orderDate: o.orderDate,
@@ -115,7 +115,7 @@ export default function EmisesTraitees() {
         loadData();
     }, [pageIndex, pageSize, sorting]);
 
-    const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
+    const columns = useMemo<ColumnDef<Traitee>[]>(() => [
         {
             id: 'select',
             header: ({ table }) => (

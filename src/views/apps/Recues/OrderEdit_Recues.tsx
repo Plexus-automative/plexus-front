@@ -10,6 +10,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  MenuItem,
   Button,
   Stack,
   Box,
@@ -60,6 +61,8 @@ export default function OrderEdit_Recues({ lines, onClose }: Props) {
               <TableCell>Prix Unitaire</TableCell>
               <TableCell>Quantité</TableCell>
               <TableCell>Quantité Livrée</TableCell>
+              <TableCell>Confirme ?</TableCell>
+              <TableCell>Date livraison</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -113,6 +116,46 @@ export default function OrderEdit_Recues({ lines, onClose }: Props) {
                     />
                   ) : (
                     line.quantiteLivree
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingIndex === index ? (
+                    <TextField
+                      select
+                      size="small"
+                      value={editValues.confirmation ?? line.confirmation ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value as string;
+                        setEditValues({
+                          ...editValues,
+                          confirmation: val,
+                          dateLivraison: val === 'Liv pevu a date' ? (editValues.dateLivraison ?? line.dateLivraison ?? '') : ''
+                        });
+                      }}
+                    >
+                      <MenuItem value="Disponible">Disponible</MenuItem>
+                      <MenuItem value="Non Disponible">Non Disponible</MenuItem>
+                      <MenuItem value="Liv pevu a date">Liv pevu a date</MenuItem>
+                    </TextField>
+                  ) : (
+                    line.confirmation
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingIndex === index ? (
+                    ((editValues.confirmation ?? line.confirmation) === 'Liv pevu a date') ? (
+                      <TextField
+                        type="date"
+                        size="small"
+                        value={editValues.dateLivraison ?? line.dateLivraison ?? ''}
+                        onChange={(e) => setEditValues({ ...editValues, dateLivraison: e.target.value })}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    ) : (
+                      ''
+                    )
+                  ) : (
+                    (line.confirmation === 'Liv pevu a date') ? line.dateLivraison : ''
                   )}
                 </TableCell>
                 <TableCell>

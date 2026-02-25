@@ -49,7 +49,7 @@ import {
 import IconButton from 'components/@extended/IconButton';
 import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
 
-import { fetchNonTraitees } from 'app/api/services/NonTraiteeEmises';
+import { fetchNonTraitees } from 'app/api/services/Emises/NonTraiteeEmises';
 import { NonTraitee } from 'types/NonTraitee';
 
 export default function EmisesNonTraitees() {
@@ -98,8 +98,11 @@ export default function EmisesNonTraitees() {
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
                         fullyReceived: o.fullyReceived ?? false,
+                        ShippingAdvice: o.ShippingAdvice,
                         status: o.status,
-                        lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString()
+                        lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
+                        plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [] // ✅ ADD THIS
+
                     }))
                 );
                 setTotalCount(result.totalCount || 0);
@@ -150,7 +153,7 @@ export default function EmisesNonTraitees() {
         },
         {
             header: 'Status',
-            accessorKey: 'status',
+            accessorKey: 'ShippingAdvice',
             enableSorting: false,
             cell: ({ getValue }) => {
                 const status = getValue<string>();
@@ -159,8 +162,8 @@ export default function EmisesNonTraitees() {
                         return <Chip color="success" label="Released" size="small" variant="light" />;
                     case 'Open':
                         return <Chip color="info" label="Open" size="small" variant="light" />;
-                    case 'Draft':
-                        return <Chip color="warning" label="Draft" size="small" variant="light" />;
+                    case 'Attente':
+                        return <Chip color="warning" label="Attente" size="small" variant="light" />;
                     default:
                         return <Chip color="default" label={status} size="small" />;
                 }
@@ -183,19 +186,7 @@ export default function EmisesNonTraitees() {
                             <Eye />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Edit">
-                        <IconButton
-                            color="primary"
-                            onClick={() => setEditOrder(row.original)}
-                        >
-                            <Edit />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                        <IconButton color="error">
-                            <Trash />
-                        </IconButton>
-                    </Tooltip>
+               
                 </Stack>
             )
         }
@@ -300,7 +291,44 @@ export default function EmisesNonTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                {/* Add view/edit content here */}
+                                                                <strong>Purchase Order Lines</strong>
+
+                                                                {row.original.plexuspurchaseOrderLines &&
+                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (
+                                                                    <Table size="small" sx={{ mt: 2 }}>
+                                                                        <TableHead>
+                                                                            <TableRow>
+                                                                                <TableCell>Seq</TableCell>
+                                                                                <TableCell>Item No</TableCell>
+                                                                                <TableCell>Description</TableCell>
+                                                                                <TableCell>Qty</TableCell>
+                                                                                <TableCell>Unit Cost</TableCell>
+                                                                                <TableCell>Tax %</TableCell>
+                                                                                <TableCell>Total (TTC)</TableCell>
+                                                                                <TableCell>Expected Receipt</TableCell>
+                                                                            </TableRow>
+                                                                        </TableHead>
+
+                                                                        <TableBody>
+                                                                            {row.original.plexuspurchaseOrderLines.map((line) => (
+                                                                                <TableRow key={line.id}>
+                                                                                    <TableCell>{line.sequence}</TableCell>
+                                                                                    <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                    <TableCell>{line.description}</TableCell>
+                                                                                    <TableCell>{line.quantity}</TableCell>
+                                                                                    <TableCell>{line.directUnitCost}</TableCell>
+                                                                                    <TableCell>{line.taxPercent}%</TableCell>
+                                                                                    <TableCell>{line.amountIncludingTax}</TableCell>
+                                                                                    <TableCell>{line.expectedReceiptDate}</TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                        </TableBody>
+                                                                    </Table>
+                                                                ) : (
+                                                                    <Box mt={2}>
+                                                                        <Alert severity="info">No purchase lines available</Alert>
+                                                                    </Box>
+                                                                )}
                                                             </Box>
                                                         </Collapse>
                                                     </TableCell>

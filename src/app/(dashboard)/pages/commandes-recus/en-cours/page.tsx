@@ -1,7 +1,7 @@
 // project-imports
-import EmisesTraitees from "views/apps/Emises/Traitees/EmisesTraitees";
+import RecuesEncours from "views/apps/Recues/Encours/RecuesEncours";
 // ==============================|| CUSTOMER - LIST ||============================== //
 
 export default function CustomerListPage() {
-  return <EmisesTraitees />;
+  return <RecuesEncours />;
 }

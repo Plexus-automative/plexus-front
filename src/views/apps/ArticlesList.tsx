@@ -47,6 +47,7 @@ import { ShoppingCart } from "@wandersonalwes/iconsax-react";
 interface Item {
   id: string;
   number: string;
+  systemID:string;
   description: string;
   quantity: number;
   vendor: string;
@@ -197,9 +198,7 @@ export default function ArticlesListPage() {
 
     const baseUrl = `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)`;
 
-    // ================================
-    // 1️⃣ CREATE PURCHASE HEADER
-    // ================================
+
     const headerPayload = {
       vendorNumber: selectedItem.number,
       orderDate: today,
@@ -220,16 +219,14 @@ export default function ArticlesListPage() {
       }
     );
 
-    const purchaseOrderId = headerResponse.data.id; // 🔥 THIS IS IMPORTANT
+    const purchaseOrderId = headerResponse.data.id;
 
     console.log("Purchase Header Created:", purchaseOrderId);
 
-    // ================================
-    // 2️⃣ CREATE PURCHASE LINE
-    // ================================
     const linePayload = {
       lineType: "Item",
-      lineObjectNumber: searchTerm, // <-- your searched reference
+      lineObjectNumber: searchTerm,
+      directUnitCost: selectedItem.price,
       quantity: quantity
     };
 

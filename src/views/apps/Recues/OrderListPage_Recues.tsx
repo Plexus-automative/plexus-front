@@ -40,8 +40,8 @@ import MainCard from 'components/MainCard';
 import { CSVExport, DebouncedInput, HeaderSort, IndeterminateCheckbox, RowSelection, SelectColumnSorting, TablePagination } from 'components/third-party/react-table';
 import IconButton from 'components/@extended/IconButton';
 import { Add, Edit, Eye, Trash } from '@wandersonalwes/iconsax-react';
-import OrderEdit from '../Emises/OrderEdit_Emises';
-import OrderTable from '../Emises/OrderTable_Emises';
+import OrderEdit from '../Recues/OrderEdit_Recues';
+import OrderTable from '../Recues/OrderTable_Recues';
 import { Order, OrderRecues } from 'types/order';
 
 export default function OrderListPage_Recues() {

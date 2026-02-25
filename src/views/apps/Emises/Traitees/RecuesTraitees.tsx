@@ -49,7 +49,7 @@ import {
 import IconButton from 'components/@extended/IconButton';
 import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
 
-import { fetchTraitees } from 'app/api/services/TraiteeRecues';
+import { fetchTraitees } from 'app/api/services/Recues/TraiteeRecues';
 import { Traitee } from 'types/Traitee';
 
 export default function RecuesTraitees() {

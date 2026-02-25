@@ -23,7 +23,7 @@ import {
     CircularProgress,
     Alert
 } from '@mui/material';
-
+import { Traitee } from 'types/Traitee';
 import {
     ColumnDef,
     flexRender,
@@ -49,18 +49,17 @@ import {
 import IconButton from 'components/@extended/IconButton';
 import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
 
-import { NonTraitee } from 'types/NonTraitee';
-import { fetchTraitees } from 'app/api/services/TraiteeEmises';
+import { fetchTraitees } from 'app/api/services/Recues/TraiteeRecues';
 
 export default function RecuesTraitees() {
-    const [data, setData] = useState<NonTraitee[]>([]);
+    const [data, setData] = useState<Traitee[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
         { id: 'orderDate', desc: true }
     ]); const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-    const [editOrder, setEditOrder] = useState<NonTraitee | null>(null);
+    const [editOrder, setEditOrder] = useState<Traitee | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -91,8 +90,7 @@ export default function RecuesTraitees() {
                     sort?.desc
                 );
                 setData(
-                    result.data.map((o: NonTraitee, index: number) => ({
-                        id: pageIndex * pageSize + index + 1,
+                    result.data.map((o: Traitee, index: number) => ({
                         number: o.number,
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
@@ -115,7 +113,7 @@ export default function RecuesTraitees() {
         loadData();
     }, [pageIndex, pageSize, sorting]);
 
-    const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
+    const columns = useMemo<ColumnDef<Traitee>[]>(() => [
         {
             id: 'select',
             header: ({ table }) => (
