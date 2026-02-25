@@ -42,7 +42,6 @@ import { Eye, EyeSlash } from '@wandersonalwes/iconsax-react';
 
 const Auth0 = '/assets/images/icons/auth0.svg';
 const Cognito = '/assets/images/icons/aws-cognito.svg';
-const Google = '/assets/images/icons/google.svg';
 
 // ============================|| JWT - REGISTER ||============================ //
 
@@ -284,17 +283,7 @@ export default function AuthRegister({ providers, csrfToken }: any) {
                 <Divider sx={{ mt: 2 }}>
                   <Typography variant="caption"> Sign up with</Typography>
                 </Divider>
-                {provider.id === 'google' && (
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    fullWidth={!downSM}
-                    startIcon={<Image src={Google} alt="Twitter" width={16} height={16} />}
-                    onClick={() => signIn(provider.id, { callbackUrl: APP_DEFAULT_PATH })}
-                  >
-                    {!downSM && 'Google'}
-                  </Button>
-                )}
+
                 {provider.id === 'auth0' && (
                   <Button
                     variant="outlined"

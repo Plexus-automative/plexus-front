@@ -68,10 +68,13 @@ export function MenuFromAPI() {
     return list;
   };
 
-  const childrenList: NavItemType[] | undefined = menu?.children?.map((subList: NavItemType) => {
-    return itemList(subList);
-  });
+  const childrenList: NavItemType[] | undefined = menu?.children
+    ?.filter((subList: NavItemType) => subList.id !== 'components')
+    .map((subList: NavItemType) => {
+      return itemList(subList);
+    });
 
+    
   const menuList = fillItem(menu, childrenList);
   return menuList;
 }

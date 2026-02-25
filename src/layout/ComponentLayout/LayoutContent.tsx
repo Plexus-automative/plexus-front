@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode } from 'react';
 
 // material-ui
 import { styled } from '@mui/material/styles';
@@ -8,14 +8,12 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import Box from '@mui/material/Box';
 
 // project-imports
-import Drawer from './Drawer';
-import { handlerComponentDrawer, useGetMenuMaster } from 'api/menu';
-import { DRAWER_WIDTH } from 'config';
+import { useGetMenuMaster } from 'api/menu';
 
 // component content
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{ open: boolean }>(({ theme }) => ({
+const Main = styled('main')(({ theme }) => ({
   minHeight: `calc(100vh - 180px)`,
-  width: `calc(100% - ${DRAWER_WIDTH}px)`,
+  width: '100%',
   flexGrow: 1,
   transition: theme.transitions.create('margin', {
     easing: theme.transitions.easing.sharp,
@@ -23,18 +21,7 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{ 
   }),
   [theme.breakpoints.down('md')]: {
     paddingLeft: 0
-  },
-  variants: [
-    {
-      props: ({ open }) => open,
-      style: {
-        transition: theme.transitions.create('margin', {
-          easing: theme.transitions.easing.easeOut,
-          duration: theme.transitions.duration.enteringScreen
-        })
-      }
-    }
-  ]
+  }
 }));
 
 interface Props {
@@ -44,18 +31,12 @@ interface Props {
 // ==============================|| COMPONENTS LAYOUT ||============================== //
 
 export default function LayoutContent({ children }: Props) {
-  const downMD = useMediaQuery((theme) => theme.breakpoints.down('md'));
-
-  const { menuMaster } = useGetMenuMaster();
-
-  useEffect(() => {
-    handlerComponentDrawer(!downMD);
-  }, [downMD]);
+  // keep media hook in case layout adjustments are added later
+  useMediaQuery((theme) => theme.breakpoints.down('md'));
 
   return (
-    <Box sx={{ display: 'flex', pt: menuMaster.isComponentDrawerOpened ? { xs: 0, md: 2.5 } : 0 }}>
-      <Drawer />
-      <Main open={menuMaster.isComponentDrawerOpened}>{children}</Main>
+    <Box sx={{ display: 'flex', pt: 0 }}>
+      <Main>{children}</Main>
     </Box>
   );
-}
+} 

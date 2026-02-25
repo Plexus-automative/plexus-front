@@ -38,7 +38,7 @@ const icons = {
   link: Link1,
   fileManager: DocumentFilter,
   mail: DirectInbox,
-  reference : NoteAdd
+  reference: NoteAdd
 };
 
 // ==============================|| MENU ITEMS - APPLICATIONS ||============================== //
@@ -63,21 +63,20 @@ const applications: NavItemType = {
       type: "collapse",
       breadcrumbs: false,
       icon: icons.invoice,
-      url: "/pages/commandes-emis",
       children: [
         {
           id: "non-traite",
           title: "non-traite",
           type: "item",
           breadcrumbs: false,
-          url: "/pages/commandes-emis",
+          url: "/pages/commandes-emis/non-traitees",
         },
         {
           id: "traite",
           title: "traite",
           type: "item",
           breadcrumbs: false,
-          url: "/pages/commandes-emis",
+          url: "/pages/commandes-emis/traitees",
         },
 
         {
@@ -85,17 +84,41 @@ const applications: NavItemType = {
           title: "en-cours",
           type: "item",
           breadcrumbs: false,
-          url: "/pages/commandes-emis",
+          url: "/pages/commandes-emis/en-cours",
         },
       ]
     },
     {
       id: "commandes-recus",
       title: "commandes-recus",
-      type: "item",
+      type: "collapse",
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-recus",
+      children: [
+        {
+          id: "non-traite",
+          title: "non-traite",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-recus/non-traitees",
+        },
+        {
+          id: "traite",
+          title: "traite",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-recus/traitees",
+        },
+
+        {
+          id: "en-cours",
+          title: "en-cours",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-recus/en-cours",
+        },
+      ]
     },
     {
       id: "commandes-livrees",
@@ -108,19 +131,10 @@ const applications: NavItemType = {
     {
       id: "e-commerce",
       title: "e-commerce",
-      type: "collapse",
+      type: "item",
       breadcrumbs: false,
       icon: icons.ecommerce,
       url: "/apps/e-commerce/checkout",
-      children: [
-        {
-          id: "product-list",
-          title: "product-list",
-          type: "item",
-          breadcrumbs: false,
-          url: "/apps/e-commerce/product-list",
-        },
-      ]
     },
     {
       id: "add-reference",
