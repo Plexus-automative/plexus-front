@@ -1,8 +1,5 @@
-import axios from 'axios';
+import axiosServices from 'utils/axios';
 
-export const emisesApi = axios.create({
-  baseURL: process.env.NEXT_API_PLEXUS,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+// Re-export axiosServices so that session headers (X-Customer-No, X-Vendor-No)
+// are automatically attached via the request interceptor.
+export const emisesApi = axiosServices;

@@ -7,7 +7,7 @@ export interface Encours {
   fullyReceived: boolean;
   status: string;
   lastModifiedDateTime: string;
-  plexuspurchaseOrderLines?: PurchaseOrderLine[]; 
+  plexuspurchaseOrderLines?: PurchaseOrderLine[];
   ShippingAdvice?: string;
 
 }
@@ -25,5 +25,6 @@ export interface PurchaseOrderLine {
   receiveQuantity?: number;
   OldUnitPrice?: number;
   QuantityAvailable?: number;
-  receivedQuantity  ?: number;
+  receivedQuantity?: number;
+  OldRemplacementItemNo?: string;
 }

@@ -163,7 +163,7 @@ export default function EmisesNonTraitees() {
                     case 'Open':
                         return <Chip color="info" label="Open" size="small" variant="light" />;
                     case 'Attente':
-                        return <Chip color="warning" label="Attente" size="small" variant="light" />;
+                        return <Chip color="warning" label="En Attente" size="small" variant="light" />;
                     default:
                         return <Chip color="default" label={status} size="small" />;
                 }
@@ -186,7 +186,7 @@ export default function EmisesNonTraitees() {
                             <Eye />
                         </IconButton>
                     </Tooltip>
-               
+
                 </Stack>
             )
         }

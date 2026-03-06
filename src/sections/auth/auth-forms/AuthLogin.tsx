@@ -62,12 +62,12 @@ export default function AuthLogin({ providers, csrfToken }: any) {
     <>
       <Formik
         initialValues={{
-          email: 'info@phoenixcoded.co',
-          password: '123456',
+          email: 'DCME',
+          password: 'dcm2021',
           submit: null
         }}
         validationSchema={Yup.object().shape({
-          email: Yup.string().email('Must be a valid email').max(255).required('Email is required'),
+          email: Yup.string().max(255).required('Username is required'),
           password: Yup.string()
             .required('Password is required')
             .test('no-leading-trailing-whitespace', 'Password can not start or end with spaces', (value) => value === value.trim())
@@ -98,7 +98,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
             <Grid container spacing={3}>
               <Grid size={12}>
                 <Stack sx={{ gap: 1 }}>
-                  <InputLabel htmlFor="email-login">Email Address</InputLabel>
+                  <InputLabel htmlFor="email-login">Username</InputLabel>
                   <OutlinedInput
                     id="email-login"
                     type="email"
@@ -106,7 +106,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
                     name="email"
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    placeholder="Enter email address"
+                    placeholder="Enter username"
                     fullWidth
                     error={Boolean(touched.email && errors.email)}
                   />
@@ -195,7 +195,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
           justifyContent={{ xs: 'space-around', sm: 'space-between' }}
           sx={{ mt: 3, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 }, ml: { xs: 0, sm: -0.5 } } }}
         >
-          
+
         </Stack>
       )}
       {!providers && (

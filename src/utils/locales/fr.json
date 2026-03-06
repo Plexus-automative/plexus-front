@@ -221,5 +221,7 @@
   "cancel": "Annuler",
   "add-adaptable-items": "Ajouter les articles adaptables",
   "search_placeholder": "Rechercher {count} articles...",
-  "add-to-basket-success": "Commande créée avec succès!"
+  "add-to-basket-success": "Commande créée avec succès!",
+  "Panier":"Panier",
+  "validation-reception":"Validation de la réception"
 }

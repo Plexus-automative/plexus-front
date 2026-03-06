@@ -1,281 +1,364 @@
 'use client';
 
-import { useState, useMemo, useCallback, Fragment } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-    Box,
     Stack,
+    Box,
+    Typography,
+    TextField,
+    Select,
+    MenuItem,
+    Button,
+    IconButton,
+    CircularProgress,
+    Tooltip,
+    Alert,
+    Snackbar,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
-    TextField,
-    Select,
-    MenuItem,
-    Tooltip,
+    Paper,
     Divider,
-    Button
+    useTheme,
+    alpha,
+    Grid,
+    InputAdornment
 } from '@mui/material';
 
+// third-party
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    Add,
+    Trash,
+    TickCircle,
+    Shop,
+    NoteAdd,
+    Global,
+    Flash,
+    Setting,
+    DocumentText,
+    ArrowRight
+} from '@wandersonalwes/iconsax-react';
+
+// project-imports
 import MainCard from 'components/MainCard';
-import {
-    DebouncedInput,
-    HeaderSort,
-    IndeterminateCheckbox,
-    RowSelection,
-    TablePagination
-} from 'components/third-party/react-table';
-
-import {
-    ColumnDef,
-    flexRender,
-    getCoreRowModel,
-    getFilteredRowModel,
-    getSortedRowModel,
-    getPaginationRowModel,
-    SortingState,
-    useReactTable
-} from '@tanstack/react-table';
-
-import IconButton from 'components/@extended/IconButton';
-import { Add, Trash } from '@wandersonalwes/iconsax-react';
+import { fetchVendors, saveReferences } from 'app/api/services/ReferenceService';
 
 interface ReferenceLine {
+    id: string;
     reference: string;
     designation: string;
     marque: string;
 }
 
+interface Vendor {
+    number: string;
+    displayName: string;
+}
+
+const BRANDS = [
+    { value: 'AUTRES', label: 'Autres' },
+    { value: 'BMW', label: 'Bmw' },
+    { value: 'FORD', label: 'Ford' },
+    { value: 'HYUNDAI', label: 'HYUNDAI' },
+    { value: 'FIAT', label: 'Groupe Fiat /Alpha Romeo /Lancia/jeep' },
+    { value: 'IVECO', label: 'IVECO' },
+    { value: 'KIA', label: 'Groupe Kia / Hyundai' },
+    { value: 'MAZDA', label: 'Mazda' },
+    { value: 'MERCEDES', label: 'Mercedes' },
+    { value: 'MITSUBISHI', label: 'Mitsubishi' },
+    { value: 'NISSAN', label: 'Nissan' },
+    { value: 'OPEL', label: 'Opel' },
+    { value: 'PEUGEOT', label: 'Peugeot / Citroën' },
+    { value: 'PLEXUS', label: 'PLEXUS' },
+    { value: 'PORSCHE', label: 'PORSCHE' },
+    { value: 'RENAULT', label: 'Renault / Dacia' },
+    { value: 'SUZUKI', label: 'SUZUKI' },
+    { value: 'TOYOTA', label: 'Toyota' },
+    { value: 'AUDI', label: 'Groupe Audi / Seat / Skoda / Volkswagen' }
+];
+
 export default function ReferenceTablePage() {
+    const theme = useTheme();
     const [rows, setRows] = useState<ReferenceLine[]>([
-        { reference: '', designation: '', marque: '' }
+        { id: '1', reference: '', designation: '', marque: '' },
+        { id: '2', reference: '', designation: '', marque: '' },
+        { id: '3', reference: '', designation: '', marque: '' },
+        { id: '4', reference: '', designation: '', marque: '' }
     ]);
 
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [globalFilter, setGlobalFilter] = useState('');
-    const [rowSelection, setRowSelection] = useState({});
+    const [vendors, setVendors] = useState<Vendor[]>([]);
+    const [selectedVendor, setSelectedVendor] = useState<string>('');
+    const [loadingVendors, setLoadingVendors] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
 
-    // Use useCallback to memoize the update function
-    const update = useCallback((index: number, key: keyof ReferenceLine, value: string) => {
-        setRows(prevRows => {
-            const copy = [...prevRows];
-            copy[index][key] = value;
-            return copy;
-        });
+    // Fetch vendors on mount
+    useEffect(() => {
+        const loadVendors = async () => {
+            try {
+                const data = await fetchVendors();
+                console.log('API Response:', data);
+
+                // FIXED VENDOR MAPPING: Ensuring number/ID is correctly captured
+                const vendorList = (data.value || []).map((v: any) => {
+                    // Correct fournisseur ID is v.no
+                    const id = v.no || v.No || v.number || v.id;
+                    const name = v.name || v.displayName || v.Name || v.displayName2 || id;
+                    return {
+                        number: id,
+                        displayName: name
+                    };
+                });
+
+                console.log('Mapped Vendors:', vendorList);
+                setVendors(vendorList);
+            } catch (err) {
+                console.error('Error fetching vendors:', err);
+                setError('Erreur lors du chargement des fournisseur');
+            } finally {
+                setLoadingVendors(false);
+            }
+        };
+        loadVendors();
     }, []);
 
-    // Use useCallback to memoize the removeRow function
-    const removeRow = useCallback((index: number) => {
-        setRows(prevRows => prevRows.filter((_, i) => i !== index));
+    const updateRow = useCallback((id: string, key: keyof ReferenceLine, value: string) => {
+        setRows(prev => prev.map(row => row.id === id ? { ...row, [key]: value } : row));
     }, []);
 
     const addRow = useCallback(() => {
-        setRows(prevRows => [...prevRows, { reference: '', designation: '', marque: '' }]);
+        setRows(prev => [...prev, { id: Date.now().toString(), reference: '', designation: '', marque: '' }]);
     }, []);
 
-    // TABLE COLUMNS
-    const columns = useMemo<ColumnDef<ReferenceLine>[]>(() => [
-        {
-            id: 'select',
-            header: ({ table }) => (
-                <IndeterminateCheckbox
-                    checked={table.getIsAllRowsSelected()}
-                    indeterminate={table.getIsSomeRowsSelected()}
-                    onChange={table.getToggleAllRowsSelectedHandler()}
-                />
-            ),
-            cell: ({ row }) => (
-                <IndeterminateCheckbox
-                    checked={row.getIsSelected()}
-                    onChange={row.getToggleSelectedHandler()}
-                />
-            ),
-            size: 40
-        },
-        {
-            header: 'Référence *',
-            accessorKey: 'reference',
-            cell: ({ row }) => (
-                <TextField
-                    fullWidth
-                    size="small"
-                    value={row.original.reference}
-                    onChange={(e) =>
-                        update(row.index, 'reference', e.target.value)
-                    }
-                />
-            )
-        },
-        {
-            header: 'Désignation *',
-            accessorKey: 'designation',
-            cell: ({ row }) => (
-                <TextField
-                    fullWidth
-                    size="small"
-                    value={row.original.designation}
-                    onChange={(e) =>
-                        update(row.index, 'designation', e.target.value)
-                    }
-                />
-            )
-        },
-        {
-            header: 'Marque *',
-            accessorKey: 'marque',
-            cell: ({ row }) => (
-                <Select
-                    fullWidth
-                    size="small"
-                    value={row.original.marque}
-                    onChange={(e) =>
-                        update(row.index, 'marque', e.target.value)
-                    }
-                    displayEmpty
-                >
-                    <MenuItem value="">Choisir la marque</MenuItem>
+    const removeRow = useCallback((id: string) => {
+        setRows(prev => prev.length > 1 ? prev.filter(row => row.id !== id) : prev);
+    }, []);
 
-                    <MenuItem value="AUTRES">Autres</MenuItem>
-                    <MenuItem value="BMW">BMW</MenuItem>
-                    <MenuItem value="DONGFENG">DONGFENG</MenuItem>
-                    <MenuItem value="FORD">Ford</MenuItem>
-                    <MenuItem value="HYUNDAI">HYUNDAI</MenuItem>
+    const handleSave = async () => {
+        console.log('Attempting to save with vendor:', selectedVendor);
 
-                    <MenuItem value="ITALCAR">
-                        Groupe Fiat / Alfa Romeo / Lancia / Jeep
-                    </MenuItem>
-
-                    <MenuItem value="IVECO">IVECO</MenuItem>
-
-                    <MenuItem value="KIA">
-                        Groupe Kia / Hyundai
-                    </MenuItem>
-
-                    <MenuItem value="MAZ">Mazda</MenuItem>
-                    <MenuItem value="MER">Mercedes</MenuItem>
-                    <MenuItem value="MITS">Mitsubishi</MenuItem>
-                    <MenuItem value="NISS">Nissan</MenuItem>
-                    <MenuItem value="OPEL">Opel</MenuItem>
-
-                    <MenuItem value="PC">
-                        Peugeot / Citroën
-                    </MenuItem>
-
-                    <MenuItem value="PLEXUS">PLEXUS</MenuItem>
-                    <MenuItem value="PORSCHE">Porsche</MenuItem>
-
-                    <MenuItem value="REN">
-                        Renault / Dacia
-                    </MenuItem>
-
-                    <MenuItem value="SUZUKI">SUZUKI</MenuItem>
-                    <MenuItem value="TOY">Toyota</MenuItem>
-
-                    <MenuItem value="VW">
-                        Groupe Audi / Seat / Skoda / Volkswagen
-                    </MenuItem>
-
-                </Select>
-            )
-        },
-        {
-            header: 'Actions',
-            meta: { align: 'center' },
-            cell: ({ row }) => (
-                <Tooltip title="Supprimer">
-                    <IconButton color="error" onClick={() => removeRow(row.index)}>
-                        <Trash />
-                    </IconButton>
-                </Tooltip>
-            ),
-            size: 60
+        if (!selectedVendor) {
+            setError('Veuillez sélectionner un fournisseur avant d’ajouter.');
+            return;
         }
-    ], [update, removeRow]); // Only depend on update and removeRow, not rows
 
-    // REACT TABLE CONFIG
-    const table = useReactTable<ReferenceLine>({
-        data: rows,
-        columns,
-        state: { sorting, globalFilter, rowSelection },
-        onSortingChange: setSorting,
-        onRowSelectionChange: setRowSelection,
-        onGlobalFilterChange: setGlobalFilter,
-        getCoreRowModel: getCoreRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        autoResetPageIndex: false,
-    });
+        const validRows = rows.filter(r => r.reference.trim() !== '' || r.designation.trim() !== '');
+        if (validRows.length === 0) {
+            setError('Veuillez remplir au moins une ligne (Réf ou Désignation).');
+            return;
+        }
+
+        setSaving(true);
+        setError(null);
+        try {
+            await saveReferences({
+                vendorNumber: selectedVendor,
+                items: validRows.map(({ reference, designation, marque }) => ({ reference, designation, marque }))
+            });
+            setSuccess(true);
+            setRows([
+                { id: '1', reference: '', designation: '', marque: '' },
+                { id: '2', reference: '', designation: '', marque: '' },
+                { id: '3', reference: '', designation: '', marque: '' },
+                { id: '4', reference: '', designation: '', marque: '' }
+            ]);
+            // Keep the vendor selected for next batch? Or reset? User choice. Keeping for now.
+        } catch (err: any) {
+            setError(err.response?.data?.error?.message || 'Erreur lors de l’enregistrement.');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
-        <MainCard content={false}>
-            <Stack direction="row" justifyContent="space-between" p={3} alignItems="center">
-                <DebouncedInput
-                    value={globalFilter}
-                    onFilterChange={(v) => setGlobalFilter(String(v))}
-                    placeholder={`Search ${rows.length} lignes...`}
-                />
-
-                <Button
-                    variant="contained"
-                    startIcon={<Add />}
-                    onClick={addRow}
-                >
-                    Ajouter une ligne
-                </Button>
-            </Stack>
-
-            {/* ROW SELECTION COUNTER */}
-            <RowSelection selected={Object.keys(rowSelection).length} />
-
-            {/* TABLE */}
-            <TableContainer>
-                <Table size="small">
-                    <TableHead>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => (
-                                    <TableCell key={header.id} {...header.column.columnDef.meta}>
-                                        <Stack direction="row" gap={1} alignItems="center">
-                                            {flexRender(header.column.columnDef.header, header.getContext())}
-                                            {header.column.getCanSort() && (
-                                                <HeaderSort column={header.column} />
-                                            )}
-                                        </Stack>
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        ))}
-                    </TableHead>
-
-                    <TableBody>
-                        {table.getRowModel().rows.map((row) => (
-                            <Fragment key={row.id}>
-                                <TableRow>
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id} {...cell.column.columnDef.meta}>
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </TableCell>
+        <Stack spacing={4}>
+            {/* MINIMALIST HEADER BAR */}
+            <MainCard sx={{ borderRadius: 3, boxShadow: theme.customShadows.z1 }}>
+                <Grid container spacing={3} alignItems="center">
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}>
+                                <NoteAdd variant="Bold" size={28} />
+                            </Box>
+                            <Box>
+                                <Typography variant="h3" fontWeight={900}>Ajout de Références</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>GESTION DES ARTICLES • PLEXUS AUTOMATIVE</Typography>
+                            </Box>
+                        </Stack>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                        <Stack direction="row" spacing={2} alignItems="center" justifyContent={{ md: 'flex-end' }}>
+                            <Box sx={{ width: '100%', maxWidth: 400 }}>
+                                <Typography variant="caption" fontWeight={800} color="error.main" sx={{ mb: 0.5, display: 'block' }}>FOURNISSEUR OBLIGATOIRE *</Typography>
+                                <Select
+                                    fullWidth
+                                    size="small"
+                                    value={selectedVendor}
+                                    onChange={(e) => setSelectedVendor(e.target.value)}
+                                    displayEmpty
+                                    sx={{
+                                        borderRadius: 2,
+                                        fontWeight: 800,
+                                        bgcolor: alpha(theme.palette.grey[100], 0.3),
+                                        '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider }
+                                    }}
+                                    disabled={loadingVendors}
+                                >
+                                    <MenuItem value=""><em>{loadingVendors ? 'Sincronisation...' : 'Sélectionner le fournisseur'}</em></MenuItem>
+                                    {vendors.map((v) => (
+                                        <MenuItem key={v.number} value={v.number}>{v.displayName}</MenuItem>
                                     ))}
-                                </TableRow>
-                            </Fragment>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                                </Select>
+                            </Box>
+                        </Stack>
+                    </Grid>
+                </Grid>
+            </MainCard>
 
-            <Divider />
+            {/* THE "PREMIUM DOCUMENT" TABLE */}
+            <MainCard content={false} sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: theme.customShadows.z1 }}>
+                <TableContainer>
+                    <Table size="medium">
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: alpha(theme.palette.grey[50], 0.8) }}>
+                                <TableCell sx={{ color: 'error.main', fontWeight: '900', py: 2.5, pl: 4 }}>RÉFÉRENCE *</TableCell>
+                                <TableCell sx={{ color: 'error.main', fontWeight: '900', py: 2.5 }}>DÉSIGNATION *</TableCell>
+                                <TableCell sx={{ color: 'error.main', fontWeight: '900', py: 2.5 }}>MARQUE *</TableCell>
+                                <TableCell align="center" sx={{ width: 80, pr: 4 }}></TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            <AnimatePresence mode="popLayout">
+                                {rows.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        component={motion.tr}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        sx={{ '&:hover': { bgcolor: alpha(theme.palette.primary.lighter, 0.05) } }}
+                                    >
+                                        <TableCell sx={{ pl: 4, py: 2 }}>
+                                            <TextField
+                                                fullWidth
+                                                size="small"
+                                                variant="outlined"
+                                                placeholder="Saisir la réf..."
+                                                value={row.reference}
+                                                onChange={(e) => updateRow(row.id, 'reference', e.target.value)}
+                                                InputProps={{ sx: { borderRadius: 1.5, fontWeight: 700 } }}
+                                            />
+                                        </TableCell>
+                                        <TableCell sx={{ py: 2 }}>
+                                            <TextField
+                                                fullWidth
+                                                size="small"
+                                                variant="outlined"
+                                                placeholder="Saisir la désignation..."
+                                                value={row.designation}
+                                                onChange={(e) => updateRow(row.id, 'designation', e.target.value)}
+                                                InputProps={{ sx: { borderRadius: 1.5, fontWeight: 700 } }}
+                                            />
+                                        </TableCell>
+                                        <TableCell sx={{ py: 2 }}>
+                                            <Select
+                                                fullWidth
+                                                size="small"
+                                                value={row.marque}
+                                                onChange={(e) => updateRow(row.id, 'marque', e.target.value)}
+                                                displayEmpty
+                                                sx={{
+                                                    borderRadius: 1.5,
+                                                    fontWeight: 700,
+                                                    '& .MuiSelect-select': { display: 'flex', alignItems: 'center' }
+                                                }}
+                                                startAdornment={
+                                                    <InputAdornment position="start" sx={{ mr: 1, opacity: 0.6 }}>
+                                                        <Global size={18} />
+                                                    </InputAdornment>
+                                                }
+                                            >
+                                                <MenuItem value=""><em>Marque...</em></MenuItem>
+                                                {BRANDS.map(b => (
+                                                    <MenuItem key={b.value} value={b.value}>{b.label}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </TableCell>
+                                        <TableCell align="center" sx={{ pr: 4, py: 2 }}>
+                                            <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={() => removeRow(row.id)}
+                                                sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}
+                                            >
+                                                <Trash size={18} variant="Bold" />
+                                            </IconButton>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </AnimatePresence>
+                        </TableBody>
+                    </Table>
+                </TableContainer>
 
-            {/* PAGINATION */}
-            <Box p={2}>
-                <TablePagination
-                    setPageSize={table.setPageSize}
-                    setPageIndex={table.setPageIndex}
-                    getState={table.getState}
-                    getPageCount={table.getPageCount}
-                />
-            </Box>
-        </MainCard>
+                {/* TABLE FOOTER ACTIONS */}
+                <Box sx={{ p: 4, bgcolor: alpha(theme.palette.grey[50], 0.5) }}>
+                    <Grid container justifyContent="space-between" alignItems="center">
+                        <Grid size="auto">
+                            <Button
+                                variant="outlined"
+                                color="secondary"
+                                startIcon={<Add />}
+                                onClick={addRow}
+                                sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+                            >
+                                AJOUTER UNE LIGNE
+                            </Button>
+                        </Grid>
+                        <Grid size="auto">
+                            <Stack direction="row" spacing={3} alignItems="center">
+                                <Box sx={{ textAlign: 'right' }}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight={800}>ARTICLES À ENREGISTRER</Typography>
+                                    <Typography variant="h4" fontWeight={900}>{rows.length}</Typography>
+                                </Box>
+                                <Button
+                                    variant="contained"
+                                    color="success"
+                                    size="large"
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <TickCircle variant="Bold" />}
+                                    sx={{
+                                        borderRadius: 2.5,
+                                        px: 6,
+                                        py: 1.5,
+                                        fontWeight: 900,
+                                        fontSize: '1rem',
+                                        boxShadow: `0 8px 32px ${alpha(theme.palette.success.main, 0.2)}`
+                                    }}
+                                >
+                                    {saving ? 'EN COURS...' : 'AJOUTER'}
+                                </Button>
+                            </Stack>
+                        </Grid>
+                    </Grid>
+                </Box>
+            </MainCard>
+
+            {/* FEEDBACK OVERLAYS */}
+            <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                <Alert severity="error" variant="filled" onClose={() => setError(null)} sx={{ borderRadius: 2, fontWeight: 700 }}>{error}</Alert>
+            </Snackbar>
+            <Snackbar open={success} autoHideDuration={6000} onClose={() => setSuccess(false)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                <Alert severity="success" variant="filled" onClose={() => setSuccess(false)} sx={{ borderRadius: 2, fontWeight: 700, bgcolor: 'success.main' }}>
+                    Félicitation ! Vos articles ont été ajoutés avec succès.
+                </Alert>
+            </Snackbar>
+        </Stack>
     );
 }

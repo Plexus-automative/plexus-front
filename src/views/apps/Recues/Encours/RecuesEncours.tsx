@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, Fragment, MouseEvent } from 'react';
+import axios from 'axios';
 import { alpha } from '@mui/material/styles';
 import {
     Button,
@@ -26,7 +27,8 @@ import {
     MenuItem,
     Snackbar,
     Checkbox,
-    Input
+    Input,
+    Paper
 } from '@mui/material';
 import { Typography } from '@mui/material';
 
@@ -52,18 +54,14 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit } from '@wandersonalwes/iconsax-react';
+import { Eye, Edit, DocumentDownload } from '@wandersonalwes/iconsax-react';
 
 import { fetchEncours } from 'app/api/services/Recues/EncoursRecues';
 import { Encours, PurchaseOrderLine } from 'types/Encours';
 
 // Extend the PurchaseOrderLine type to include local UI properties
 interface ExtendedPurchaseOrderLine extends PurchaseOrderLine {
-    deliveryQuantity?: number;
-    deliveryDate?: string;
-    confirmationStatus?: string;
-    OldRemplacementItemNo?: string;
-    OldUnitPrice?: number; // Field to store original price
+    // Keep local extensions if needed, otherwise this can be omitted or merged
 }
 
 // Extend Encours to use the extended line type
@@ -86,6 +84,12 @@ export default function RecuesEncours() {
     const [error, setError] = useState<string | null>(null);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
+    // BL Download states
+    const [blDialogOpen, setBlDialogOpen] = useState(false);
+    const [blPdfBlob, setBlPdfBlob] = useState<Blob | null>(null);
+    const [blFilename, setBlFilename] = useState('BL.pdf');
+    const [validating, setValidating] = useState(false);
+
     // Use pagination state from TanStack Table
     const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
         pageIndex: 0,
@@ -103,14 +107,10 @@ export default function RecuesEncours() {
                 const token = process.env.TOKEN || '';
 
                 // Fetch with proper pagination
-                const sort = sorting[0];
-
                 const result = await fetchEncours(
                     token,
                     pageIndex,
-                    pageSize,
-                    sort?.id,
-                    sort?.desc
+                    pageSize
                 );
                 setData(
                     result.data.map((o: Encours, index: number) => ({
@@ -120,8 +120,10 @@ export default function RecuesEncours() {
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
                         fullyReceived: o.fullyReceived ?? false,
+                        ShippingAdvice: (o as any).ShippingAdvice || '',
                         status: o.status,
-                        ShippingAdvice: o.ShippingAdvice || '',
+                        SellToCustomerNo: (o as any).SellToCustomerNo || '',
+                        shipToName: (o as any).shipToName || '',
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -148,6 +150,8 @@ export default function RecuesEncours() {
                 plexuspurchaseOrderLines: editOrder.plexuspurchaseOrderLines?.map(line => ({
                     ...line,
                     deliveryQuantity: line.quantity || 0,
+                    QuantityAvailable: line.QuantityAvailable || line.quantity || 0,
+                    receiveQuantity: line.receiveQuantity || line.quantity || 0,
                     OldRemplacementItemNo: line.OldRemplacementItemNo || ''
                 }))
             };
@@ -181,6 +185,51 @@ export default function RecuesEncours() {
         setEditedOrderLocal(null);
     };
 
+    // === VALIDER: Update order in BC + Generate BL PDF ===
+    const handleValider = async () => {
+        if (!editedOrderLocal) return;
+        setValidating(true);
+        try {
+            // Send full order data including id for the PATCH
+            const response = await axios.post(
+                'http://localhost:8080/api/purchase-orders/validate-order',
+                editedOrderLocal,
+                { responseType: 'blob' }
+            );
+
+            const blob = new Blob([response.data], { type: 'application/pdf' });
+            const filename = 'BL_' + (editedOrderLocal.number || '').replace(/\//g, '-') + '.pdf';
+            setBlPdfBlob(blob);
+            setBlFilename(filename);
+
+            // Close edit dialog, open BL download dialog
+            setEditOrder(null);
+            setEditedOrderLocal(null);
+            setBlDialogOpen(true);
+
+            // Remove from local state immediately for snappy UX
+            setData(prev => prev.filter(o => o.id !== editedOrderLocal.id));
+            setTotalCount(prev => prev - 1);
+        } catch (err: any) {
+            console.error('Error validating order:', err);
+            setError('Erreur lors de la validation: ' + (err.message || 'Erreur inconnue'));
+        } finally {
+            setValidating(false);
+        }
+    };
+
+    const handleDownloadBL = () => {
+        if (!blPdfBlob) return;
+        const url = window.URL.createObjectURL(blPdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = blFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    };
+
     const columns = useMemo<ColumnDef<Encours>[]>(() => [
         {
             id: 'select',
@@ -210,9 +259,16 @@ export default function RecuesEncours() {
             enableSorting: true
         },
         {
-            header: 'Fournisseur',
-            accessorKey: 'vendorName',
-            enableSorting: false
+            header: 'Client',
+            id: 'client',
+            enableSorting: false,
+            cell: ({ row }) => {
+                const name = (row.original as any).shipToName;
+                const no = (row.original as any).SellToCustomerNo;
+                return (
+                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                );
+            }
         },
         {
             header: 'Status',
@@ -360,36 +416,37 @@ export default function RecuesEncours() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                <strong>Purchase Order Lines</strong>
 
                                                                 {row.original.plexuspurchaseOrderLines &&
                                                                     row.original.plexuspurchaseOrderLines.length > 0 ? (
                                                                     <Table size="small" sx={{ mt: 2 }}>
                                                                         <TableHead>
                                                                             <TableRow>
-                                                                                <TableCell>Seq</TableCell>
-                                                                                <TableCell>Item No</TableCell>
+                                                                                <TableCell>Num article</TableCell>
                                                                                 <TableCell>Description</TableCell>
-                                                                                <TableCell>Qty</TableCell>
-                                                                                <TableCell>Unit Cost</TableCell>
-                                                                                <TableCell>Old Unit Price</TableCell>
-                                                                                <TableCell>Tax %</TableCell>
-                                                                                <TableCell>Confirmation</TableCell>
-                                                                                <TableCell>Total (TTC)</TableCell>
+                                                                                <TableCell>Quantité</TableCell>
+                                                                                <TableCell>Prix unitaire</TableCell>
+                                                                                <TableCell>Qté disponible</TableCell>
+                                                                                <TableCell>Qté livrée</TableCell>
+                                                                                <TableCell>Confirmé?</TableCell>
+                                                                                <TableCell>Qté à livrer</TableCell>
+                                                                                <TableCell>Code remplacement</TableCell>
                                                                             </TableRow>
                                                                         </TableHead>
                                                                         <TableBody>
                                                                             {row.original.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine) => (
                                                                                 <TableRow key={line.id}>
-                                                                                    <TableCell>{line.sequence}</TableCell>
                                                                                     <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                     <TableCell>{line.description}</TableCell>
                                                                                     <TableCell>{line.quantity}</TableCell>
                                                                                     <TableCell>{line.directUnitCost}</TableCell>
-                                                                                    <TableCell>{line.OldUnitPrice || '-'}</TableCell>
-                                                                                    <TableCell>{line.taxPercent}%</TableCell>
-                                                                                    <TableCell>{line.Decision}</TableCell>
-                                                                                    <TableCell>{line.amountIncludingTax}</TableCell>
+                                                                                    <TableCell>{line.QuantityAvailable ?? 0}</TableCell>
+                                                                                    <TableCell>{line.receivedQuantity ?? 0}</TableCell>
+                                                                                    <TableCell>{line.Decision || '-'}</TableCell>
+                                                                                    <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                                                                                        {line.receiveQuantity ?? 0}
+                                                                                    </TableCell>
+                                                                                    <TableCell>{line.OldRemplacementItemNo || '-'}</TableCell>
                                                                                 </TableRow>
                                                                             ))}
                                                                         </TableBody>
@@ -457,14 +514,13 @@ export default function RecuesEncours() {
                                         <TableRow>
                                             <TableCell>Num article</TableCell>
                                             <TableCell>Description</TableCell>
+                                            <TableCell>Quantité</TableCell>
                                             <TableCell>Prix unitaire</TableCell>
-                                            <TableCell>Qté</TableCell>
                                             <TableCell>Qté disponible</TableCell>
-                                            <TableCell>Qté livree</TableCell>
-                                            <TableCell>Confirmation</TableCell>
-                                            <TableCell>Qté a livree</TableCell>
-                                            <TableCell>Date Livraison</TableCell>
-                                            <TableCell></TableCell>
+                                            <TableCell>Qté livrée</TableCell>
+                                            <TableCell>Confirmé?</TableCell>
+                                            <TableCell>Qté à livrer</TableCell>
+                                            <TableCell>Code remplacement</TableCell>
                                         </TableRow>
                                     </TableHead>
 
@@ -472,75 +528,77 @@ export default function RecuesEncours() {
                                         {editedOrderLocal.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
                                             <TableRow key={line.id || idx}>
                                                 <TableCell>{line.lineObjectNumber}</TableCell>
-                                                <TableCell>
-                                                    {/* Disabled but still showing text */}
-                                                    <Typography variant="body2">{line.description || ''}</Typography>
-                                                </TableCell>
-
-
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={line.directUnitCost ?? ''}
-                                                        disabled
-                                                        InputProps={{
-                                                            readOnly: true,
-                                                            style: {
-                                                                color: '#2e7d32',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                        sx={{
-                                                            '& .MuiInputBase-input.Mui-disabled': {
-                                                                WebkitTextFillColor: '#2e7d32',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                    />
-                                                </TableCell>
+                                                <TableCell>{line.description || ''}</TableCell>
                                                 <TableCell>
                                                     <TextField
                                                         size="small"
                                                         value={line.quantity ?? ''}
                                                         disabled
-                                                        InputProps={{
-                                                            readOnly: true,
-                                                        }}
+                                                        sx={{ width: 80 }}
                                                     />
                                                 </TableCell>
-
                                                 <TableCell>
                                                     <TextField
                                                         size="small"
                                                         type="number"
-                                                        disabled
-                                                        value={line.QuantityAvailable ?? 0}
+                                                        value={line.directUnitCost ?? ''}
                                                         onChange={(e) => {
                                                             const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.QuantityAvailable) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
                                                             setEditedOrderLocal(prev => {
                                                                 if (!prev) return prev;
                                                                 const copy = { ...prev };
                                                                 copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, QuantityAvailable: numValue } : l
+                                                                    l.id === line.id ? { ...l, directUnitCost: Number(v) } : l
                                                                 );
                                                                 return copy;
                                                             });
                                                         }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.deliveryQuantity) > Number(line.quantity)}
+                                                        sx={{ width: 100 }}
                                                     />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField
+                                                        size="small"
+                                                        type="number"
+                                                        value={line.QuantityAvailable ?? 0}
+                                                        onChange={(e) => {
+                                                            const v = e.target.value;
+                                                            setEditedOrderLocal(prev => {
+                                                                if (!prev) return prev;
+                                                                const copy = { ...prev };
+                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                    l.id === line.id ? { ...l, QuantityAvailable: Number(v) } : l
+                                                                );
+                                                                return copy;
+                                                            });
+                                                        }}
+                                                        sx={{ width: 100 }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>{line.receivedQuantity ?? 0}</TableCell>
+                                                <TableCell>
+                                                    <TextField
+                                                        select
+                                                        size="small"
+                                                        value={line.Decision || ''}
+                                                        onChange={(e) => {
+                                                            const v = e.target.value;
+                                                            setEditedOrderLocal(prev => {
+                                                                if (!prev) return prev;
+                                                                const copy = { ...prev };
+                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                    l.id === line.id ? { ...l, Decision: v } : l
+                                                                );
+                                                                return copy;
+                                                            });
+                                                        }}
+                                                        sx={{ width: 150 }}
+                                                    >
+                                                        <MenuItem value="">--</MenuItem>
+                                                        <MenuItem value="Disponible">Disponible</MenuItem>
+                                                        <MenuItem value="Réclamation">Réclamation</MenuItem>
+                                                        <MenuItem value="Remplacement">Remplacement</MenuItem>
+                                                    </TextField>
                                                 </TableCell>
                                                 <TableCell>
                                                     <TextField
@@ -549,81 +607,36 @@ export default function RecuesEncours() {
                                                         value={line.receiveQuantity ?? 0}
                                                         onChange={(e) => {
                                                             const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.quantity) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
                                                             setEditedOrderLocal(prev => {
                                                                 if (!prev) return prev;
                                                                 const copy = { ...prev };
                                                                 copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receiveQuantity: numValue } : l
+                                                                    l.id === line.id ? { ...l, receiveQuantity: Number(v) } : l
                                                                 );
                                                                 return copy;
                                                             });
                                                         }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.receiveQuantity) > Number(line.quantity)}
-                                                        sx={{
-                                                            '& .MuiInputBase-input': {
-                                                                WebkitTextFillColor: '#1976d2',
-                                                                fontWeight: 'bold',
-                                                                color: '#1976d2'
-                                                            }
-                                                        }}
+                                                        sx={{ width: 100 }}
                                                     />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2">{line.Decision || ''}</Typography>
-
                                                 </TableCell>
                                                 <TableCell>
                                                     <TextField
                                                         size="small"
-                                                        type="number"
-                                                        disabled
-                                                        value={line.receivedQuantity ?? 0}
+                                                        value={line.OldRemplacementItemNo || ''}
+                                                        placeholder="Code remplacement"
                                                         onChange={(e) => {
                                                             const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.quantity) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
                                                             setEditedOrderLocal(prev => {
                                                                 if (!prev) return prev;
                                                                 const copy = { ...prev };
                                                                 copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receivedQuantity: numValue } : l
+                                                                    l.id === line.id ? { ...l, OldRemplacementItemNo: v } : l
                                                                 );
                                                                 return copy;
                                                             });
                                                         }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.receivedQuantity) > Number(line.quantity)}
+                                                        sx={{ width: 150 }}
                                                     />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Input type="date"
-                                                        size="small"
-                                                        value={line.deliveryDate ? line.deliveryDate.split('T')[0] : ''} ></Input>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Checkbox></Checkbox>
-
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -638,18 +651,37 @@ export default function RecuesEncours() {
                     ) : null}
                 </DialogContent>
                 <DialogActions>
-                    <Button variant="contained"  >
-                        Valider
+                    <Button
+                        variant="contained"
+                        onClick={handleValider}
+                        disabled={validating}
+                        startIcon={validating ? <CircularProgress size={16} /> : undefined}
+                    >
+                        {validating ? 'Génération...' : 'Valider'}
                     </Button>
 
-                    <Button variant="outlined" >
+                    <Button variant="outlined" onClick={handleAnnuler}>
                         Annuler
                     </Button>
-
-
-
-
                 </DialogActions>
+            </Dialog>
+
+            {/* BL Download Dialog */}
+            <Dialog open={blDialogOpen} onClose={() => setBlDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+                    <Alert severity="success" sx={{ mb: 3, justifyContent: 'center' }}>
+                        Modifications effectuées avec succès, veuillez télécharger le BL!
+                    </Alert>
+                    <Button
+                        variant="outlined"
+                        size="large"
+                        startIcon={<DocumentDownload />}
+                        onClick={handleDownloadBL}
+                        sx={{ px: 4, py: 1.5 }}
+                    >
+                        Télécharger BL
+                    </Button>
+                </DialogContent>
             </Dialog>
 
             {/* Success Alert */}

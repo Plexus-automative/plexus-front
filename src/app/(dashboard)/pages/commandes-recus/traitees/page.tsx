@@ -1,6 +1,6 @@
 // project-imports
-import EmisesNonTraitees from "views/apps/Emises/NonTraitees/EmisesNonTraitees";
-import RecuesTraitees from "views/apps/Emises/Traitees/RecuesTraitees";
+import RecuesTraitees from "views/apps/Recues/Traitees/RecuesTraitees";
+
 // ==============================|| CUSTOMER - LIST ||============================== //
 
 export default function CustomerListPage() {
