@@ -170,22 +170,7 @@ export default function EmisesEncours() {
     };
 
     const columns = useMemo<ColumnDef<Encours>[]>(() => [
-        {
-            id: 'select',
-            header: ({ table }) => (
-                <IndeterminateCheckbox
-                    checked={table.getIsAllRowsSelected()}
-                    indeterminate={table.getIsSomeRowsSelected()}
-                    onChange={table.getToggleAllRowsSelectedHandler()}
-                />
-            ),
-            cell: ({ row }) => (
-                <IndeterminateCheckbox
-                    checked={row.getIsSelected()}
-                    onChange={row.getToggleSelectedHandler()}
-                />
-            )
-        },
+        
 
         {
             header: 'Num Commande',
@@ -241,7 +226,7 @@ export default function EmisesEncours() {
                             <Eye />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Edit">
+                    <Tooltip title="Valide">
                         <IconButton
                             color="primary"
                             onClick={() => setEditOrder(row.original as ExtendedEncours)}

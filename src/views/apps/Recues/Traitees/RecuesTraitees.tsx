@@ -116,22 +116,7 @@ export default function RecuesTraitees() {
     }, [pageIndex, pageSize, sorting]);
 
     const columns = useMemo<ColumnDef<Traitee>[]>(() => [
-        {
-            id: 'select',
-            header: ({ table }) => (
-                <IndeterminateCheckbox
-                    checked={table.getIsAllRowsSelected()}
-                    indeterminate={table.getIsSomeRowsSelected()}
-                    onChange={table.getToggleAllRowsSelectedHandler()}
-                />
-            ),
-            cell: ({ row }) => (
-                <IndeterminateCheckbox
-                    checked={row.getIsSelected()}
-                    onChange={row.getToggleSelectedHandler()}
-                />
-            )
-        },
+        
         {
             header: 'N° Commande',
             accessorKey: 'number',
@@ -353,7 +338,7 @@ export default function RecuesTraitees() {
                 </>
             )}
             <Dialog open={!!editOrder} onClose={() => setEditOrder(null)} fullWidth maxWidth="md">
-                <DialogTitle>Edit Order</DialogTitle>
+                <DialogTitle>Valide Article</DialogTitle>
                 <DialogContent dividers>
                 </DialogContent>
                 <DialogActions>

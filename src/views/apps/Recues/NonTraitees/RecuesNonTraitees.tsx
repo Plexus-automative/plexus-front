@@ -159,22 +159,7 @@ export default function RecuesNonTraitees() {
     }, [editOrder]);
 
     const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
-        {
-            id: 'select',
-            header: ({ table }) => (
-                <IndeterminateCheckbox
-                    checked={table.getIsAllRowsSelected()}
-                    indeterminate={table.getIsSomeRowsSelected()}
-                    onChange={table.getToggleAllRowsSelectedHandler()}
-                />
-            ),
-            cell: ({ row }) => (
-                <IndeterminateCheckbox
-                    checked={row.getIsSelected()}
-                    onChange={row.getToggleSelectedHandler()}
-                />
-            )
-        },
+        
         {
             header: 'Num Commande',
             accessorKey: 'number',
@@ -232,7 +217,7 @@ export default function RecuesNonTraitees() {
                             <Eye />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Edit">
+                    <Tooltip title="Valide">
                         <IconButton
                             color="primary"
                             onClick={() => setEditOrder(row.original as ExtendedNonTraitee)}
@@ -419,7 +404,7 @@ export default function RecuesNonTraitees() {
                 </>
             )}
             <Dialog open={!!editOrder} onClose={() => setEditOrder(null)} fullWidth maxWidth="lg">
-                <DialogTitle>Edit Order</DialogTitle>
+                <DialogTitle>Valide Article</DialogTitle>
                 <DialogContent dividers>
                     {editedOrderLocal ? (
                         <>

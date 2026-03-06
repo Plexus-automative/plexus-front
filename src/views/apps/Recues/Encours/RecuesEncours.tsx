@@ -83,7 +83,7 @@ export default function RecuesEncours() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-
+    const [lineSearch, setLineSearch] = useState('');
     // BL Download states
     const [blDialogOpen, setBlDialogOpen] = useState(false);
     const [blPdfBlob, setBlPdfBlob] = useState<Blob | null>(null);
@@ -217,7 +217,14 @@ export default function RecuesEncours() {
             setValidating(false);
         }
     };
+    const filteredLines = useMemo(() => {
+        if (!editedOrderLocal?.plexuspurchaseOrderLines) return [];
 
+        return editedOrderLocal.plexuspurchaseOrderLines.filter((line) =>
+            (line.lineObjectNumber || '').toLowerCase().includes(lineSearch.toLowerCase()) ||
+            (line.description || '').toLowerCase().includes(lineSearch.toLowerCase())
+        );
+    }, [lineSearch, editedOrderLocal]);
     const handleDownloadBL = () => {
         if (!blPdfBlob) return;
         const url = window.URL.createObjectURL(blPdfBlob);
@@ -231,22 +238,7 @@ export default function RecuesEncours() {
     };
 
     const columns = useMemo<ColumnDef<Encours>[]>(() => [
-        {
-            id: 'select',
-            header: ({ table }) => (
-                <IndeterminateCheckbox
-                    checked={table.getIsAllRowsSelected()}
-                    indeterminate={table.getIsSomeRowsSelected()}
-                    onChange={table.getToggleAllRowsSelectedHandler()}
-                />
-            ),
-            cell: ({ row }) => (
-                <IndeterminateCheckbox
-                    checked={row.getIsSelected()}
-                    onChange={row.getToggleSelectedHandler()}
-                />
-            )
-        },
+        
 
         {
             header: 'Num Commande',
@@ -305,7 +297,7 @@ export default function RecuesEncours() {
                             <Eye />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Edit">
+                    <Tooltip title="Valide">
                         <IconButton
                             color="primary"
                             onClick={() => setEditOrder(row.original as ExtendedEncours)}
@@ -491,8 +483,16 @@ export default function RecuesEncours() {
 
             {/* Edit Dialog */}
             <Dialog open={!!editOrder} onClose={() => setEditOrder(null)} fullWidth maxWidth="lg">
-                <DialogTitle>Modifier la commande</DialogTitle>
+                <DialogTitle>Valide la commande</DialogTitle>
                 <DialogContent dividers>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Rechercher article ou description..."
+                        value={lineSearch}
+                        onChange={(e) => setLineSearch(e.target.value)}
+                        sx={{ mb: 2 }}
+                    />
                     {editedOrderLocal ? (
                         <>
                             <Stack direction={{ xs: 'column', sm: 'row' }} gap={2} mb={2} flexWrap="wrap">
@@ -525,7 +525,7 @@ export default function RecuesEncours() {
                                     </TableHead>
 
                                     <TableBody>
-                                        {editedOrderLocal.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
+                                        {filteredLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
                                             <TableRow key={line.id || idx}>
                                                 <TableCell>{line.lineObjectNumber}</TableCell>
                                                 <TableCell>{line.description || ''}</TableCell>

@@ -119,22 +119,7 @@ export default function EmisesNonTraitees() {
     }, [pageIndex, pageSize, sorting]);
 
     const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
-        {
-            id: 'select',
-            header: ({ table }) => (
-                <IndeterminateCheckbox
-                    checked={table.getIsAllRowsSelected()}
-                    indeterminate={table.getIsSomeRowsSelected()}
-                    onChange={table.getToggleAllRowsSelectedHandler()}
-                />
-            ),
-            cell: ({ row }) => (
-                <IndeterminateCheckbox
-                    checked={row.getIsSelected()}
-                    onChange={row.getToggleSelectedHandler()}
-                />
-            )
-        },
+        
 
         {
             header: 'Num Commande',
@@ -362,7 +347,7 @@ export default function EmisesNonTraitees() {
                 </>
             )}
             <Dialog open={!!editOrder} onClose={() => setEditOrder(null)} fullWidth maxWidth="md">
-                <DialogTitle>Edit Order</DialogTitle>
+                <DialogTitle>Valide Article</DialogTitle>
                 <DialogContent dividers>
                 </DialogContent>
                 <DialogActions>
