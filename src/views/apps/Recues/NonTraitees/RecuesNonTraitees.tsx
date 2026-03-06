@@ -32,7 +32,6 @@ import {
     ColumnDef,
     flexRender,
     getCoreRowModel,
-    getSortedRowModel,
     getPaginationRowModel,
     getFilteredRowModel,
     useReactTable,
@@ -121,6 +120,8 @@ export default function RecuesNonTraitees() {
                         fullyReceived: o.fullyReceived ?? false,
                         ShippingAdvice: o.ShippingAdvice,
                         status: o.status,
+                        SellToCustomerNo: (o as any).SellToCustomerNo || '',
+                        shipToName: (o as any).shipToName || '',
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -185,9 +186,16 @@ export default function RecuesNonTraitees() {
             enableSorting: true
         },
         {
-            header: 'Fournisseur',
-            accessorKey: 'vendorName',
-            enableSorting: false
+            header: 'Client',
+            id: 'client',
+            enableSorting: false,
+            cell: ({ row }) => {
+                const name = (row.original as any).shipToName;
+                const no = (row.original as any).SellToCustomerNo;
+                return (
+                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                );
+            }
         },
         {
             header: 'Status',
@@ -201,7 +209,7 @@ export default function RecuesNonTraitees() {
                     case 'Open':
                         return <Chip color="info" label="Open" size="small" variant="light" />;
                     case 'Attente':
-                        return <Chip color="warning" label="Attente" size="small" variant="light" />;
+                        return <Chip color="warning" label="En Attente" size="small" variant="light" />;
                     default:
                         return <Chip color="default" label={status} size="small" />;
                 }
@@ -338,20 +346,19 @@ export default function RecuesNonTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                <strong>Purchase Order Lines</strong>
-
                                                                 {row.original.plexuspurchaseOrderLines &&
                                                                     row.original.plexuspurchaseOrderLines.length > 0 ? (
                                                                     <Table size="small" sx={{ mt: 2 }}>
                                                                         <TableHead>
                                                                             <TableRow>
-                                                                                <TableCell>Seq</TableCell>
-                                                                                <TableCell>Item No</TableCell>
+                                                                                <TableCell>Num article</TableCell>
                                                                                 <TableCell>Description</TableCell>
-                                                                                <TableCell>Qty</TableCell>
-                                                                                <TableCell>Unit Cost</TableCell>
-                                                                                <TableCell>Tax %</TableCell>
-                                                                                <TableCell>Total (TTC)</TableCell>
+                                                                                <TableCell>Quantité</TableCell>
+                                                                                <TableCell>Prix unitaire</TableCell>
+                                                                                <TableCell>Qté disponible</TableCell>
+                                                                                <TableCell>Quantité livrée</TableCell>
+                                                                                <TableCell>Confirmé?</TableCell>
+                                                                                <TableCell>Quantité à livrer</TableCell>
                                                                                 <TableCell>Code remplacement</TableCell>
                                                                             </TableRow>
                                                                         </TableHead>
@@ -359,13 +366,16 @@ export default function RecuesNonTraitees() {
                                                                         <TableBody>
                                                                             {row.original.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine) => (
                                                                                 <TableRow key={line.id}>
-                                                                                    <TableCell>{line.sequence}</TableCell>
                                                                                     <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                     <TableCell>{line.description}</TableCell>
                                                                                     <TableCell>{line.quantity}</TableCell>
                                                                                     <TableCell>{line.directUnitCost}</TableCell>
-                                                                                    <TableCell>{line.taxPercent}%</TableCell>
-                                                                                    <TableCell>{line.amountIncludingTax}</TableCell>
+                                                                                    <TableCell>{line.QuantityAvailable ?? 0}</TableCell>
+                                                                                    <TableCell>{line.receivedQuantity ?? 0}</TableCell>
+                                                                                    <TableCell>{line.Decision || '-'}</TableCell>
+                                                                                    <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                                                                                        {line.receiveQuantity ?? 0}
+                                                                                    </TableCell>
                                                                                     <TableCell>{line.OldRemplacementItemNo || '-'}</TableCell>
                                                                                 </TableRow>
                                                                             ))}
@@ -428,94 +438,36 @@ export default function RecuesNonTraitees() {
                                 <Table size="small" sx={{ mt: 2 }}>
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell>Seq</TableCell>
-                                            <TableCell>Item No</TableCell>
+                                            <TableCell>Num article</TableCell>
                                             <TableCell>Description</TableCell>
-                                            <TableCell>Qty</TableCell>
+                                            <TableCell>Quantité</TableCell>
+                                            <TableCell>Prix unitaire</TableCell>
+                                            <TableCell>Qté disponible</TableCell>
+                                            <TableCell>Quantité livrée</TableCell>
+                                            <TableCell>Confirmé?</TableCell>
                                             <TableCell>Quantité à livrer</TableCell>
-                                            <TableCell>Unit Cost</TableCell>
-                                            <TableCell>Tax %</TableCell>
-                                            <TableCell>Total (TTC)</TableCell>
-                                            <TableCell>Confirme ?</TableCell>
-                                            <TableCell>Date livraison</TableCell>
                                             <TableCell>Code remplacement</TableCell>
                                         </TableRow>
                                     </TableHead>
 
                                     <TableBody>
                                         {editedOrderLocal.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine, idx: number) => {
-                                            // Determine if quantity field should be disabled
-                                            const isQtyDisabled = line.confirmationStatus === 'Non Disponible';
-
                                             return (
                                                 <TableRow key={line.id || idx}>
-                                                    <TableCell>{line.sequence}</TableCell>
                                                     <TableCell>{line.lineObjectNumber}</TableCell>
-                                                    <TableCell>
-                                                        <TextField
-                                                            size="small"
-                                                            value={line.description ?? ''}
-                                                            onChange={(e) => {
-                                                                const v = e.target.value;
-                                                                setEditedOrderLocal(prev => {
-                                                                    if (!prev) return prev;
-                                                                    const copy = { ...prev };
-                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                        l.id === line.id ? { ...l, description: v } : l
-                                                                    );
-                                                                    return copy;
-                                                                });
-                                                            }}
-                                                        />
-                                                    </TableCell>
+                                                    <TableCell>{line.description ?? ''}</TableCell>
                                                     <TableCell>
                                                         <TextField
                                                             size="small"
                                                             value={line.quantity ?? ''}
                                                             disabled
-                                                            InputProps={{
-                                                                readOnly: true,
-                                                            }}
+                                                            sx={{ width: 80 }}
                                                         />
                                                     </TableCell>
                                                     <TableCell>
                                                         <TextField
                                                             size="small"
                                                             type="number"
-                                                            value={line.deliveryQuantity ?? (isQtyDisabled ? 0 : line.quantity ?? 0)}
-                                                            disabled={isQtyDisabled}
-                                                            onChange={(e) => {
-                                                                const v = e.target.value;
-                                                                const numValue = Number(v);
-                                                                const maxQty = Number(line.quantity) || 0;
-
-                                                                // Validation: cannot exceed original quantity
-                                                                if (numValue > maxQty) {
-                                                                    return; // Don't update if exceeds max
-                                                                }
-
-                                                                setEditedOrderLocal(prev => {
-                                                                    if (!prev) return prev;
-                                                                    const copy = { ...prev };
-                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                        l.id === line.id ? { ...l, deliveryQuantity: numValue } : l
-                                                                    );
-                                                                    return copy;
-                                                                });
-                                                            }}
-                                                            inputProps={{
-                                                                min: 0,
-                                                                max: line.quantity || 0,
-                                                                step: "0.01"
-                                                            }}
-                                                            error={Number(line.deliveryQuantity) > Number(line.quantity)}
-                                                            helperText={Number(line.deliveryQuantity) > Number(line.quantity) ?
-                                                                "Quantité à livrer ne peut pas dépasser la quantité commandée" : ""}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <TextField
-                                                            size="small"
                                                             value={line.directUnitCost ?? ''}
                                                             onChange={(e) => {
                                                                 const v = e.target.value;
@@ -528,11 +480,29 @@ export default function RecuesNonTraitees() {
                                                                     return copy;
                                                                 });
                                                             }}
+                                                            sx={{ width: 100 }}
                                                         />
                                                     </TableCell>
-                                                    
-                                                    <TableCell>{line.taxPercent}%</TableCell>
-                                                    <TableCell>{line.amountIncludingTax}</TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            type="number"
+                                                            value={line.QuantityAvailable ?? 0}
+                                                            onChange={(e) => {
+                                                                const v = e.target.value;
+                                                                setEditedOrderLocal(prev => {
+                                                                    if (!prev) return prev;
+                                                                    const copy = { ...prev };
+                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                        l.id === line.id ? { ...l, QuantityAvailable: Number(v) } : l
+                                                                    );
+                                                                    return copy;
+                                                                });
+                                                            }}
+                                                            sx={{ width: 100 }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>{line.receivedQuantity ?? 0}</TableCell>
                                                     <TableCell>
                                                         <TextField
                                                             select
@@ -545,7 +515,6 @@ export default function RecuesNonTraitees() {
                                                                     const copy = { ...prev };
                                                                     copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) => {
                                                                         if (l.id === line.id) {
-                                                                            // If status is "Non Disponible", set deliveryQuantity to 0
                                                                             const updatedLine = { ...l, confirmationStatus: v };
                                                                             if (v === 'Non Disponible') {
                                                                                 updatedLine.deliveryQuantity = 0;
@@ -557,6 +526,7 @@ export default function RecuesNonTraitees() {
                                                                     return copy;
                                                                 });
                                                             }}
+                                                            sx={{ width: 150 }}
                                                         >
                                                             <MenuItem value="">--</MenuItem>
                                                             <MenuItem value="Disponible">Disponible</MenuItem>
@@ -565,27 +535,27 @@ export default function RecuesNonTraitees() {
                                                         </TextField>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {line.confirmationStatus === 'Liv pevu a date' ? (
-                                                            <TextField
-                                                                type="date"
-                                                                size="small"
-                                                                value={line.deliveryDate ?? ''}
-                                                                onChange={(e) => {
-                                                                    const v = e.target.value;
-                                                                    setEditedOrderLocal(prev => {
-                                                                        if (!prev) return prev;
-                                                                        const copy = { ...prev };
-                                                                        copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                            l.id === line.id ? { ...l, deliveryDate: v } : l
-                                                                        );
-                                                                        return copy;
-                                                                    });
-                                                                }}
-                                                                InputLabelProps={{ shrink: true }}
-                                                            />
-                                                        ) : (
-                                                            <Typography variant="body2" color="textSecondary">-</Typography>
-                                                        )}
+                                                        <TextField
+                                                            size="small"
+                                                            type="number"
+                                                            value={line.deliveryQuantity ?? (line.confirmationStatus === 'Non Disponible' ? 0 : line.quantity ?? 0)}
+                                                            disabled={line.confirmationStatus === 'Non Disponible'}
+                                                            onChange={(e) => {
+                                                                const v = e.target.value;
+                                                                const numValue = Number(v);
+                                                                const maxQty = Number(line.quantity) || 0;
+                                                                if (numValue > maxQty) return;
+                                                                setEditedOrderLocal(prev => {
+                                                                    if (!prev) return prev;
+                                                                    const copy = { ...prev };
+                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                        l.id === line.id ? { ...l, deliveryQuantity: numValue } : l
+                                                                    );
+                                                                    return copy;
+                                                                });
+                                                            }}
+                                                            sx={{ width: 100 }}
+                                                        />
                                                     </TableCell>
                                                     <TableCell>
                                                         <TextField
@@ -603,6 +573,7 @@ export default function RecuesNonTraitees() {
                                                                 });
                                                             }}
                                                             placeholder="Code remplacement"
+                                                            sx={{ width: 150 }}
                                                         />
                                                     </TableCell>
                                                 </TableRow>
@@ -626,8 +597,6 @@ export default function RecuesNonTraitees() {
                             if (!editedOrderLocal) return;
 
                             try {
-                                const token = process.env.TOKEN || '';
-                                const companyId = '683ADB98-EA07-F111-8405-7CED8D83AA60';
                                 const orderId = editedOrderLocal.id;
 
                                 // Always set ShippingAdvice to "ConfirmationPartielle"
@@ -640,13 +609,11 @@ export default function RecuesNonTraitees() {
 
                                 // Update the main order
                                 await fetch(
-                                    `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrders(${orderId})`,
+                                    `http://localhost:8080/api/purchase-orders/${orderId}`,
                                     {
                                         method: 'PATCH',
                                         headers: {
                                             'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${token}`,
-                                            'If-Match': '*'
                                         },
                                         body: JSON.stringify(orderUpdateBody)
                                     }
@@ -685,6 +652,11 @@ export default function RecuesNonTraitees() {
                                             lineUpdateBody.OldRemplacementItemNo = line.OldRemplacementItemNo || '';
                                         }
 
+                                        // Check if QuantityAvailable changed
+                                        if (line.QuantityAvailable !== originalLine.QuantityAvailable) {
+                                            lineUpdateBody.QuantityAvailable = Number(line.QuantityAvailable);
+                                        }
+
                                         // Add Decision field based on confirmation status
                                         if (line.confirmationStatus) {
                                             switch (line.confirmationStatus) {
@@ -709,13 +681,11 @@ export default function RecuesNonTraitees() {
                                         if (Object.keys(lineUpdateBody).length === 0) continue;
 
                                         await fetch(
-                                            `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrderLines(${line.id})`,
+                                            `http://localhost:8080/api/purchase-orders/lines/${line.id}`,
                                             {
                                                 method: 'PATCH',
                                                 headers: {
                                                     'Content-Type': 'application/json',
-                                                    Authorization: `Bearer ${token}`,
-                                                    'If-Match': '*'
                                                 },
                                                 body: JSON.stringify(lineUpdateBody)
                                             }
@@ -723,12 +693,11 @@ export default function RecuesNonTraitees() {
                                     }
                                 }
 
-                                // Update UI
+                                // Update UI - remove from table for snappy UX
                                 setData(prev =>
-                                    prev.map(d =>
-                                        d.id === editedOrderLocal.id ? editedOrderLocal as NonTraitee : d
-                                    )
+                                    prev.filter(d => d.id !== editedOrderLocal.id)
                                 );
+                                setTotalCount(prev => prev - 1);
 
                                 setEditOrder(null);
                                 setEditedOrderLocal(null);

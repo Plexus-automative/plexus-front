@@ -5,7 +5,7 @@ export interface NonTraitee {
   vendorName: string;
   payToVendorNumber: string;
   fullyReceived: boolean;
-  ShippingAdvice:string
+  ShippingAdvice: string
   status: string;
   lastModifiedDateTime: string;
   plexuspurchaseOrderLines?: PurchaseOrderLine[]; // 👈 ADD THIS
@@ -22,5 +22,9 @@ export interface PurchaseOrderLine {
   directUnitCost: number;
   taxPercent: number;
   amountIncludingTax: number;
-  OldRemplacementItemNo?: string; // 👈 MAKE THIS OPTIONAL
+  Decision?: string;
+  receiveQuantity?: number;
+  QuantityAvailable?: number;
+  receivedQuantity?: number;
+  OldRemplacementItemNo?: string;
 }

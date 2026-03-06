@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 // material-ui
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -13,9 +14,9 @@ import Typography from '@mui/material/Typography';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
-import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Link from '@mui/material/Link';
+import Button from '@mui/material/Button';
 
 // project imports
 import IconButton from 'components/@extended/IconButton';
@@ -25,22 +26,20 @@ import Transitions from 'components/@extended/Transitions';
 import SimpleBar from 'components/third-party/SimpleBar';
 
 // icons
-import { ShoppingCart } from '@wandersonalwes/iconsax-react';
+import { ShoppingCart, Trash } from '@wandersonalwes/iconsax-react';
+
+// context
+import { useCart } from 'contexts/CartContext';
 
 // ==============================|| HEADER CONTENT - PANIER ||============================== //
 
 export default function Panier() {
+  const router = useRouter();
   const downMD = useMediaQuery((theme: any) => theme.breakpoints.down('md'));
   const anchorRef = useRef<any>(null);
   const [open, setOpen] = useState(false);
 
-  // Fake cart items
-  const fakePanierItems = [
-    { id: 1, name: 'Service A', qty: 1 },
-    { id: 2, name: 'Service B', qty: 2 }
-  ];
-
-  const panierCount = fakePanierItems.reduce((acc, item) => acc + item.qty, 0);
+  const { cartItems, totalItems, removeFromCart, clearCart } = useCart();
 
   const handleToggle = () => {
     setOpen((prev) => !prev);
@@ -48,6 +47,11 @@ export default function Panier() {
 
   const handleClose = (event: MouseEvent | TouchEvent) => {
     if (anchorRef.current && anchorRef.current.contains(event.target)) return;
+    setOpen(false);
+  };
+
+  const handleViewAll = () => {
+    router.push('/panier');
     setOpen(false);
   };
 
@@ -70,7 +74,7 @@ export default function Panier() {
         })}
       >
         <Badge
-          badgeContent={panierCount}
+          badgeContent={totalItems}
           color="success"
           slotProps={{ badge: { sx: { top: 2, right: 4 } } }}
         >
@@ -94,44 +98,61 @@ export default function Panier() {
                 <MainCard border={false} content={false}>
                   <CardContent>
                     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Typography variant="h5">Panier</Typography>
-                      <Link href="#" variant="h6" color="primary">
-                        Clear
-                      </Link>
+                      <Typography variant="h5">Panier ({totalItems})</Typography>
+                      {cartItems.length > 0 && (
+                        <Link component="button" variant="h6" color="error" onClick={clearCart}>
+                          Vider
+                        </Link>
+                      )}
                     </Stack>
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
                       <List component="nav" sx={{ mt: 1 }}>
-                        {fakePanierItems.map((item) => (
-                          <ListItem
-                            key={item.id}
-                            component={ListItemButton}
-                            sx={{
-                              my: 1,
-                              border: '1px solid',
-                              borderColor: 'divider',
-                              '&:hover': { bgcolor: 'primary.lighter', borderColor: 'primary.light' }
-                            }}
-                          >
-                            <ListItemAvatar>
-                              <Avatar type="combined">{item.name[0]}</Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={
-                                <Typography variant="h6">
-                                  {item.name} <Typography component="span" variant="subtitle1">x{item.qty}</Typography>
-                                </Typography>
+                        {cartItems.length === 0 ? (
+                          <Typography variant="body2" color="textSecondary" align="center" sx={{ py: 3 }}>
+                            Votre panier est vide.
+                          </Typography>
+                        ) : (
+                          cartItems.map((item) => (
+                            <ListItem
+                              key={item.id}
+                              sx={{
+                                my: 1,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                '&:hover': { bgcolor: 'primary.lighter', borderColor: 'primary.light' }
+                              }}
+                              secondaryAction={
+                                <IconButton edge="end" aria-label="delete" onClick={() => removeFromCart(item.id)} size="small" color="error">
+                                  <Trash size={18} variant="Bulk" />
+                                </IconButton>
                               }
-                            />
-                          </ListItem>
-                        ))}
+                            >
+                              <ListItemAvatar>
+                                <Avatar type="combined">{item.description ? item.description[0] : 'I'}</Avatar>
+                              </ListItemAvatar>
+                              <ListItemText
+                                primary={
+                                  <Typography variant="subtitle1" noWrap>
+                                    {item.description || item.number}
+                                  </Typography>
+                                }
+                                secondary={
+                                  <Typography variant="body2" color="textSecondary">
+                                    Qté: {item.quantity} | {item.price} Dhs
+                                  </Typography>
+                                }
+                              />
+                            </ListItem>
+                          ))
+                        )}
                       </List>
                     </SimpleBar>
 
                     <Stack direction="row" sx={{ justifyContent: 'center', mt: 1.5 }}>
-                      <Link href="#" variant="h6" color="primary">
-                        View all
-                      </Link>
+                      <Button variant="contained" fullWidth onClick={handleViewAll} disabled={cartItems.length === 0}>
+                        Voir tout / Valider
+                      </Button>
                     </Stack>
                   </CardContent>
                 </MainCard>

@@ -3,6 +3,9 @@
 import { useMemo, useState, Fragment, MouseEvent, useEffect } from 'react';
 import axios from 'axios';
 import { useIntl } from 'react-intl';
+import { v4 as uuidv4 } from 'uuid';
+
+import { useCart } from 'contexts/CartContext';
 // material-ui
 import { alpha } from '@mui/material/styles';
 import { useTheme } from '@mui/material/styles';
@@ -47,10 +50,12 @@ import { ShoppingCart } from "@wandersonalwes/iconsax-react";
 interface Item {
   id: string;
   number: string;
-  systemID:string;
+  systemID: string;
   description: string;
   quantity: number;
   vendor: string;
+  vendorNumber?: string;
+  vendorName?: string;
   price: number;
 }
 
@@ -176,6 +181,8 @@ export default function ArticlesListPage() {
   const [isAdaptable, setIsAdaptable] = useState<boolean>(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
+  const { addToCart } = useCart();
+
   const handleOpenModal = (item: Item) => {
     setSelectedItem(item);
     setQuantity(1);
@@ -191,73 +198,33 @@ export default function ArticlesListPage() {
   };
 
   const handleAddToCart = async () => {
-  if (!selectedItem || quantity <= 0) return;
+    if (!selectedItem || quantity <= 0) return;
 
-  try {
-    const today = new Date().toISOString().split('T')[0];
+    try {
+      addToCart({
+        id: uuidv4(),
+        vendorNumber: selectedItem.vendorNumber || "F0024",
+        vendorName: selectedItem.vendorName || "STE EURO-CAR SERVICES",
+        number: selectedItem.number, // The actual Item No
+        description: selectedItem.description, //  Item description
+        price: selectedItem.price,
+        quantity: quantity
+      });
 
-    const baseUrl = `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)`;
-
-
-    const headerPayload = {
-      vendorNumber: selectedItem.number,
-      orderDate: today,
-      postingDate: today,
-      ShippingAdvice: "Attente",
-      Delivred: "Non",
-      QtyReceived: "Non"
-    };
-
-    const headerResponse = await axios.post(
-      `${baseUrl}/PlexuspurchaseOrders`,
-      headerPayload,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.TOKEN}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    const purchaseOrderId = headerResponse.data.id;
-
-    console.log("Purchase Header Created:", purchaseOrderId);
-
-    const linePayload = {
-      lineType: "Item",
-      lineObjectNumber: searchTerm,
-      directUnitCost: selectedItem.price,
-      quantity: quantity
-    };
-
-    await axios.post(
-      `${baseUrl}/PlexuspurchaseOrders(${purchaseOrderId})/PlexuspurchaseOrderLines`,
-      linePayload,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.TOKEN}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    console.log("Purchase Line Created");
-
-    setShowSuccessAlert(true);
-    handleCloseModal();
-
-  } catch (error) {
-    console.error("Error creating purchase order:", error);
-  }
-};
+      setShowSuccessAlert(true);
+      handleCloseModal();
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+    }
+  };
 
 
   const columns = useMemo<ColumnDef<Item>[]>(
     () => [
-      { header: 'Number', accessorKey: 'number' },
-      { header: 'Description', accessorKey: 'description' },
-      { header: 'Vendor', accessorKey: 'vendor' },
-      { header: 'Price', accessorKey: 'price' },
+      { header: 'Code article', accessorKey: 'number' },
+      { header: 'Libellé article', accessorKey: 'description' },
+      { header: 'Fournisseur', accessorKey: 'vendor' },
+      { header: 'Prix', accessorKey: 'price' },
       {
         header: 'Actions',
         meta: { align: 'center' },
@@ -284,15 +251,15 @@ export default function ArticlesListPage() {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const url = `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessSystemAPI/v1.0/companies(FDCEC2EC-FCB9-F011-AF5F-6045BDC898A3)/ItemVendors?$filter=itemNo eq '${searchTerm}'`;
+        const url = `http://localhost:8080/api/purchase-orders/ItemVendors?$filter=itemNo eq '${searchTerm}'`;
         const response = await axios.get(url, {
           headers: {
-            Authorization: `Bearer ${process.env.TOKEN}`, // <-- replace with valid token
             'Content-Type': 'application/json'
           }
         });
         const data = response.data.value.map((item: any) => ({
-          number: item.vendorNo,
+          number: item.itemNo,
+          vendorNumber: item.vendorNo,
           vendorName: item.vendorName,
           description: item.ItemDescription,
           vendor: item.vendorName || '',

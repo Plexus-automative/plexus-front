@@ -16,6 +16,8 @@ import Notistack from 'components/third-party/Notistack';
 import Customization from 'components/customization';
 import Snackbar from 'components/@extended/Snackbar';
 
+import { CartProvider } from 'contexts/CartContext';
+
 // ==============================|| PROVIDER WRAPPER  ||============================== //
 
 export default function ProviderWrapper({ children }: { children: ReactNode }) {
@@ -26,11 +28,13 @@ export default function ProviderWrapper({ children }: { children: ReactNode }) {
           <Locales>
             <ScrollTop>
               <SessionProvider refetchInterval={0}>
-                <Notistack>
-                  <Snackbar />
-                  {children}
-                  <Customization />
-                </Notistack>
+                <CartProvider>
+                  <Notistack>
+                    <Snackbar />
+                    {children}
+                    <Customization />
+                  </Notistack>
+                </CartProvider>
               </SessionProvider>
             </ScrollTop>
           </Locales>

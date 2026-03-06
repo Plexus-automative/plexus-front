@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, Fragment, MouseEvent } from 'react';
+import axios from 'axios';
 import { alpha } from '@mui/material/styles';
 import {
     Button,
@@ -23,7 +24,6 @@ import {
     DialogActions,
     CircularProgress,
     Alert,
-    MenuItem,
     Snackbar
 } from '@mui/material';
 import { Typography } from '@mui/material';
@@ -50,7 +50,7 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
+import { Eye, Edit, Trash, DocumentDownload } from '@wandersonalwes/iconsax-react';
 
 import { fetchEncours } from 'app/api/services/Emises/EncoursEmises';
 import { Encours, PurchaseOrderLine } from 'types/Encours';
@@ -84,6 +84,12 @@ export default function EmisesEncours() {
     const [error, setError] = useState<string | null>(null);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
+    // BL Download states
+    const [blDialogOpen, setBlDialogOpen] = useState(false);
+    const [blPdfBlob, setBlPdfBlob] = useState<Blob | null>(null);
+    const [blFilename, setBlFilename] = useState('BL.pdf');
+    const [validating, setValidating] = useState(false);
+
     // Use pagination state from TanStack Table
     const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
         pageIndex: 0,
@@ -100,15 +106,10 @@ export default function EmisesEncours() {
             try {
                 const token = process.env.TOKEN || '';
 
-                // Fetch with proper pagination
-                const sort = sorting[0];
-
                 const result = await fetchEncours(
                     token,
                     pageIndex,
-                    pageSize,
-                    sort?.id,
-                    sort?.desc
+                    pageSize
                 );
                 setData(
                     result.data.map((o: Encours, index: number) => ({
@@ -119,6 +120,7 @@ export default function EmisesEncours() {
                         payToVendorNumber: o.payToVendorNumber || '',
                         fullyReceived: o.fullyReceived ?? false,
                         status: o.status,
+                        ShippingAdvice: (o as any).ShippingAdvice || '',
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -145,6 +147,8 @@ export default function EmisesEncours() {
                 plexuspurchaseOrderLines: editOrder.plexuspurchaseOrderLines?.map(line => ({
                     ...line,
                     deliveryQuantity: line.quantity || 0,
+                    QuantityAvailable: line.QuantityAvailable || line.quantity || 0,
+                    receiveQuantity: line.receiveQuantity || line.quantity || 0,
                     OldRemplacementItemNo: line.OldRemplacementItemNo || ''
                 }))
             };
@@ -154,20 +158,7 @@ export default function EmisesEncours() {
         }
     }, [editOrder]);
 
-    // Function to set all delivery quantities to available quantity (le disponible)
-    const handleSetDisponible = () => {
-        if (!editedOrderLocal) return;
 
-        setEditedOrderLocal(prev => {
-            if (!prev) return prev;
-            const copy = { ...prev };
-            copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map(line => ({
-                ...line,
-                deliveryQuantity: line.quantity || 0 // Set to original quantity (assuming this is "le disponible")
-            }));
-            return copy;
-        });
-    };
 
     // Function to set all delivery quantities to total available (totalite de disponible)
 
@@ -213,19 +204,23 @@ export default function EmisesEncours() {
         },
         {
             header: 'Status',
-            accessorKey: 'status',
+            accessorKey: 'ShippingAdvice',
             enableSorting: false,
             cell: ({ getValue }) => {
-                const status = getValue<string>();
-                switch (status) {
-                    case 'Released':
-                        return <Chip color="success" label="Released" size="small" variant="light" />;
-                    case 'Open':
-                        return <Chip color="info" label="Open" size="small" variant="light" />;
-                    case 'Draft':
-                        return <Chip color="warning" label="Draft" size="small" variant="light" />;
+                const advice = getValue<string>();
+                switch (advice) {
+                    case 'Attente':
+                        return <Chip color="warning" label="En Attente" size="small" variant="light" />;
+                    case 'ConfirmationPartielle':
+                        return <Chip color="info" label="Confirmation Partielle" size="small" variant="light" />;
+                    case 'Confirmé':
+                        return <Chip color="success" label="Confirmé" size="small" variant="light" />;
+                    case 'Totalité':
+                        return <Chip color="primary" label="Totalité" size="small" variant="light" />;
+                    case 'LivraisonDispo':
+                        return <Chip color="secondary" label="Livraison Dispo" size="small" variant="light" />;
                     default:
-                        return <Chip color="default" label={status} size="small" />;
+                        return <Chip color="default" label={advice || '-'} size="small" />;
                 }
             }
         },
@@ -686,8 +681,6 @@ export default function EmisesEncours() {
                             if (!editedOrderLocal) return;
 
                             try {
-                                const token = process.env.TOKEN || '';
-                                const companyId = '683ADB98-EA07-F111-8405-7CED8D83AA60';
                                 const orderId = editedOrderLocal.id;
 
                                 // Shipping advice = Totalité
@@ -699,13 +692,11 @@ export default function EmisesEncours() {
 
                                 // Update main order
                                 await fetch(
-                                    `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrders(${orderId})`,
+                                    `http://localhost:8080/api/purchase-orders/${orderId}`,
                                     {
                                         method: 'PATCH',
                                         headers: {
                                             'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${token}`,
-                                            'If-Match': '*'
                                         },
                                         body: JSON.stringify(orderUpdateBody)
                                     }
@@ -732,13 +723,11 @@ export default function EmisesEncours() {
                                         if (Object.keys(lineUpdateBody).length === 0) continue;
 
                                         await fetch(
-                                            `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrderLines(${line.id})`,
+                                            `http://localhost:8080/api/purchase-orders/lines/${line.id}`,
                                             {
                                                 method: 'PATCH',
                                                 headers: {
                                                     'Content-Type': 'application/json',
-                                                    Authorization: `Bearer ${token}`,
-                                                    'If-Match': '*'
                                                 },
                                                 body: JSON.stringify(lineUpdateBody)
                                             }
@@ -746,12 +735,11 @@ export default function EmisesEncours() {
                                     }
                                 }
 
-                                // Update UI
+                                // Update UI by removing the order from the table (snappy UX)
                                 setData(prev =>
-                                    prev.map(d =>
-                                        d.id === editedOrderLocal.id ? editedOrderLocal as Encours : d
-                                    )
+                                    prev.filter(d => d.id !== editedOrderLocal.id)
                                 );
+                                setTotalCount(prev => prev - 1);
 
                                 setEditOrder(null);
                                 setEditedOrderLocal(null);
@@ -772,21 +760,17 @@ export default function EmisesEncours() {
                             if (!editedOrderLocal) return;
 
                             try {
-                                const token = process.env.TOKEN || '';
-                                const companyId = '683ADB98-EA07-F111-8405-7CED8D83AA60';
                                 const orderId = editedOrderLocal.id;
 
                                 // Shipping advice = LivraisonDispo
                                 const shippingAdvice = 'LivraisonDispo';
 
                                 await fetch(
-                                    `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrders(${orderId})`,
+                                    `http://localhost:8080/api/purchase-orders/${orderId}`,
                                     {
                                         method: 'PATCH',
                                         headers: {
                                             'Content-Type': 'application/json',
-                                            Authorization: `Bearer ${token}`,
-                                            'If-Match': '*'
                                         },
                                         body: JSON.stringify({ ShippingAdvice: shippingAdvice })
                                     }
@@ -806,13 +790,11 @@ export default function EmisesEncours() {
                                         };
 
                                         await fetch(
-                                            `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(${companyId})/PlexuspurchaseOrderLines(${line.id})`,
+                                            `http://localhost:8080/api/purchase-orders/lines/${line.id}`,
                                             {
                                                 method: 'PATCH',
                                                 headers: {
                                                     'Content-Type': 'application/json',
-                                                    Authorization: `Bearer ${token}`,
-                                                    'If-Match': '*'
                                                 },
                                                 body: JSON.stringify(lineUpdateBody)
                                             }
@@ -849,9 +831,35 @@ export default function EmisesEncours() {
                         Quitter
                     </Button>
 
-
-
                 </DialogActions>
+            </Dialog>
+
+            {/* BL Download Dialog */}
+            <Dialog open={blDialogOpen} onClose={() => setBlDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogContent sx={{ textAlign: 'center', py: 4 }}>
+                    <Alert severity="success" sx={{ mb: 3, justifyContent: 'center' }}>
+                        Commande validée avec succès, veuillez télécharger le BL!
+                    </Alert>
+                    <Button
+                        variant="outlined"
+                        size="large"
+                        startIcon={<DocumentDownload />}
+                        onClick={() => {
+                            if (!blPdfBlob) return;
+                            const url = window.URL.createObjectURL(blPdfBlob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = blFilename;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                        }}
+                        sx={{ px: 4, py: 1.5 }}
+                    >
+                        Télécharger BL
+                    </Button>
+                </DialogContent>
             </Dialog>
 
             {/* Success Alert */}

@@ -6,37 +6,16 @@ import { emisesApi } from '../../lib/EmisesApi';
 export const fetchEncours = async (
     token: string,
     pageIndex: number,
-    pageSize: number,
-    sortField?: string,
-    sortDesc?: boolean
+    pageSize: number
 ): Promise<{ data: Encours[]; totalCount: number }> => {
 
     const skip = pageIndex * pageSize;
-
-    // Default sorting (if no column clicked)
-    let orderBy = 'orderDate desc';
-
-    if (sortField) {
-        orderBy = `${sortField} ${sortDesc ? 'desc' : 'asc'}`;
-    }
 
     const res = await emisesApi.get<{
         value: Encours[];
         '@odata.count'?: number;
     }>(
-        `/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)/PlexuspurchaseOrders` +
-        `?$filter=status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle')` +
-        `&$orderby=${orderBy}` +
-        `&$skip=${skip}` +
-        `&$top=${pageSize}` +
-        `&$count=true&$expand=PlexuspurchaseOrderLines`
-
-        ,
-        {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        }
+        `http://localhost:8080/api/purchase-orders/emises/en-cours?skip=${skip}&top=${pageSize}`
     );
 
     return {

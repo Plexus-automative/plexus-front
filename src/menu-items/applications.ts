@@ -16,7 +16,8 @@ import {
   ShoppingBag,
   Note1,
   NoteAdd,
-  TruckFast
+  TruckFast,
+  ClipboardTick
 } from "@wandersonalwes/iconsax-react";
 
 // types
@@ -38,7 +39,8 @@ const icons = {
   link: Link1,
   fileManager: DocumentFilter,
   mail: DirectInbox,
-  reference: NoteAdd
+  reference: NoteAdd,
+  validation: ClipboardTick
 };
 
 // ==============================|| MENU ITEMS - APPLICATIONS ||============================== //
@@ -94,7 +96,6 @@ const applications: NavItemType = {
       type: "collapse",
       breadcrumbs: false,
       icon: icons.invoice,
-      url: "/pages/commandes-recus",
       children: [
         {
           id: "non-traite",
@@ -121,20 +122,20 @@ const applications: NavItemType = {
       ]
     },
     {
+      id: "validation-reception",
+      title: "validation-reception",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.validation,
+      url: "/pages/validation-reception",
+    },
+    {
       id: "commandes-livrees",
       title: "commandes-livrees",
       type: "item",
       breadcrumbs: false,
       icon: icons.invoice,
       url: "/pages/commandes-livree",
-    },
-    {
-      id: "e-commerce",
-      title: "e-commerce",
-      type: "item",
-      breadcrumbs: false,
-      icon: icons.ecommerce,
-      url: "/apps/e-commerce/checkout",
     },
     {
       id: "add-reference",
@@ -144,6 +145,14 @@ const applications: NavItemType = {
       icon: icons.reference,
       url: "/pages/reference",
     },
+    {
+      id: "panier",
+      title: "Panier",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.ecommerce,
+      url: "/panier",
+    }
   ],
 };
 

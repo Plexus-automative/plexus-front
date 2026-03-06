@@ -3,3 +3,13 @@ node_modules
 dist/
 .env
 .env.local
+
+# Build artifacts
+**/target/
+**/build/
+backend/.venv/
+
+# OS metadata
+**/.DS_Store
+*.zip
+*.pdf

@@ -21,20 +21,20 @@ import {
     DialogContent,
     DialogActions,
     CircularProgress,
-    Alert
+    Alert,
+    Typography
 } from '@mui/material';
 import { Traitee } from 'types/Traitee';
 import {
     ColumnDef,
     flexRender,
     getCoreRowModel,
-    getSortedRowModel,
     getPaginationRowModel,
     getFilteredRowModel,
     useReactTable,
     SortingState,
     ColumnFiltersState,
-    PaginationState // Add this import
+    PaginationState
 } from '@tanstack/react-table';
 
 import MainCard from 'components/MainCard';
@@ -47,7 +47,7 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
+import { InfoCircle } from '@wandersonalwes/iconsax-react';
 
 import { fetchTraitees } from 'app/api/services/Recues/TraiteeRecues';
 
@@ -80,24 +80,26 @@ export default function RecuesTraitees() {
                 const token = process.env.TOKEN || '';
 
                 // Fetch with proper pagination
-                const sort = sorting[0];
 
                 const result = await fetchTraitees(
                     token,
                     pageIndex,
-                    pageSize,
-                    sort?.id,
-                    sort?.desc
+                    pageSize
                 );
                 setData(
                     result.data.map((o: Traitee, index: number) => ({
+                        id: o.id || String(pageIndex * pageSize + index + 1),
                         number: o.number,
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
                         fullyReceived: o.fullyReceived ?? false,
                         status: o.status,
-                        lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString()
+                        ShippingAdvice: o.ShippingAdvice || '',
+                        SellToCustomerNo: (o as any).SellToCustomerNo || '',
+                        shipToName: (o as any).shipToName || '',
+                        lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
+                        plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
                 );
                 setTotalCount(result.totalCount || 0);
@@ -130,11 +132,11 @@ export default function RecuesTraitees() {
                 />
             )
         },
-
         {
-            header: 'Num Commande',
+            header: 'N° Commande',
             accessorKey: 'number',
-            enableSorting: true
+            enableSorting: true,
+            cell: ({ getValue }) => <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{getValue<string>()}</Typography>
         },
         {
             header: 'Date',
@@ -142,26 +144,33 @@ export default function RecuesTraitees() {
             enableSorting: true
         },
         {
-            header: 'Fournisseur',
-            accessorKey: 'vendorName',
-            enableSorting: false
+            header: 'Client',
+            id: 'client',
+            enableSorting: false,
+            cell: ({ row }) => {
+                const name = (row.original as any).shipToName;
+                const no = (row.original as any).SellToCustomerNo;
+                return (
+                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                );
+            }
         },
         {
-            header: 'Status',
-            accessorKey: 'status',
+            header: 'N° BL',
+            enableSorting: false,
+            cell: ({ row }) => {
+                const num = row.original.number || '';
+                const base = num.replace(/[^0-9]/g, '');
+                return <Chip label={`BL-${base.slice(-6)}`} size="small" color="secondary" variant="outlined" />;
+            }
+        },
+        {
+            header: 'Statut',
+            accessorKey: 'ShippingAdvice',
             enableSorting: false,
             cell: ({ getValue }) => {
-                const status = getValue<string>();
-                switch (status) {
-                    case 'Released':
-                        return <Chip color="success" label="Released" size="small" variant="light" />;
-                    case 'Open':
-                        return <Chip color="info" label="Open" size="small" variant="light" />;
-                    case 'Draft':
-                        return <Chip color="warning" label="Draft" size="small" variant="light" />;
-                    default:
-                        return <Chip color="default" label={status} size="small" />;
-                }
+                const value = getValue<string>() || 'Confirmé';
+                return <Chip color="success" label={value} size="small" variant="light" />;
             }
         },
         {
@@ -169,32 +178,17 @@ export default function RecuesTraitees() {
             meta: { align: 'center' },
             enableSorting: false,
             cell: ({ row }) => (
-                <Stack direction="row" gap={1} justifyContent="center">
-                    <Tooltip title="View">
-                        <IconButton
-                            color="secondary"
-                            onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                                e.stopPropagation();
-                                setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
-                            }}
-                        >
-                            <Eye />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Edit">
-                        <IconButton
-                            color="primary"
-                            onClick={() => setEditOrder(row.original)}
-                        >
-                            <Edit />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                        <IconButton color="error">
-                            <Trash />
-                        </IconButton>
-                    </Tooltip>
-                </Stack>
+                <Tooltip title="Détails">
+                    <IconButton
+                        color="primary"
+                        onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation();
+                            setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
+                        }}
+                    >
+                        <InfoCircle />
+                    </IconButton>
+                </Tooltip>
             )
         }
     ], []);
@@ -298,7 +292,34 @@ export default function RecuesTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                {/* Add view/edit content here */}
+                                                                {row.original.plexuspurchaseOrderLines && row.original.plexuspurchaseOrderLines.length > 0 ? (
+                                                                    <Table size="small">
+                                                                        <TableHead>
+                                                                            <TableRow>
+                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Num article</TableCell>
+                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
+                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
+                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Quantité livrée</TableCell>
+                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Confirmation</TableCell>
+                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Date Livraison</TableCell>
+                                                                            </TableRow>
+                                                                        </TableHead>
+                                                                        <TableBody>
+                                                                            {row.original.plexuspurchaseOrderLines.map((line: any, idx: number) => (
+                                                                                <TableRow key={line.id || idx}>
+                                                                                    <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                    <TableCell>{line.description}</TableCell>
+                                                                                    <TableCell>{line.quantity}</TableCell>
+                                                                                    <TableCell>{line.receiveQuantity ?? 0}</TableCell>
+                                                                                    <TableCell>{line.Decision || '-'}</TableCell>
+                                                                                    <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                                                                </TableRow>
+                                                                            ))}
+                                                                        </TableBody>
+                                                                    </Table>
+                                                                ) : (
+                                                                    <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>Aucune ligne</Box>
+                                                                )}
                                                             </Box>
                                                         </Collapse>
                                                     </TableCell>

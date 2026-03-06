@@ -11,26 +11,17 @@ export const fetchNonTraitees = async (
 ): Promise<{ data: NonTraitee[]; totalCount: number }> => {
 
   const skip = pageIndex * pageSize;
-
-  // Default sorting (if no column clicked)
-  let orderBy = 'orderDate desc';
+  let url = `http://localhost:8080/api/purchase-orders/recues/non-traitee?skip=${skip}&top=${pageSize}`;
 
   if (sortField) {
-    orderBy = `${sortField} ${sortDesc ? 'desc' : 'asc'}`;
+    url += `&sort=${sortField}&desc=${!!sortDesc}`;
   }
 
   const res = await recuesApi.get<{
     value: NonTraitee[];
     '@odata.count'?: number;
   }>(
-  `https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)/PlexuspurchaseOrders` +
-  `?$filter=status eq 'Draft' and ShippingAdvice eq 'Attente'` +
-  `&$orderby=postingDate desc` +
-  `&$skip=0` +
-  `&$top=10` +
-  `&$count=true` +
-  `&$expand=PlexuspurchaseOrderLines`
-    ,
+    url,
     {
       headers: {
         Authorization: `Bearer ${token}`
