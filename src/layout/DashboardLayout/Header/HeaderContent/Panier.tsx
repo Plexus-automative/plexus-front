@@ -139,7 +139,7 @@ export default function Panier() {
                                 }
                                 secondary={
                                   <Typography variant="body2" color="textSecondary">
-                                    Qté: {item.quantity} | {item.price} Dhs
+                                    Qté: {item.quantity} | {item.price} 
                                   </Typography>
                                 }
                               />

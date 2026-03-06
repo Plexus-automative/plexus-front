@@ -84,6 +84,7 @@ export default function RecuesEncours() {
     const [error, setError] = useState<string | null>(null);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [lineSearch, setLineSearch] = useState('');
+    const [viewDetailSearch, setViewDetailSearch] = useState<{ [key: string]: string }>({});
     // BL Download states
     const [blDialogOpen, setBlDialogOpen] = useState(false);
     const [blPdfBlob, setBlPdfBlob] = useState<Blob | null>(null);
@@ -408,42 +409,85 @@ export default function RecuesEncours() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
+                                                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                                                                    <strong>Purchase Order Lines</strong>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        label="Search lines"
+                                                                        value={viewDetailSearch[row.id] || ''}
+                                                                        onChange={(e) =>
+                                                                            setViewDetailSearch(prev => ({
+                                                                                ...prev,
+                                                                                [row.id]: e.target.value
+                                                                            }))
+                                                                        }
+                                                                    />
+                                                                </Stack>
 
                                                                 {row.original.plexuspurchaseOrderLines &&
-                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (
-                                                                    <Table size="small" sx={{ mt: 2 }}>
-                                                                        <TableHead>
-                                                                            <TableRow>
-                                                                                <TableCell>Num article</TableCell>
-                                                                                <TableCell>Description</TableCell>
-                                                                                <TableCell>Quantité</TableCell>
-                                                                                <TableCell>Prix unitaire</TableCell>
-                                                                                <TableCell>Qté disponible</TableCell>
-                                                                                <TableCell>Qté livrée</TableCell>
-                                                                                <TableCell>Confirmé?</TableCell>
-                                                                                <TableCell>Qté à livrer</TableCell>
-                                                                                <TableCell>Code remplacement</TableCell>
-                                                                            </TableRow>
-                                                                        </TableHead>
-                                                                        <TableBody>
-                                                                            {row.original.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine) => (
-                                                                                <TableRow key={line.id}>
-                                                                                    <TableCell>{line.lineObjectNumber}</TableCell>
-                                                                                    <TableCell>{line.description}</TableCell>
-                                                                                    <TableCell>{line.quantity}</TableCell>
-                                                                                    <TableCell>{line.directUnitCost}</TableCell>
-                                                                                    <TableCell>{line.QuantityAvailable ?? 0}</TableCell>
-                                                                                    <TableCell>{line.receivedQuantity ?? 0}</TableCell>
-                                                                                    <TableCell>{line.Decision || '-'}</TableCell>
-                                                                                    <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-                                                                                        {line.receiveQuantity ?? 0}
-                                                                                    </TableCell>
-                                                                                    <TableCell>{line.OldRemplacementItemNo || '-'}</TableCell>
-                                                                                </TableRow>
-                                                                            ))}
-                                                                        </TableBody>
-                                                                    </Table>
-                                                                ) : (
+                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (() => {
+                                                                        const lines = row.original.plexuspurchaseOrderLines as ExtendedPurchaseOrderLine[];
+                                                                        const term = (viewDetailSearch[row.id] || '').toLowerCase().trim();
+                                                                        const filteredLines = term
+                                                                            ? lines.filter((line) => {
+                                                                                const haystack = [
+                                                                                    line.lineObjectNumber,
+                                                                                    line.description,
+                                                                                    line.Decision,
+                                                                                    line.OldRemplacementItemNo
+                                                                                ]
+                                                                                    .filter(Boolean)
+                                                                                    .join(' ')
+                                                                                    .toLowerCase();
+                                                                                return haystack.includes(term);
+                                                                            })
+                                                                            : lines;
+
+                                                                        return (
+                                                                            <Table size="small" sx={{ mt: 2 }}>
+                                                                                <TableHead>
+                                                                                    <TableRow>
+                                                                                        <TableCell>Num article</TableCell>
+                                                                                        <TableCell>Description</TableCell>
+                                                                                        <TableCell>Prix unitaire</TableCell>
+                                                                                        <TableCell>Quantité</TableCell>
+                                                                                        <TableCell>Qté disponible</TableCell>
+                                                                                        <TableCell>Quantité validée par le client</TableCell>
+                                                                                        <TableCell>Qté livrée</TableCell>
+                                                                                        <TableCell>Confirmé?</TableCell>
+                                                                                        <TableCell>Date Livraison</TableCell>
+                                                                                    
+                                                                                    </TableRow>
+                                                                                </TableHead>
+                                                                                <TableBody>
+                                                                                    {filteredLines.length > 0 ? (
+                                                                                        filteredLines.map((line: ExtendedPurchaseOrderLine) => (
+                                                                                            <TableRow key={line.id}>
+                                                                                                <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                                <TableCell>{line.description}</TableCell>
+                                                                                                <TableCell>{line.directUnitCost}</TableCell>
+                                                                                                <TableCell>{line.quantity}</TableCell>
+                                                                                                <TableCell>{line.QuantityAvailable ?? 0}</TableCell>
+                                                                                                <TableCell>{line.receivedQuantity ?? 0}</TableCell>
+                                                                                                <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                                                                                                    {line.receivedQuantity ?? 0}
+                                                                                                </TableCell>
+                                                                                                <TableCell>{line.Decision || '-'}</TableCell>
+
+                                                                                                <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                                                                            </TableRow>
+                                                                                        ))
+                                                                                    ) : (
+                                                                                        <TableRow>
+                                                                                            <TableCell colSpan={9} align="center">
+                                                                                                No lines found
+                                                                                            </TableCell>
+                                                                                        </TableRow>
+                                                                                    )}
+                                                                                </TableBody>
+                                                                            </Table>
+                                                                        );
+                                                                    })() : (
                                                                     <Box mt={2}>
                                                                         <Alert severity="info">No purchase lines available</Alert>
                                                                     </Box>
@@ -514,8 +558,8 @@ export default function RecuesEncours() {
                                         <TableRow>
                                             <TableCell>Num article</TableCell>
                                             <TableCell>Description</TableCell>
-                                            <TableCell>Quantité</TableCell>
                                             <TableCell>Prix unitaire</TableCell>
+                                            <TableCell>Quantité</TableCell>
                                             <TableCell>Qté disponible</TableCell>
                                             <TableCell>Qté livrée</TableCell>
                                             <TableCell>Confirmé?</TableCell>
@@ -529,14 +573,6 @@ export default function RecuesEncours() {
                                             <TableRow key={line.id || idx}>
                                                 <TableCell>{line.lineObjectNumber}</TableCell>
                                                 <TableCell>{line.description || ''}</TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        value={line.quantity ?? ''}
-                                                        disabled
-                                                        sx={{ width: 80 }}
-                                                    />
-                                                </TableCell>
                                                 <TableCell>
                                                     <TextField
                                                         size="small"
@@ -554,6 +590,14 @@ export default function RecuesEncours() {
                                                             });
                                                         }}
                                                         sx={{ width: 100 }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <TextField
+                                                        size="small"
+                                                        value={line.quantity ?? ''}
+                                                        disabled
+                                                        sx={{ width: 80 }}
                                                     />
                                                 </TableCell>
                                                 <TableCell>

@@ -83,6 +83,8 @@ export default function EmisesEncours() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+    const [viewDetailSearch, setViewDetailSearch] = useState<{ [key: string]: string }>({});
+    const [editLinesSearch, setEditLinesSearch] = useState('');
 
     // BL Download states
     const [blDialogOpen, setBlDialogOpen] = useState(false);
@@ -341,45 +343,89 @@ export default function EmisesEncours() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
+                                                            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                                                                 <strong>Purchase Order Lines</strong>
+                                                                <TextField
+                                                                    size="small"
+                                                                    label="Search lines"
+                                                                    value={viewDetailSearch[row.id] || ''}
+                                                                    onChange={(e) =>
+                                                                        setViewDetailSearch(prev => ({
+                                                                            ...prev,
+                                                                            [row.id]: e.target.value
+                                                                        }))
+                                                                    }
+                                                                />
+                                                            </Stack>
 
-                                                                {row.original.plexuspurchaseOrderLines &&
-                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (
-                                                                    <Table size="small" sx={{ mt: 2 }}>
-                                                                        <TableHead>
-                                                                            <TableRow>
-                                                                                <TableCell>Seq</TableCell>
-                                                                                <TableCell>Item No</TableCell>
-                                                                                <TableCell>Description</TableCell>
-                                                                                <TableCell>Qty</TableCell>
-                                                                                <TableCell>Unit Cost</TableCell>
-                                                                                <TableCell>Old Unit Price</TableCell>
-                                                                                <TableCell>Tax %</TableCell>
-                                                                                <TableCell>Confirmation</TableCell>
-                                                                                <TableCell>Total (TTC)</TableCell>
-                                                                            </TableRow>
-                                                                        </TableHead>
-                                                                        <TableBody>
-                                                                            {row.original.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine) => (
-                                                                                <TableRow key={line.id}>
-                                                                                    <TableCell>{line.sequence}</TableCell>
-                                                                                    <TableCell>{line.lineObjectNumber}</TableCell>
-                                                                                    <TableCell>{line.description}</TableCell>
-                                                                                    <TableCell>{line.quantity}</TableCell>
-                                                                                    <TableCell>{line.directUnitCost}</TableCell>
-                                                                                    <TableCell>{line.OldUnitPrice || '-'}</TableCell>
-                                                                                    <TableCell>{line.taxPercent}%</TableCell>
-                                                                                    <TableCell>{line.Decision}</TableCell>
-                                                                                    <TableCell>{line.amountIncludingTax}</TableCell>
+                                                            {row.original.plexuspurchaseOrderLines &&
+                                                                row.original.plexuspurchaseOrderLines.length > 0 ? (() => {
+                                                                    const lines = row.original.plexuspurchaseOrderLines as ExtendedPurchaseOrderLine[];
+                                                                    const term = (viewDetailSearch[row.id] || '').toLowerCase().trim();
+                                                                    const filteredLines = term
+                                                                        ? lines.filter((line) => {
+                                                                            const haystack = [
+                                                                                line.sequence,
+                                                                                line.lineObjectNumber,
+                                                                                line.description,
+                                                                                line.Decision
+                                                                            ]
+                                                                                .filter(Boolean)
+                                                                                .join(' ')
+                                                                                .toLowerCase();
+                                                                            return haystack.includes(term);
+                                                                        })
+                                                                        : lines;
+
+                                                                    return (
+                                                                        <Table size="small" sx={{ mt: 2 }}>
+                                                                            <TableHead>
+                                                                                <TableRow>
+                                                                                    <TableCell>Num article</TableCell>
+                                                                                    <TableCell>Description</TableCell>
+                                                                                    <TableCell>Quantité</TableCell>
+                                                                                    <TableCell>Prix unitaire</TableCell>
+                                                                                    <TableCell>Prix old unit</TableCell>
+                                                                                    <TableCell>Quantité disponible</TableCell>
+                                                                                    <TableCell>Quantité validée</TableCell>
+                                                                                    <TableCell>Quantité expédiée</TableCell>
+                                                                                    <TableCell>Quantité Reçue</TableCell>
+                                                                                    <TableCell>Confirmation</TableCell>
+                                                                                    <TableCell>Date Livraison</TableCell>
                                                                                 </TableRow>
-                                                                            ))}
-                                                                        </TableBody>
-                                                                    </Table>
-                                                                ) : (
-                                                                    <Box mt={2}>
-                                                                        <Alert severity="info">No purchase lines available</Alert>
-                                                                    </Box>
-                                                                )}
+                                                                            </TableHead>
+                                                                            <TableBody>
+                                                                                {filteredLines.length > 0 ? (
+                                                                                    filteredLines.map((line: ExtendedPurchaseOrderLine) => (
+                                                                                        <TableRow key={line.id}>
+                                                                                            <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                            <TableCell>{line.description}</TableCell>
+                                                                                            <TableCell>{line.quantity}</TableCell>
+                                                                                            <TableCell>{line.directUnitCost}</TableCell>
+                                                                                            <TableCell>{line.OldUnitPrice ?? '-'}</TableCell>
+                                                                                            <TableCell>{line.QuantityAvailable ?? '-'}</TableCell>
+                                                                                            <TableCell>{line.receiveQuantity ?? '-'}</TableCell>
+                                                                                            <TableCell>{(line as any).quantityShipped ?? '-'}</TableCell>
+                                                                                            <TableCell>{line.receivedQuantity ?? '-'}</TableCell>
+                                                                                            <TableCell>{line.Decision ?? '-'}</TableCell>
+                                                                                            <TableCell>{line.expectedReceiptDate ?? '-'}</TableCell>
+                                                                                        </TableRow>
+                                                                                    ))
+                                                                                ) : (
+                                                                                    <TableRow>
+                                                                                        <TableCell colSpan={10} align="center">
+                                                                                            No lines found
+                                                                                        </TableCell>
+                                                                                    </TableRow>
+                                                                                )}
+                                                                            </TableBody>
+                                                                        </Table>
+                                                                    );
+                                                                })() : (
+                                                                <Box mt={2}>
+                                                                    <Alert severity="info">No purchase lines available</Alert>
+                                                                </Box>
+                                                            )}
                                                             </Box>
                                                         </Collapse>
                                                     </TableCell>
@@ -432,226 +478,204 @@ export default function EmisesEncours() {
 
                             <strong>Lignes de commande</strong>
 
-                            {editedOrderLocal.plexuspurchaseOrderLines && editedOrderLocal.plexuspurchaseOrderLines.length > 0 ? (
-                                <Table size="small" sx={{ mt: 2 }}>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Item No</TableCell>
-                                            <TableCell>Description</TableCell>
-                                            <TableCell>Qté</TableCell>
-                                            <TableCell>Prix unitaire</TableCell>
-                                            <TableCell>Ancien prix</TableCell>
-                                            <TableCell>Qté disponible</TableCell>
-                                            <TableCell>Qté valide</TableCell>
-                                            <TableCell>Qté expediee</TableCell>
-                                            <TableCell>Qté recue</TableCell>
-                                            <TableCell>Decision</TableCell>
-                                        </TableRow>
-                                    </TableHead>
+                            <Stack direction="row" justifyContent="flex-end" mb={2}>
+                                <TextField
+                                    size="small"
+                                    label="Rechercher dans les lignes"
+                                    value={editLinesSearch}
+                                    onChange={(e) => setEditLinesSearch(e.target.value)}
+                                />
+                            </Stack>
 
-                                    <TableBody>
-                                        {editedOrderLocal.plexuspurchaseOrderLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
-                                            <TableRow key={line.id || idx}>
-                                                <TableCell>{line.lineObjectNumber}</TableCell>
-                                                <TableCell>
-                                                    {/* Disabled but still showing text */}
-                                                    <Typography variant="body2">{line.description || ''}</Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        value={line.quantity ?? ''}
-                                                        disabled
-                                                        InputProps={{
-                                                            readOnly: true,
-                                                        }}
-                                                    />
-                                                </TableCell>
+                            {editedOrderLocal.plexuspurchaseOrderLines && editedOrderLocal.plexuspurchaseOrderLines.length > 0 ? (() => {
+                                const lines = editedOrderLocal.plexuspurchaseOrderLines as ExtendedPurchaseOrderLine[];
+                                const term = editLinesSearch.toLowerCase().trim();
+                                const filteredLines = term
+                                    ? lines.filter((line) => {
+                                        const haystack = [
+                                            line.lineObjectNumber,
+                                            line.description,
+                                            line.Decision
+                                        ]
+                                            .filter(Boolean)
+                                            .join(' ')
+                                            .toLowerCase();
+                                        return haystack.includes(term);
+                                    })
+                                    : lines;
 
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={line.directUnitCost ?? ''}
-                                                        disabled
-                                                        InputProps={{
-                                                            readOnly: true,
-                                                            style: {
-                                                                color: '#2e7d32',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                        sx={{
-                                                            '& .MuiInputBase-input.Mui-disabled': {
-                                                                WebkitTextFillColor: '#2e7d32',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        value={line.OldUnitPrice ?? ''}
-                                                        disabled
-                                                        InputProps={{
-                                                            readOnly: true,
-                                                            style: {
-                                                                color: '#d32f2f',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                        sx={{
-                                                            '& .MuiInputBase-input.Mui-disabled': {
-                                                                WebkitTextFillColor: '#d32f2f',
-                                                                fontWeight: 'bold'
-                                                            }
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        disabled
-                                                        value={line.QuantityAvailable ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.QuantityAvailable) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, QuantityAvailable: numValue } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.deliveryQuantity) > Number(line.quantity)}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={line.receiveQuantity ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.quantity) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receiveQuantity: numValue } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.receiveQuantity) > Number(line.quantity)}
-                                                        sx={{
-                                                            '& .MuiInputBase-input': {
-                                                                WebkitTextFillColor: '#1976d2',
-                                                                fontWeight: 'bold',
-                                                                color: '#1976d2'
-                                                            }
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        disabled
-                                                        value={line.receivedQuantity ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.quantity) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receivedQuantity: numValue } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.deliveryQuantity) > Number(line.quantity)}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        disabled
-                                                        value={line.receivedQuantity ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            const numValue = Number(v);
-                                                            const maxQty = Number(line.quantity) || 0;
-
-                                                            // Validation: cannot exceed original quantity
-                                                            if (numValue > maxQty) {
-                                                                return;
-                                                            }
-
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receivedQuantity: numValue } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        inputProps={{
-                                                            min: 0,
-                                                            max: line.quantity || 0,
-                                                        }}
-                                                        error={Number(line.receivedQuantity) > Number(line.quantity)}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2">{line.Decision || ''}</Typography>
-
-                                                </TableCell>
+                                return (
+                                    <Table size="small" sx={{ mt: 2 }}>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Num article</TableCell>
+                                                <TableCell>Description</TableCell>
+                                                <TableCell>Quantité</TableCell>
+                                                <TableCell>Prix unitaire</TableCell>
+                                                <TableCell>Prix old unit</TableCell>
+                                                <TableCell>Quantité disponible</TableCell>
+                                                <TableCell>Quantité validée</TableCell>
+                                                <TableCell>Quantité expédiée</TableCell>
+                                                <TableCell>Quantité Reçue</TableCell>
+                                                <TableCell>Confirmation</TableCell>
+                                                <TableCell>Date Livraison</TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            ) : (
+                                        </TableHead>
+
+                                        <TableBody>
+                                            {filteredLines.length > 0 ? (
+                                                filteredLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
+                                                    <TableRow key={line.id || idx}>
+                                                        <TableCell>{line.lineObjectNumber}</TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body2">{line.description || ''}</Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                value={line.quantity ?? ''}
+                                                                disabled
+                                                                InputProps={{
+                                                                    readOnly: true,
+                                                                }}
+                                                            />
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                type="number"
+                                                                value={line.directUnitCost ?? ''}
+                                                                disabled
+                                                                InputProps={{
+                                                                    readOnly: true,
+                                                                    style: {
+                                                                        color: '#2e7d32',
+                                                                        fontWeight: 'bold'
+                                                                    }
+                                                                }}
+                                                                sx={{
+                                                                    '& .MuiInputBase-input.Mui-disabled': {
+                                                                        WebkitTextFillColor: '#2e7d32',
+                                                                        fontWeight: 'bold'
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                type="number"
+                                                                value={line.OldUnitPrice ?? ''}
+                                                                disabled
+                                                                InputProps={{
+                                                                    readOnly: true,
+                                                                    style: {
+                                                                        color: '#2e7d32',
+                                                                        fontWeight: 'bold'
+                                                                    }
+                                                                }}
+                                                                sx={{
+                                                                    '& .MuiInputBase-input.Mui-disabled': {
+                                                                        WebkitTextFillColor: '#2e7d32',
+                                                                        fontWeight: 'bold'
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                type="number"
+                                                                disabled
+                                                                value={line.QuantityAvailable ?? 0}
+                                                                onChange={(e) => {
+                                                                    const v = e.target.value;
+                                                                    const numValue = Number(v);
+                                                                    const maxQty = Number(line.QuantityAvailable) || 0;
+
+                                                                    if (numValue > maxQty) {
+                                                                        return;
+                                                                    }
+
+                                                                    setEditedOrderLocal(prev => {
+                                                                        if (!prev) return prev;
+                                                                        const copy = { ...prev };
+                                                                        copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                            l.id === line.id ? { ...l, QuantityAvailable: numValue } : l
+                                                                        );
+                                                                        return copy;
+                                                                    });
+                                                                }}
+                                                                inputProps={{
+                                                                    min: 0,
+                                                                    max: line.quantity || 0,
+                                                                }}
+                                                                error={Number(line.deliveryQuantity) > Number(line.quantity)}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                type="number"
+                                                                value={line.receiveQuantity ?? 0}
+                                                                onChange={(e) => {
+                                                                    const v = e.target.value;
+                                                                    const numValue = Number(v);
+                                                                    const maxQty = Number(line.quantity) || 0;
+
+                                                                    if (numValue > maxQty) {
+                                                                        return;
+                                                                    }
+
+                                                                    setEditedOrderLocal(prev => {
+                                                                        if (!prev) return prev;
+                                                                        const copy = { ...prev };
+                                                                        copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                            l.id === line.id ? { ...l, receiveQuantity: numValue } : l
+                                                                        );
+                                                                        return copy;
+                                                                    });
+                                                                }}
+                                                                inputProps={{
+                                                                    min: 0,
+                                                                    max: line.quantity || 0,
+                                                                }}
+                                                                error={Number(line.receiveQuantity) > Number(line.quantity)}
+                                                                sx={{
+                                                                    '& .MuiInputBase-input': {
+                                                                        WebkitTextFillColor: '#1976d2',
+                                                                        fontWeight: 'bold',
+                                                                        color: '#1976d2'
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body2">{(line as any).receivedQuantity ?? '-'}</Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body2">{line.receivedQuantity ?? '-'}</Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body2">{line.Decision || '-'}</Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body2">{line.expectedReceiptDate || '-'}</Typography>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={10} align="center">
+                                                        Aucune ligne trouvée
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                );
+                            })() : (
                                 <Box mt={2}>
                                     <Alert severity="info">Aucune ligne de commande disponible</Alert>
                                 </Box>

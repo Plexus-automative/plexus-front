@@ -21,7 +21,8 @@ import {
     DialogContent,
     DialogActions,
     CircularProgress,
-    Alert
+    Alert,
+    TextField
 } from '@mui/material';
 
 import {
@@ -63,6 +64,7 @@ export default function EmisesNonTraitees() {
     const [editOrder, setEditOrder] = useState<NonTraitee | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [detailSearch, setDetailSearch] = useState<{ [key: string]: string }>({});
 
     // Use pagination state from TanStack Table
     const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
@@ -276,44 +278,79 @@ export default function EmisesNonTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                <strong>Purchase Order Lines</strong>
+                                                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                                                                    <strong>Purchase Order Lines</strong>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        label="Search lines"
+                                                                        value={detailSearch[row.id] || ''}
+                                                                        onChange={(e) =>
+                                                                            setDetailSearch(prev => ({
+                                                                                ...prev,
+                                                                                [row.id]: e.target.value
+                                                                            }))
+                                                                        }
+                                                                    />
+                                                                </Stack>
 
                                                                 {row.original.plexuspurchaseOrderLines &&
-                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (
-                                                                    <Table size="small" sx={{ mt: 2 }}>
-                                                                        <TableHead>
-                                                                            <TableRow>
-                                                                                <TableCell>Seq</TableCell>
-                                                                                <TableCell>Item No</TableCell>
-                                                                                <TableCell>Description</TableCell>
-                                                                                <TableCell>Qty</TableCell>
-                                                                                <TableCell>Unit Cost</TableCell>
-                                                                                <TableCell>Tax %</TableCell>
-                                                                                <TableCell>Total (TTC)</TableCell>
-                                                                                <TableCell>Expected Receipt</TableCell>
-                                                                            </TableRow>
-                                                                        </TableHead>
+                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (() => {
+                                                                        const lines = row.original.plexuspurchaseOrderLines;
+                                                                        const term = (detailSearch[row.id] || '').toLowerCase().trim();
+                                                                        const filteredLines = term
+                                                                            ? lines.filter((line) => {
+                                                                                const haystack = [
+                                                                                    line.sequence,
+                                                                                    line.lineObjectNumber,
+                                                                                    line.description
+                                                                                ]
+                                                                                    .filter(Boolean)
+                                                                                    .join(' ')
+                                                                                    .toLowerCase();
+                                                                                return haystack.includes(term);
+                                                                            })
+                                                                            : lines;
 
-                                                                        <TableBody>
-                                                                            {row.original.plexuspurchaseOrderLines.map((line) => (
-                                                                                <TableRow key={line.id}>
-                                                                                    <TableCell>{line.sequence}</TableCell>
-                                                                                    <TableCell>{line.lineObjectNumber}</TableCell>
-                                                                                    <TableCell>{line.description}</TableCell>
-                                                                                    <TableCell>{line.quantity}</TableCell>
-                                                                                    <TableCell>{line.directUnitCost}</TableCell>
-                                                                                    <TableCell>{line.taxPercent}%</TableCell>
-                                                                                    <TableCell>{line.amountIncludingTax}</TableCell>
-                                                                                    <TableCell>{line.expectedReceiptDate}</TableCell>
-                                                                                </TableRow>
-                                                                            ))}
-                                                                        </TableBody>
-                                                                    </Table>
-                                                                ) : (
-                                                                    <Box mt={2}>
-                                                                        <Alert severity="info">No purchase lines available</Alert>
-                                                                    </Box>
-                                                                )}
+                                                                        return (
+                                                                            <Table size="small" sx={{ mt: 2 }}>
+                                                                                <TableHead>
+                                                                                    <TableRow>
+                                                                                        <TableCell>Num article</TableCell>
+                                                                                        <TableCell>Description</TableCell>
+                                                                                        <TableCell>Qty</TableCell>
+                                                                                        <TableCell>Quantité livree</TableCell>
+                                                                                        <TableCell>Confirmation</TableCell>
+                                                                                        <TableCell>Date Livraison</TableCell>
+                                                                                    </TableRow>
+                                                                                </TableHead>
+
+                                                                                <TableBody>
+                                                                                    {filteredLines.length > 0 ? (
+                                                                                        filteredLines.map((line) => (
+                                                                                            <TableRow key={line.id}>
+                                                                                                <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                                <TableCell>{line.description}</TableCell>
+                                                                                                <TableCell>{line.quantity}</TableCell>
+                                                                                                <TableCell>{line.receivedQuantity}</TableCell>
+                                                                                                <TableCell>{line.Decision}</TableCell>
+                                                                                                <TableCell>{line.expectedReceiptDate}</TableCell>
+                                                                                            </TableRow>
+                                                                                        ))
+                                                                                    ) : (
+                                                                                        <TableRow>
+                                                                                            <TableCell colSpan={8} align="center">
+                                                                                                No lines found
+                                                                                            </TableCell>
+                                                                                        </TableRow>
+                                                                                    )}
+                                                                                </TableBody>
+                                                                            </Table>
+                                                                        );
+                                                                    })() : (
+                                                                        <Box mt={2}>
+                                                                            <Alert severity="info">No purchase lines available</Alert>
+                                                                        </Box>
+                                                                    )}
                                                             </Box>
                                                         </Collapse>
                                                     </TableCell>

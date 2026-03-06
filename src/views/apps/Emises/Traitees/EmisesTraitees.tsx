@@ -22,7 +22,8 @@ import {
     DialogActions,
     CircularProgress,
     Alert,
-    Typography
+    Typography,
+    TextField
 } from '@mui/material';
 
 import {
@@ -64,6 +65,7 @@ export default function EmisesTraitees() {
     const [editOrder, setEditOrder] = useState<Traitee | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [detailSearch, setDetailSearch] = useState<{ [key: string]: string }>({});
 
     // Use pagination state from TanStack Table
     const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
@@ -268,34 +270,74 @@ export default function EmisesTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                {row.original.plexuspurchaseOrderLines && row.original.plexuspurchaseOrderLines.length > 0 ? (
-                                                                    <Table size="small">
-                                                                        <TableHead>
-                                                                            <TableRow>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Num article</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Quantité livrée</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Quantité Reçue</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Confirmation</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 'bold' }}>Date Livraison</TableCell>
-                                                                            </TableRow>
-                                                                        </TableHead>
-                                                                        <TableBody>
-                                                                            {row.original.plexuspurchaseOrderLines.map((line: TraiteeLine, idx: number) => (
-                                                                                <TableRow key={line.id || idx}>
-                                                                                    <TableCell>{line.lineObjectNumber}</TableCell>
-                                                                                    <TableCell>{line.description}</TableCell>
-                                                                                    <TableCell>{line.quantity}</TableCell>
-                                                                                    <TableCell>{line.receiveQuantity ?? line.quantity}</TableCell>
-                                                                                    <TableCell>{line.receivedQuantity ?? line.quantity}</TableCell>
-                                                                                    <TableCell>{line.Decision || '-'}</TableCell>
-                                                                                    <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                                                <Stack direction="row" justifyContent="flex-end" mb={2}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        label="Rechercher dans les lignes"
+                                                                        value={detailSearch[row.id] || ''}
+                                                                        onChange={(e) =>
+                                                                            setDetailSearch(prev => ({
+                                                                                ...prev,
+                                                                                [row.id]: e.target.value
+                                                                            }))
+                                                                        }
+                                                                    />
+                                                                </Stack>
+
+                                                                {row.original.plexuspurchaseOrderLines && row.original.plexuspurchaseOrderLines.length > 0 ? (() => {
+                                                                    const lines = row.original.plexuspurchaseOrderLines as TraiteeLine[];
+                                                                    const term = (detailSearch[row.id] || '').toLowerCase().trim();
+                                                                    const filteredLines = term
+                                                                        ? lines.filter((line) => {
+                                                                            const haystack = [
+                                                                                line.lineObjectNumber,
+                                                                                line.description,
+                                                                                line.Decision
+                                                                            ]
+                                                                                .filter(Boolean)
+                                                                                .join(' ')
+                                                                                .toLowerCase();
+                                                                            return haystack.includes(term);
+                                                                        })
+                                                                        : lines;
+
+                                                                    return (
+                                                                        <Table size="small">
+                                                                            <TableHead>
+                                                                                <TableRow>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Num article</TableCell>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Quantité livrée</TableCell>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Quantité Reçue</TableCell>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Confirmation</TableCell>
+                                                                                    <TableCell sx={{ fontWeight: 'bold' }}>Date Livraison</TableCell>
                                                                                 </TableRow>
-                                                                            ))}
-                                                                        </TableBody>
-                                                                    </Table>
-                                                                ) : (
+                                                                            </TableHead>
+                                                                            <TableBody>
+                                                                                {filteredLines.length > 0 ? (
+                                                                                    filteredLines.map((line: TraiteeLine, idx: number) => (
+                                                                                        <TableRow key={line.id || idx}>
+                                                                                            <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                            <TableCell>{line.description}</TableCell>
+                                                                                            <TableCell>{line.quantity}</TableCell>
+                                                                                            <TableCell>{line.receiveQuantity ?? line.quantity}</TableCell>
+                                                                                            <TableCell>{line.receivedQuantity ?? line.quantity}</TableCell>
+                                                                                            <TableCell>{line.Decision || '-'}</TableCell>
+                                                                                            <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                                                                        </TableRow>
+                                                                                    ))
+                                                                                ) : (
+                                                                                    <TableRow>
+                                                                                        <TableCell colSpan={7} align="center">
+                                                                                            Aucune ligne trouvée
+                                                                                        </TableCell>
+                                                                                    </TableRow>
+                                                                                )}
+                                                                            </TableBody>
+                                                                        </Table>
+                                                                    );
+                                                                })() : (
                                                                     <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>Aucune ligne</Box>
                                                                 )}
                                                             </Box>

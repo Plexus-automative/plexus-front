@@ -9,12 +9,11 @@ import Box from '@mui/material/Box';
 // project-imports
 import NavGroup from './NavGroup';
 import NavItem from './NavItem';
-import { useGetMenu, useGetMenuMaster } from 'api/menu';
+import { useGetMenuMaster } from 'api/menu';
 import { MenuOrientation, HORIZONTAL_MAX_ITEM } from 'config';
 import useConfig from 'hooks/useConfig';
 import useUser from 'hooks/useUser';
 import menuItem from 'menu-items';
-import { MenuFromAPI } from 'menu-items/dashboard';
 
 // types
 import { NavItemType } from 'types/menu';
@@ -34,7 +33,6 @@ export default function Navigation() {
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
 
   const { menuOrientation } = useConfig();
-  const { menuLoading } = useGetMenu();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
 
@@ -44,24 +42,14 @@ export default function Navigation() {
   const [selectedLevel, setSelectedLevel] = useState<number>(0);
   const [menuItems, setMenuItems] = useState<{ items: NavItemType[] }>({ items: [] });
 
-  const dashboardMenu = MenuFromAPI();
-
   useLayoutEffect(() => {
-    let currentItems = [...menuItem.items];
-
-    if (menuLoading && !isFound(menuItem, 'group-dashboard-loading')) {
-      menuItem.items.splice(0, 0, dashboardMenu);
-      currentItems = [...menuItem.items];
-    } else if (!menuLoading && dashboardMenu?.id !== undefined && !isFound(menuItem, 'group-dashboard')) {
-      menuItem.items.splice(0, 1, dashboardMenu);
-      currentItems = [...menuItem.items];
-    }
+    const currentItems = [...menuItem.items];
 
     // Role-based filtering
     const userRole = user ? user.role : '';
-    const filteredItems = currentItems.map(group => {
+    const filteredItems = currentItems.map((group) => {
       if (group.id === 'group-applications' && group.children) {
-        const filteredChildren = group.children.filter(child => {
+        const filteredChildren = group.children.filter((child) => {
           if (userRole === 'Client and Fournisseur') return true;
 
           if (userRole === 'Fournisseur') {
@@ -79,7 +67,7 @@ export default function Navigation() {
 
     setMenuItems({ items: filteredItems });
     // eslint-disable-next-line
-  }, [menuLoading, user ? user.role : '']);
+  }, [user ? user.role : '']);
 
   const isHorizontal = menuOrientation === MenuOrientation.HORIZONTAL && !downLG;
 
