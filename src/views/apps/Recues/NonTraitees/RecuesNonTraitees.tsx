@@ -51,8 +51,10 @@ import {
 
 import IconButton from 'components/@extended/IconButton';
 import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
+import { useSearchParams } from 'next/navigation';
 
 import { fetchNonTraitees } from 'app/api/services/Recues/NonTraiteeRecues';
+import axiosServices from 'utils/axios';
 import { NonTraitee, PurchaseOrderLine } from 'types/NonTraitee';
 
 // Extend the PurchaseOrderLine type to include local UI properties
@@ -70,6 +72,9 @@ interface ExtendedNonTraitee extends Omit<NonTraitee, 'plexuspurchaseOrderLines'
 }
 
 export default function RecuesNonTraitees() {
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get('highlight');
+
     const [data, setData] = useState<NonTraitee[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
@@ -85,6 +90,7 @@ export default function RecuesNonTraitees() {
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [viewDetailSearch, setViewDetailSearch] = useState<{ [key: string]: string }>({});
     const [editLinesSearch, setEditLinesSearch] = useState('');
+    const [customers, setCustomers] = useState<{ [key: string]: string }>({});
 
     // Use pagination state from TanStack Table
     const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
@@ -94,23 +100,44 @@ export default function RecuesNonTraitees() {
 
     const [totalCount, setTotalCount] = useState(0);
 
+    // Reset to page 0 when filter changes
+    useEffect(() => {
+        setPagination(p => ({ ...p, pageIndex: 0 }));
+    }, [globalFilter]);
+
+    useEffect(() => {
+        const loadCustomers = async () => {
+            try {
+                const res = await axiosServices.get('/api/purchase-orders/customers');
+                if (res.data && res.data.value) {
+                    const map: { [key: string]: string } = {};
+                    res.data.value.forEach((c: any) => {
+                        map[c.number] = c.displayName;
+                    });
+                    setCustomers(map);
+                }
+            } catch (err) {
+                console.error('Error fetching customers:', err);
+            }
+        };
+        loadCustomers();
+    }, []);
+
     // Fetch data when pageIndex or pageSize changes
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-
                 // Fetch with proper pagination
                 const sort = sorting[0];
 
                 const result = await fetchNonTraitees(
-                    token,
                     pageIndex,
                     pageSize,
                     sort?.id,
-                    sort?.desc
+                    sort?.desc,
+                    globalFilter
                 );
                 setData(
                     result.data.map((o: NonTraitee, index: number) => ({
@@ -119,11 +146,12 @@ export default function RecuesNonTraitees() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         ShippingAdvice: o.ShippingAdvice,
                         status: o.status,
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -139,7 +167,7 @@ export default function RecuesNonTraitees() {
         };
 
         loadData();
-    }, [pageIndex, pageSize, sorting]);
+    }, [pageIndex, pageSize, sorting, globalFilter]);
 
     // Mirror editOrder into a local editable copy
     useEffect(() => {
@@ -149,7 +177,7 @@ export default function RecuesNonTraitees() {
                 ...editOrder,
                 plexuspurchaseOrderLines: editOrder.plexuspurchaseOrderLines?.map(line => ({
                     ...line,
-                    deliveryQuantity: line.confirmationStatus === 'Non Disponible' ? 0 : (line.deliveryQuantity || line.quantity || 0),
+                    deliveryQuantity: 0,
                     OldRemplacementItemNo: line.OldRemplacementItemNo || '',
                     OldUnitPrice: line.directUnitCost // Capture the original unit price
                 }))
@@ -161,7 +189,7 @@ export default function RecuesNonTraitees() {
     }, [editOrder]);
 
     const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
-        
+
         {
             header: 'Num Commande',
             accessorKey: 'number',
@@ -179,8 +207,9 @@ export default function RecuesNonTraitees() {
             cell: ({ row }) => {
                 const name = (row.original as any).shipToName;
                 const no = (row.original as any).SellToCustomerNo;
+                const clientName = customers[no] || name || no || '-';
                 return (
-                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                    <Typography variant="body2" fontWeight={500}>{clientName}</Typography>
                 );
             }
         },
@@ -227,11 +256,11 @@ export default function RecuesNonTraitees() {
                             <Edit />
                         </IconButton>
                     </Tooltip>
-                    
+
                 </Stack>
             )
         }
-    ], []);
+    ], [customers]);
 
     const table = useReactTable({
         data,
@@ -270,7 +299,7 @@ export default function RecuesNonTraitees() {
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Search ${totalCount} records...`}
+                    placeholder={`Chercher ${totalCount} commandes...`}
                 />
             </Stack>
 
@@ -311,9 +340,18 @@ export default function RecuesNonTraitees() {
                                 {table.getRowModel().rows.length > 0 ? (
                                     table.getRowModel().rows.map(row => {
                                         const mode = expandedRows[row.id];
+                                        const isHighlighted = highlightId === String((row.original as NonTraitee).id);
                                         return (
                                             <Fragment key={row.id}>
-                                                <TableRow hover>
+                                                <TableRow
+                                                    hover
+                                                    sx={{
+                                                        ...(isHighlighted && {
+                                                            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                                                            borderLeft: (theme) => `4px solid ${theme.palette.primary.main}`
+                                                        })
+                                                    }}
+                                                >
                                                     {row.getVisibleCells().map(cell => (
                                                         <TableCell key={cell.id}>
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -329,11 +367,10 @@ export default function RecuesNonTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                                                                    <strong>Purchase Order Lines</strong>
+                                                                <Stack direction="row" justifyContent="flex-end" alignItems="center" mb={2}>
                                                                     <TextField
                                                                         size="small"
-                                                                        label="Search lines"
+                                                                        label="Chercher"
                                                                         value={viewDetailSearch[row.id] || ''}
                                                                         onChange={(e) =>
                                                                             setViewDetailSearch(prev => ({
@@ -370,7 +407,7 @@ export default function RecuesNonTraitees() {
                                                                                         <TableCell>Num article</TableCell>
                                                                                         <TableCell>Description</TableCell>
                                                                                         <TableCell>Quantité</TableCell>
-                                                                                        
+
                                                                                         <TableCell>Quantité livrée</TableCell>
                                                                                         <TableCell>Confirmé?</TableCell>
                                                                                         <TableCell>Date Livraison</TableCell>
@@ -384,7 +421,7 @@ export default function RecuesNonTraitees() {
                                                                                                 <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                                 <TableCell>{line.description}</TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
-                                                                                                
+
                                                                                                 <TableCell>{line.receivedQuantity ?? 0}</TableCell>
                                                                                                 <TableCell>{line.Decision || '-'}</TableCell>
                                                                                                 <TableCell>{line.deliveryDate}</TableCell>
@@ -392,8 +429,8 @@ export default function RecuesNonTraitees() {
                                                                                         ))
                                                                                     ) : (
                                                                                         <TableRow>
-                                                                                            <TableCell colSpan={9} align="center">
-                                                                                                No lines found
+                                                                                            <TableCell colSpan={6} align="center">
+                                                                                                Aucun ligne trouvée
                                                                                             </TableCell>
                                                                                         </TableRow>
                                                                                     )}
@@ -402,7 +439,7 @@ export default function RecuesNonTraitees() {
                                                                         );
                                                                     })() : (
                                                                     <Box mt={2}>
-                                                                        <Alert severity="info">No purchase lines available</Alert>
+                                                                        <Alert severity="info">Aucune ligne d'achat disponible</Alert>
                                                                     </Box>
                                                                 )}
                                                             </Box>
@@ -415,7 +452,7 @@ export default function RecuesNonTraitees() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                                            No records found
+                                            No commandes trouvées
                                         </TableCell>
                                     </TableRow>
                                 )}
@@ -451,12 +488,11 @@ export default function RecuesNonTraitees() {
                                 <Typography>{editedOrderLocal.vendorName}</Typography>
                             </Stack>
 
-                            <strong>Purchase Order Lines</strong>
 
                             <Stack direction="row" justifyContent="flex-end" mb={2}>
                                 <TextField
                                     size="small"
-                                    label="Search lines"
+                                    label="Chercher"
                                     value={editLinesSearch}
                                     onChange={(e) => setEditLinesSearch(e.target.value)}
                                 />
@@ -480,6 +516,8 @@ export default function RecuesNonTraitees() {
                                     })
                                     : lines;
 
+                                const showDateColumn = filteredLines.some((l: ExtendedPurchaseOrderLine) => l.confirmationStatus === 'Liv pevu a date');
+
                                 return (
                                     <Table size="small" sx={{ mt: 2 }}>
                                         <TableHead>
@@ -491,6 +529,7 @@ export default function RecuesNonTraitees() {
                                                 <TableCell>Quantité livrée</TableCell>
                                                 <TableCell>Confirmé?</TableCell>
                                                 <TableCell>Quantité à livrer</TableCell>
+                                                {showDateColumn && <TableCell>Date de livraison</TableCell>}
                                                 <TableCell>Code remplacement</TableCell>
                                             </TableRow>
                                         </TableHead>
@@ -529,7 +568,7 @@ export default function RecuesNonTraitees() {
                                                                     sx={{ width: 100 }}
                                                                 />
                                                             </TableCell>
-                                                            
+
                                                             <TableCell>{line.receivedQuantity ?? 0}</TableCell>
                                                             <TableCell>
                                                                 <TextField
@@ -544,7 +583,9 @@ export default function RecuesNonTraitees() {
                                                                             copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) => {
                                                                                 if (l.id === line.id) {
                                                                                     const updatedLine = { ...l, confirmationStatus: v };
-                                                                                    if (v === 'Non Disponible') {
+                                                                                    if (v === 'Disponible' || v === 'Liv pevu a date') {
+                                                                                        updatedLine.deliveryQuantity = l.quantity;
+                                                                                    } else if (v === 'Non Disponible') {
                                                                                         updatedLine.deliveryQuantity = 0;
                                                                                     }
                                                                                     return updatedLine;
@@ -585,6 +626,30 @@ export default function RecuesNonTraitees() {
                                                                     sx={{ width: 100 }}
                                                                 />
                                                             </TableCell>
+                                                            {showDateColumn && (
+                                                                <TableCell>
+                                                                    {line.confirmationStatus === 'Liv pevu a date' && (
+                                                                        <TextField
+                                                                            size="small"
+                                                                            type="date"
+                                                                            value={line.deliveryDate || ''}
+                                                                            onChange={(e) => {
+                                                                                const v = e.target.value;
+                                                                                setEditedOrderLocal(prev => {
+                                                                                    if (!prev) return prev;
+                                                                                    const copy = { ...prev };
+                                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                                        l.id === line.id ? { ...l, deliveryDate: v } : l
+                                                                                    );
+                                                                                    return copy;
+                                                                                });
+                                                                            }}
+                                                                            sx={{ width: 130 }}
+                                                                            InputLabelProps={{ shrink: true }}
+                                                                        />
+                                                                    )}
+                                                                </TableCell>
+                                                            )}
                                                             <TableCell>
                                                                 <TextField
                                                                     size="small"
@@ -609,8 +674,8 @@ export default function RecuesNonTraitees() {
                                                 })
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={9} align="center">
-                                                        No lines found
+                                                    <TableCell colSpan={showDateColumn ? 9 : 8} align="center">
+                                                        Aucun ligne trouvée
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -619,7 +684,7 @@ export default function RecuesNonTraitees() {
                                 );
                             })() : (
                                 <Box mt={2}>
-                                    <Alert severity="info">No purchase lines available</Alert>
+                                    <Alert severity="info">Aucune ligne d'achat disponible</Alert>
                                 </Box>
                             )}
                         </>
@@ -635,25 +700,12 @@ export default function RecuesNonTraitees() {
                             try {
                                 const orderId = editedOrderLocal.id;
 
-                                // Always set ShippingAdvice to "ConfirmationPartielle"
-                                const shippingAdvice = 'ConfirmationPartielle';
-
-                                // Prepare the update object for the main order
                                 const orderUpdateBody: any = {
-                                    ShippingAdvice: shippingAdvice
+                                    ShippingAdvice: "ConfirmationPartielle"
                                 };
 
                                 // Update the main order
-                                await fetch(
-                                    `http://localhost:8080/api/purchase-orders/${orderId}`,
-                                    {
-                                        method: 'PATCH',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                        },
-                                        body: JSON.stringify(orderUpdateBody)
-                                    }
-                                );
+                                await axiosServices.patch(`/api/purchase-orders/${orderId}`, orderUpdateBody);
 
                                 // Update individual lines
                                 if (editedOrderLocal.plexuspurchaseOrderLines) {
@@ -688,11 +740,9 @@ export default function RecuesNonTraitees() {
                                             lineUpdateBody.OldRemplacementItemNo = line.OldRemplacementItemNo || '';
                                         }
 
-                                        // Check if QuantityAvailable changed
-                                        if (line.QuantityAvailable !== originalLine.QuantityAvailable) {
-                                            lineUpdateBody.QuantityAvailable = Number(line.QuantityAvailable);
-                                        }
-
+                                        // Patch QuantityAvailable with the value from Quantité à livrer
+                                        lineUpdateBody.QuantityAvailable = Number(line.deliveryQuantity);
+                                        console.log(lineUpdateBody);
                                         // Add Decision field based on confirmation status
                                         if (line.confirmationStatus) {
                                             switch (line.confirmationStatus) {
@@ -716,16 +766,7 @@ export default function RecuesNonTraitees() {
                                         // Only update if there are changes
                                         if (Object.keys(lineUpdateBody).length === 0) continue;
 
-                                        await fetch(
-                                            `http://localhost:8080/api/purchase-orders/lines/${line.id}`,
-                                            {
-                                                method: 'PATCH',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                },
-                                                body: JSON.stringify(lineUpdateBody)
-                                            }
-                                        );
+                                        await axiosServices.patch(`/api/purchase-orders/lines/${line.id}`, lineUpdateBody);
                                     }
                                 }
 

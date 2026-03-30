@@ -11,13 +11,14 @@ import {
   Calendar1,
   Kanban,
   Profile2User,
-  Bill,
   UserSquare,
-  ShoppingBag,
-  Note1,
-  NoteAdd,
-  TruckFast,
-  ClipboardTick
+  SearchNormal1,
+  ExportCurve,
+  ImportCurve,
+  BoxTick,
+  TaskSquare,
+  AddCircle,
+  Bag2
 } from "@wandersonalwes/iconsax-react";
 
 // types
@@ -30,17 +31,18 @@ const icons = {
   calendar: Calendar1,
   kanban: Kanban,
   customer: Profile2User,
-  invoice: Bill,
-  article: Note1,
+  article: SearchNormal1,
   profile: UserSquare,
-  ecommerce: ShoppingBag,
-  truck: TruckFast,
+  ecommerce: Bag2,
+  truck: BoxTick,
+  export: ExportCurve,
+  import: ImportCurve,
   add: Add,
   link: Link1,
   fileManager: DocumentFilter,
   mail: DirectInbox,
-  reference: NoteAdd,
-  validation: ClipboardTick
+  reference: AddCircle,
+  validation: TaskSquare
 };
 
 // ==============================|| MENU ITEMS - APPLICATIONS ||============================== //
@@ -53,7 +55,7 @@ const applications: NavItemType = {
   children: [
     {
       id: "articles",
-      title: "articles",
+      title: "articles-rechercher",
       type: "item",
       breadcrumbs: false,
       icon: icons.article,
@@ -64,7 +66,7 @@ const applications: NavItemType = {
       title: "commandes-emis",
       type: "collapse",
       breadcrumbs: false,
-      icon: icons.invoice,
+      icon: icons.export,
       children: [
         {
           id: "non-traite",
@@ -74,20 +76,19 @@ const applications: NavItemType = {
           url: "/pages/commandes-emis/non-traitees",
         },
         {
-          id: "traite",
-          title: "traite",
-          type: "item",
-          breadcrumbs: false,
-          url: "/pages/commandes-emis/traitees",
-        },
-
-        {
           id: "en-cours",
           title: "en-cours",
           type: "item",
           breadcrumbs: false,
           url: "/pages/commandes-emis/en-cours",
         },
+        {
+          id: "traite",
+          title: "traite",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-emis/traitees",
+        }
       ]
     },
     {
@@ -95,31 +96,38 @@ const applications: NavItemType = {
       title: "commandes-recus",
       type: "collapse",
       breadcrumbs: false,
-      icon: icons.invoice,
+      icon: icons.import,
       children: [
         {
-          id: "non-traite",
+          id: "non-traite-recus",
           title: "non-traite",
           type: "item",
           breadcrumbs: false,
           url: "/pages/commandes-recus/non-traitees",
         },
         {
-          id: "traite",
-          title: "traite",
-          type: "item",
-          breadcrumbs: false,
-          url: "/pages/commandes-recus/traitees",
-        },
-
-        {
-          id: "en-cours",
+          id: "en-cours-recus",
           title: "en-cours",
           type: "item",
           breadcrumbs: false,
           url: "/pages/commandes-recus/en-cours",
         },
+        {
+          id: "traite-recus",
+          title: "traite",
+          type: "item",
+          breadcrumbs: false,
+          url: "/pages/commandes-recus/traitees",
+        },
       ]
+    },
+    {
+      id: "commandes-livrees",
+      title: "commandes-livrees",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.truck,
+      url: "/pages/commandes-livree",
     },
     {
       id: "validation-reception",
@@ -130,20 +138,20 @@ const applications: NavItemType = {
       url: "/pages/validation-reception",
     },
     {
-      id: "commandes-livrees",
-      title: "commandes-livrees",
-      type: "item",
-      breadcrumbs: false,
-      icon: icons.invoice,
-      url: "/pages/commandes-livree",
-    },
-    {
       id: "add-reference",
       title: "add-reference",
       type: "item",
       breadcrumbs: false,
       icon: icons.reference,
       url: "/pages/reference",
+    },
+    {
+      id: "import-articles",
+      title: "import-articles",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.fileManager, // using DocumentFilter icon mapped in the file
+      url: "/pages/import-articles",
     },
     {
       id: "panier",

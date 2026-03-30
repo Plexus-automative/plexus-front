@@ -148,7 +148,7 @@ export default function Breadcrumbs({
         href={(main.url as string) || '/'}
         passHref
         variant="body1"
-        color={window.location.pathname === main.url ? 'text.secondary' : 'text.primary'}
+        color={typeof window !== 'undefined' && window.location.pathname === main.url ? 'text.secondary' : 'text.primary'}
         sx={{ textDecoration: 'none' }}
       >
         {icons && <CollapseIcon style={iconSX} />}

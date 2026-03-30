@@ -3,11 +3,32 @@ server:
 
 business-central:
   oauth2:
-    token-uri: https://login.microsoftonline.com/235ce906-04c4-4ee5-a705-c904b1fa3167/oauth2/v2.0/token
+    token-uri: ${BC_TOKEN_URI}
     grant-type: client_credentials
     scope: https://api.businesscentral.dynamics.com/.default
-    client-id: 015168df-815c-4246-aed3-aacaf1b9f20a
-    client-secret: ${BC_CLIENT_SECRET}
-    tenant-id: 235ce906-04c4-4ee5-a705-c904b1fa3167
+    client-id: YOUR_BC_CLIENT_ID_HERE
+    client-secret: YOUR_BC_CLIENT_SECRET_HERE
+    tenant-id: YOUR_BC_TENANT_ID_HERE
   api:
-    base-url: https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessPurchasesAPI/v2.0/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)
+    base-url: ${BC_BASE_URL}
+    system-url: ${BC_SYSTEM_API_URL}
+    tarek-system-url: ${BC_TAREK_SYSTEM_API_URL}
+    company-id: ${BC_COMPANY_ID}
+ 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.plexus: DEBUG
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: ${JWT_EXPIRATION:86400}

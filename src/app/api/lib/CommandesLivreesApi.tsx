@@ -1,8 +1,5 @@
-import axios from 'axios';
+import axiosServices from 'utils/axios';
 
-export const commandesLivreesApi = axios.create({
-    baseURL: process.env.NEXT_API_PLEXUS,
-    headers: {
-        'Content-Type': 'application/json'
-    }
-});
+// Re-export axiosServices so that session headers (X-Customer-No, X-Vendor-No)
+// and Authorization tokens are automatically attached via the request interceptor.
+export const commandesLivreesApi = axiosServices;

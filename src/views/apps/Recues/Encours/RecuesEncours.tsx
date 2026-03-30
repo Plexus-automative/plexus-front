@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, Fragment, MouseEvent } from 'react';
-import axios from 'axios';
+import axiosServices from 'utils/axios';
 import { alpha } from '@mui/material/styles';
 import {
     Button,
@@ -54,10 +54,11 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit, DocumentDownload } from '@wandersonalwes/iconsax-react';
+import { Eye, Edit, DocumentDownload, Printer } from '@wandersonalwes/iconsax-react';
 
 import { fetchEncours } from 'app/api/services/Recues/EncoursRecues';
 import { Encours, PurchaseOrderLine } from 'types/Encours';
+import { printOrder } from 'utils/printOrder';
 
 // Extend the PurchaseOrderLine type to include local UI properties
 interface ExtendedPurchaseOrderLine extends PurchaseOrderLine {
@@ -85,6 +86,8 @@ export default function RecuesEncours() {
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [lineSearch, setLineSearch] = useState('');
     const [viewDetailSearch, setViewDetailSearch] = useState<{ [key: string]: string }>({});
+    const [customers, setCustomers] = useState<{ [key: string]: string }>({});
+
     // BL Download states
     const [blDialogOpen, setBlDialogOpen] = useState(false);
     const [blPdfBlob, setBlPdfBlob] = useState<Blob | null>(null);
@@ -99,19 +102,43 @@ export default function RecuesEncours() {
 
     const [totalCount, setTotalCount] = useState(0);
 
+    // Reset to page 0 when filter changes
+    useEffect(() => {
+        setPagination(p => ({ ...p, pageIndex: 0 }));
+    }, [globalFilter]);
+
+    useEffect(() => {
+        const loadCustomers = async () => {
+            try {
+                const res = await axiosServices.get('/api/purchase-orders/customers');
+                if (res.data && res.data.value) {
+                    const map: { [key: string]: string } = {};
+                    res.data.value.forEach((c: any) => {
+                        map[c.number] = c.displayName;
+                    });
+                    setCustomers(map);
+                }
+            } catch (err) {
+                console.error('Error fetching customers:', err);
+            }
+        };
+        loadCustomers();
+    }, []);
+
     // Fetch data when pageIndex, pageSize, or sorting changes
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-
-                // Fetch with proper pagination
+                // Fetch with proper pagination and sorting
+                const sort = sorting[0];
                 const result = await fetchEncours(
-                    token,
                     pageIndex,
-                    pageSize
+                    pageSize,
+                    sort?.id,
+                    sort?.desc,
+                    globalFilter
                 );
                 setData(
                     result.data.map((o: Encours, index: number) => ({
@@ -120,11 +147,12 @@ export default function RecuesEncours() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         ShippingAdvice: (o as any).ShippingAdvice || '',
                         status: o.status,
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -140,7 +168,7 @@ export default function RecuesEncours() {
         };
 
         loadData();
-    }, [pageIndex, pageSize, sorting]);
+    }, [pageIndex, pageSize, sorting, globalFilter]);
 
     // Mirror editOrder into a local editable copy
     useEffect(() => {
@@ -151,9 +179,11 @@ export default function RecuesEncours() {
                 plexuspurchaseOrderLines: editOrder.plexuspurchaseOrderLines?.map(line => ({
                     ...line,
                     deliveryQuantity: line.quantity || 0,
-                    QuantityAvailable: line.QuantityAvailable || line.quantity || 0,
+                    QuantityAvailable: line.QuantityAvailable,
+                    Decision: line.Decision,
                     receiveQuantity: line.receiveQuantity || line.quantity || 0,
-                    OldRemplacementItemNo: line.OldRemplacementItemNo || ''
+                    OldRemplacementItemNo: line.OldRemplacementItemNo || '',
+                    DeliveryDate: line.DeliveryDate || ''
                 }))
             };
             setEditedOrderLocal(orderWithExtras);
@@ -191,10 +221,26 @@ export default function RecuesEncours() {
         if (!editedOrderLocal) return;
         setValidating(true);
         try {
+            // For each line, if invoiceQuantity (Quantité à livrer) differs from quantity,
+            // copy it into receiveQuantity and QuantityAvailable so the backend uses the correct value.
+            const orderToSubmit = {
+                ...editedOrderLocal,
+                ShippingAdvice: 'Confirmé',
+                plexuspurchaseOrderLines: editedOrderLocal.plexuspurchaseOrderLines?.map(line => {
+                    const qty = Number(line.invoiceQuantity ?? line.quantity ?? 0);
+                    return {
+                        ...line,
+                        quantity: qty,
+                        receiveQuantity: qty,
+                        QuantityAvailable: qty
+                    };
+                })
+            };
+
             // Send full order data including id for the PATCH
-            const response = await axios.post(
-                'http://localhost:8080/api/purchase-orders/validate-order',
-                editedOrderLocal,
+            const response = await axiosServices.post(
+                `/api/purchase-orders/validate-order`,
+                orderToSubmit,
                 { responseType: 'blob' }
             );
 
@@ -239,7 +285,7 @@ export default function RecuesEncours() {
     };
 
     const columns = useMemo<ColumnDef<Encours>[]>(() => [
-        
+
 
         {
             header: 'Num Commande',
@@ -258,8 +304,9 @@ export default function RecuesEncours() {
             cell: ({ row }) => {
                 const name = (row.original as any).shipToName;
                 const no = (row.original as any).SellToCustomerNo;
+                const clientName = customers[no] || name || no || '-';
                 return (
-                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                    <Typography variant="body2" fontWeight={500}>{clientName}</Typography>
                 );
             }
         },
@@ -284,33 +331,49 @@ export default function RecuesEncours() {
         {
             header: 'Actions',
             meta: { align: 'center' },
+            id: 'actions',
             enableSorting: false,
-            cell: ({ row }) => (
-                <Stack direction="row" gap={1} justifyContent="center">
-                    <Tooltip title="View">
-                        <IconButton
-                            color="secondary"
-                            onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                                e.stopPropagation();
-                                setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
-                            }}
-                        >
-                            <Eye />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Valide">
-                        <IconButton
-                            color="primary"
-                            onClick={() => setEditOrder(row.original as ExtendedEncours)}
-                        >
-                            <Edit />
-                        </IconButton>
-                    </Tooltip>
-                    {/* Delete action removed */}
-                </Stack>
-            )
+            cell: ({ row }) => {
+                const ShippingAdvice = (row.original as any).ShippingAdvice;
+                return (
+                    <Stack direction="row" gap={1} justifyContent="center">
+                        <Tooltip title="View">
+                            <IconButton
+                                color="secondary"
+                                onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                                    e.stopPropagation();
+                                    setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
+                                }}
+                            >
+                                <Eye />
+                            </IconButton>
+                        </Tooltip>
+                        {
+                            ShippingAdvice == "Totalité" && <Tooltip title="Valide">
+                                <IconButton
+                                    color="primary"
+                                    onClick={() => setEditOrder(row.original as ExtendedEncours)}
+                                >
+                                    <Edit />
+                                </IconButton>
+                            </Tooltip>
+                        }
+                        <Tooltip title="Imprimer">
+                            <IconButton
+                                color="info"
+                                onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                                    e.stopPropagation();
+                                    printOrder(row.original);
+                                }}
+                            >
+                                <Printer />
+                            </IconButton>
+                        </Tooltip>
+                    </Stack>
+                )
+            }
         }
-    ], []);
+    ], [customers]);
 
     const table = useReactTable({
         data,
@@ -350,7 +413,7 @@ export default function RecuesEncours() {
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Search ${totalCount} records...`}
+                    placeholder={`Chercher ${totalCount} commandes...`}
                 />
             </Stack>
 
@@ -409,11 +472,10 @@ export default function RecuesEncours() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                                                                    <strong>Purchase Order Lines</strong>
+                                                                <Stack direction="row" justifyContent="flex-end" alignItems="center" mb={2}>
                                                                     <TextField
                                                                         size="small"
-                                                                        label="Search lines"
+                                                                        label="Chercher"
                                                                         value={viewDetailSearch[row.id] || ''}
                                                                         onChange={(e) =>
                                                                             setViewDetailSearch(prev => ({
@@ -451,12 +513,12 @@ export default function RecuesEncours() {
                                                                                         <TableCell>Description</TableCell>
                                                                                         <TableCell>Prix unitaire</TableCell>
                                                                                         <TableCell>Quantité</TableCell>
-                                                                                        <TableCell>Qté disponible</TableCell>
+                                                                                        <TableCell>Quantité disponible</TableCell>
                                                                                         <TableCell>Quantité validée par le client</TableCell>
-                                                                                        <TableCell>Qté livrée</TableCell>
-                                                                                        <TableCell>Confirmé?</TableCell>
+                                                                                        <TableCell>Quantité livrée</TableCell>
+                                                                                        <TableCell>Confirmation</TableCell>
                                                                                         <TableCell>Date Livraison</TableCell>
-                                                                                    
+
                                                                                     </TableRow>
                                                                                 </TableHead>
                                                                                 <TableBody>
@@ -467,20 +529,20 @@ export default function RecuesEncours() {
                                                                                                 <TableCell>{line.description}</TableCell>
                                                                                                 <TableCell>{line.directUnitCost}</TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
-                                                                                                <TableCell>{line.QuantityAvailable ?? 0}</TableCell>
-                                                                                                <TableCell>{line.receivedQuantity ?? 0}</TableCell>
                                                                                                 <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-                                                                                                    {line.receivedQuantity ?? 0}
+                                                                                                    {line.QuantityAvailable ?? 0}
                                                                                                 </TableCell>
-                                                                                                <TableCell>{line.Decision || '-'}</TableCell>
+                                                                                                <TableCell>{line.invoiceQuantity}</TableCell>
+                                                                                                <TableCell>0</TableCell>
+                                                                                                <TableCell>{line.Decision === "LivPrevuaDate" ? "LivraisonPrevuDate" : (line.Decision || "-")}</TableCell>
 
-                                                                                                <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                                                                                <TableCell>{line.Decision === "LivPrevuaDate" ? (line.expectedReceiptDate || "-") : (line.DeliveryDate || "-")}</TableCell>
                                                                                             </TableRow>
                                                                                         ))
                                                                                     ) : (
                                                                                         <TableRow>
                                                                                             <TableCell colSpan={9} align="center">
-                                                                                                No lines found
+                                                                                                Aucun ligne trouvée
                                                                                             </TableCell>
                                                                                         </TableRow>
                                                                                     )}
@@ -489,7 +551,7 @@ export default function RecuesEncours() {
                                                                         );
                                                                     })() : (
                                                                     <Box mt={2}>
-                                                                        <Alert severity="info">No purchase lines available</Alert>
+                                                                        <Alert severity="info">Aucune ligne d'achat disponible</Alert>
                                                                     </Box>
                                                                 )}
                                                             </Box>
@@ -502,7 +564,7 @@ export default function RecuesEncours() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                                            No records found
+                                            No commandes trouvées
                                         </TableCell>
                                     </TableRow>
                                 )}
@@ -529,14 +591,7 @@ export default function RecuesEncours() {
             <Dialog open={!!editOrder} onClose={() => setEditOrder(null)} fullWidth maxWidth="lg">
                 <DialogTitle>Valide la commande</DialogTitle>
                 <DialogContent dividers>
-                    <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Rechercher article ou description..."
-                        value={lineSearch}
-                        onChange={(e) => setLineSearch(e.target.value)}
-                        sx={{ mb: 2 }}
-                    />
+
                     {editedOrderLocal ? (
                         <>
                             <Stack direction={{ xs: 'column', sm: 'row' }} gap={2} mb={2} flexWrap="wrap">
@@ -548,10 +603,15 @@ export default function RecuesEncours() {
                                 <Typography>{editedOrderLocal.vendorName}</Typography>
                             </Stack>
 
-
-
-                            <strong>Lignes de commande</strong>
-
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                                <strong>Détails des lignes</strong>
+                                <TextField
+                                    size="small"
+                                    label="Chercher"
+                                    value={lineSearch}
+                                    onChange={(e) => setLineSearch(e.target.value)}
+                                />
+                            </Stack>
                             {editedOrderLocal.plexuspurchaseOrderLines && editedOrderLocal.plexuspurchaseOrderLines.length > 0 ? (
                                 <Table size="small" sx={{ mt: 2 }}>
                                     <TableHead>
@@ -560,130 +620,121 @@ export default function RecuesEncours() {
                                             <TableCell>Description</TableCell>
                                             <TableCell>Prix unitaire</TableCell>
                                             <TableCell>Quantité</TableCell>
-                                            <TableCell>Qté disponible</TableCell>
-                                            <TableCell>Qté livrée</TableCell>
-                                            <TableCell>Confirmé?</TableCell>
-                                            <TableCell>Qté à livrer</TableCell>
-                                            <TableCell>Code remplacement</TableCell>
+                                            <TableCell>Quantité disponible</TableCell>
+                                            <TableCell>Quantité livrée</TableCell>
+                                            <TableCell>Confirmation</TableCell>
+                                            <TableCell>Quantité à livrer</TableCell>
+                                            {filteredLines.some((l: ExtendedPurchaseOrderLine) => l.Decision === 'LivPrevuaDate') && <TableCell>Date Livraison</TableCell>}
+                                            <TableCell>
+                                                <Stack direction="row" alignItems="center" justifyContent="center">
+                                                    <Checkbox size="small" checked={true} disabled />
+                                                </Stack>
+                                            </TableCell>
                                         </TableRow>
                                     </TableHead>
 
                                     <TableBody>
-                                        {filteredLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
-                                            <TableRow key={line.id || idx}>
-                                                <TableCell>{line.lineObjectNumber}</TableCell>
-                                                <TableCell>{line.description || ''}</TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={line.directUnitCost ?? ''}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, directUnitCost: Number(v) } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        sx={{ width: 100 }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        value={line.quantity ?? ''}
-                                                        disabled
-                                                        sx={{ width: 80 }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={line.QuantityAvailable ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, QuantityAvailable: Number(v) } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        sx={{ width: 100 }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>{line.receivedQuantity ?? 0}</TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        select
-                                                        size="small"
-                                                        value={line.Decision || ''}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, Decision: v } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        sx={{ width: 150 }}
-                                                    >
-                                                        <MenuItem value="">--</MenuItem>
-                                                        <MenuItem value="Disponible">Disponible</MenuItem>
-                                                        <MenuItem value="Réclamation">Réclamation</MenuItem>
-                                                        <MenuItem value="Remplacement">Remplacement</MenuItem>
-                                                    </TextField>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={line.receiveQuantity ?? 0}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, receiveQuantity: Number(v) } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        sx={{ width: 100 }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <TextField
-                                                        size="small"
-                                                        value={line.OldRemplacementItemNo || ''}
-                                                        placeholder="Code remplacement"
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            setEditedOrderLocal(prev => {
-                                                                if (!prev) return prev;
-                                                                const copy = { ...prev };
-                                                                copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                    l.id === line.id ? { ...l, OldRemplacementItemNo: v } : l
-                                                                );
-                                                                return copy;
-                                                            });
-                                                        }}
-                                                        sx={{ width: 150 }}
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {filteredLines.map((line: ExtendedPurchaseOrderLine, idx: number) => {
+                                            return (
+                                                <TableRow key={line.id || idx}>
+                                                    <TableCell>{line.lineObjectNumber}</TableCell>
+                                                    <TableCell>{line.description || ''}</TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            type="number"
+                                                            value={line.directUnitCost ?? ''}
+                                                            onChange={(e) => {
+                                                                const v = e.target.value;
+                                                                setEditedOrderLocal(prev => {
+                                                                    if (!prev) return prev;
+                                                                    const copy = { ...prev };
+                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                        l.id === line.id ? { ...l, directUnitCost: Number(v) } : l
+                                                                    );
+                                                                    return copy;
+                                                                });
+                                                            }}
+                                                            sx={{ width: 100 }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            value={line.quantity ?? 0}
+                                                            disabled
+                                                            sx={{ width: 80 }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            value={line.QuantityAvailable ?? 0}
+                                                            disabled
+                                                            sx={{ width: 80 }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            value={line.receivedQuantity ?? 0}
+                                                            disabled
+                                                            sx={{ width: 80 }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>{line.Decision === "LivPrevuaDate" ? "LivraisonPrevuDate" : (line.Decision || "")}</TableCell>
+                                                    <TableCell>
+                                                        <TextField
+                                                            size="small"
+                                                            type="number"
+                                                            value={line.invoiceQuantity ?? 0}
+                                                            disabled
+                                                            onChange={(e) => {
+                                                                const v = e.target.value;
+                                                                setEditedOrderLocal(prev => {
+                                                                    if (!prev) return prev;
+                                                                    const copy = { ...prev };
+                                                                    copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                        l.id === line.id ? { ...l, QuantityAvailable: Number(v) } : l
+                                                                    );
+                                                                    return copy;
+                                                                });
+                                                            }}
+                                                            sx={{ width: 100 }}
+                                                        />
+                                                    </TableCell>
+                                                    {filteredLines.some((l: ExtendedPurchaseOrderLine) => l.Decision === 'LivPrevuaDate') && (
+                                                        <TableCell>
+                                                            {line.Decision === 'LivPrevuaDate' && (
+                                                                <TextField
+                                                                    size="small"
+                                                                    type="date"
+                                                                    value={line.DeliveryDate || ''}
+                                                                    onChange={(e) => {
+                                                                        const v = e.target.value;
+                                                                        setEditedOrderLocal(prev => {
+                                                                            if (!prev) return prev;
+                                                                            const copy = { ...prev };
+                                                                            copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                                l.id === line.id ? { ...l, DeliveryDate: v } : l
+                                                                            );
+                                                                            return copy;
+                                                                        });
+                                                                    }}
+                                                                    sx={{ width: 150 }}
+                                                                    InputLabelProps={{ shrink: true }}
+                                                                />
+                                                            )}
+                                                        </TableCell>
+                                                    )}
+                                                    <TableCell>
+                                                        <Stack direction="row" alignItems="center" justifyContent="center">
+                                                            <Checkbox size="small" checked={true} />
+                                                        </Stack>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
                                     </TableBody>
                                 </Table>
                             ) : (

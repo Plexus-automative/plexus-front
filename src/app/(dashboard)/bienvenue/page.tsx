@@ -1,5 +1,5 @@
 // project-imports
-import Bienvenue from 'views/dashboard/Bienvenue';
+import Bienvenue from 'views/dashboard/BienvenueV2';
 
 // ==============================|| PAGE - BIENVENUE ||============================== //
 

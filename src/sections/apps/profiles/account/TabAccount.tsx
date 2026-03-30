@@ -165,11 +165,11 @@ export default function TabAccount() {
           <List sx={{ p: 0 }}>
             <ListItem divider>
               <ListItemText primary={<Typography variant="h5">Cent Desktop</Typography>} secondary="4351 Deans Lane, Chelmsford" />
-              <Button>Logout</Button>
+              <Button>Déconnexion</Button>
             </ListItem>
             <ListItem>
               <ListItemText primary={<Typography variant="h5">Moon Tablet</Typography>} secondary="4185 Michigan Avenue" />
-              <Button>Logout</Button>
+              <Button>Déconnexion</Button>
             </ListItem>
           </List>
         </MainCard>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, Fragment, MouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { alpha } from '@mui/material/styles';
 import {
     Button,
@@ -14,9 +14,7 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Tooltip,
     Box,
-    Collapse,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -49,10 +47,11 @@ import {
     TablePagination
 } from 'components/third-party/react-table';
 
-import IconButton from 'components/@extended/IconButton';
 import { Eye, SearchNormal1, TickCircle, Warning2, CloseCircle } from '@wandersonalwes/iconsax-react';
+import { useSearchParams } from 'next/navigation';
 
 import { fetchReceptionOrders } from 'app/api/services/ValidationReception/ValidationReceptionService';
+import axiosServices from 'utils/axios';
 import { Encours, PurchaseOrderLine } from 'types/Encours';
 
 interface ExtendedLine extends PurchaseOrderLine {
@@ -60,6 +59,9 @@ interface ExtendedLine extends PurchaseOrderLine {
 }
 
 export default function ValidationReception() {
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get('highlight');
+
     const [data, setData] = useState<Encours[]>([]);
     const [sorting, setSorting] = useState<SortingState>([
         { id: 'orderDate', desc: true }
@@ -83,9 +85,33 @@ export default function ValidationReception() {
     const [lineSearch, setLineSearch] = useState('');
     const [validating, setValidating] = useState(false);
 
+    // Réclamation dialog
+    const [reclamationOpen, setReclamationOpen] = useState(false);
+    const [reclamationText, setReclamationText] = useState('');
+
     // Alerts
     const [successMsg, setSuccessMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
+    const [customers, setCustomers] = useState<{ [key: string]: string }>({});
+
+    // Fetch customers
+    useEffect(() => {
+        const loadCustomers = async () => {
+            try {
+                const res = await axiosServices.get('/api/purchase-orders/customers');
+                if (res.data && res.data.value) {
+                    const map: { [key: string]: string } = {};
+                    res.data.value.forEach((c: any) => {
+                        map[c.number] = c.displayName;
+                    });
+                    setCustomers(map);
+                }
+            } catch (err) {
+                console.error('Error fetching customers:', err);
+            }
+        };
+        loadCustomers();
+    }, []);
 
     // Fetch data
     useEffect(() => {
@@ -93,20 +119,20 @@ export default function ValidationReception() {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-                const result = await fetchReceptionOrders(token, pageIndex, pageSize);
+                const result = await fetchReceptionOrders(pageIndex, pageSize);
                 setData(
                     result.data.map((o: Encours) => ({
                         id: o.id,
                         number: o.number,
                         orderDate: o.orderDate,
-                        vendorName: o.vendorName,
+                        vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -141,32 +167,29 @@ export default function ValidationReception() {
     };
 
     // Validate order — client confirms reception
-    const handleValidate = async (withReclamation: boolean) => {
+    const handleValidate = async (withReclamation: boolean, reclamation?: string) => {
         if (!selectedOrder) return;
         setValidating(true);
         try {
             // Call confirm-reception endpoint (sets QtyReceived + ReceivedPurchaseHeader)
-            const res = await fetch(
-                'http://localhost:8080/api/purchase-orders/confirm-reception',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: selectedOrder.id,
-                        withReclamation
-                    })
-                }
-            );
+            const res = await axiosServices.post(`/api/purchase-orders/confirm-reception`, {
+                id: selectedOrder.id,
+                withReclamation,
+                reclamationText: reclamation || ''
+            });
 
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(errText);
-            }
+            // Note: res is the axios response object, the data is in res.data
+            // However, the original code used response.ok from fetch.
+            // axios throws for non-2xx by default.
+
+            // res.data check if needed, but axios throws on error
 
             // Remove from local state immediately for snappy UX
             setData(prev => prev.filter(o => o.id !== selectedOrder.id));
             setTotalCount(prev => prev - 1);
             setSelectedOrder(null);
+            setReclamationOpen(false);
+            setReclamationText('');
 
             setSuccessMsg(
                 withReclamation
@@ -215,8 +238,9 @@ export default function ValidationReception() {
             cell: ({ row }) => {
                 const name = (row.original as any).shipToName;
                 const no = (row.original as any).SellToCustomerNo;
+                const clientName = customers[no] || name || no || '-';
                 return (
-                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                    <Typography variant="body2" fontWeight={500}>{clientName}</Typography>
                 );
             }
         },
@@ -244,7 +268,7 @@ export default function ValidationReception() {
                 </Button>
             )
         }
-    ], []);
+    ], [customers]);
 
     const table = useReactTable({
         data,
@@ -326,15 +350,27 @@ export default function ValidationReception() {
                             </TableHead>
                             <TableBody>
                                 {table.getRowModel().rows.length > 0 ? (
-                                    table.getRowModel().rows.map(row => (
-                                        <TableRow key={row.id} hover>
-                                            {row.getVisibleCells().map(cell => (
-                                                <TableCell key={cell.id}>
-                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))
+                                    table.getRowModel().rows.map(row => {
+                                        const isHighlighted = highlightId === String((row.original as Encours).id);
+                                        return (
+                                            <TableRow
+                                                key={row.id}
+                                                hover
+                                                sx={{
+                                                    ...(isHighlighted && {
+                                                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                                                        borderLeft: (theme) => `4px solid ${theme.palette.primary.main}`
+                                                    })
+                                                }}
+                                            >
+                                                {row.getVisibleCells().map(cell => (
+                                                    <TableCell key={cell.id}>
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        );
+                                    })
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
@@ -431,7 +467,7 @@ export default function ValidationReception() {
                                                     variant="light"
                                                 />
                                             </TableCell>
-                                            <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                            <TableCell>{line.DeliveryDate || '-'}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
@@ -462,11 +498,14 @@ export default function ValidationReception() {
                     <Button
                         variant="outlined"
                         color="warning"
-                        startIcon={validating ? <CircularProgress size={16} /> : <Warning2 />}
+                        startIcon={<Warning2 />}
                         disabled={validating}
-                        onClick={() => handleValidate(true)}
+                        onClick={() => {
+                            setReclamationText('');
+                            setReclamationOpen(true);
+                        }}
                     >
-                        Valider avec reclamation
+                        Valider avec réclamation
                     </Button>
                     <Button
                         variant="outlined"
@@ -474,6 +513,50 @@ export default function ValidationReception() {
                         startIcon={<CloseCircle />}
                         disabled={validating}
                         onClick={() => setSelectedOrder(null)}
+                    >
+                        Annuler
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Réclamation Dialog */}
+            <Dialog
+                open={reclamationOpen}
+                onClose={() => !validating && setReclamationOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ fontWeight: 'bold' }}>Saisir la réclamation</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" mb={2}>
+                        Veuillez décrire votre réclamation concernant la commande N° <strong>{selectedOrder?.number}</strong>.
+                    </Typography>
+                    <TextField
+                        autoFocus
+                        multiline
+                        rows={4}
+                        fullWidth
+                        label="Motif de la réclamation"
+                        placeholder="Ex: Quantité reçue incorrecte, articles endommagés..."
+                        value={reclamationText}
+                        onChange={e => setReclamationText(e.target.value)}
+                        disabled={validating}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ gap: 1, p: 2 }}>
+                    <Button
+                        variant="contained"
+                        color="warning"
+                        startIcon={validating ? <CircularProgress size={16} /> : <Warning2 />}
+                        disabled={validating || !reclamationText.trim()}
+                        onClick={() => handleValidate(true, reclamationText)}
+                    >
+                        {validating ? 'Validation...' : 'Confirmer la réclamation'}
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        disabled={validating}
+                        onClick={() => setReclamationOpen(false)}
                     >
                         Annuler
                     </Button>

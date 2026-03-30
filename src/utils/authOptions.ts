@@ -21,7 +21,7 @@ declare module 'next-auth' {
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET_KEY,
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       id: 'login',
@@ -31,24 +31,43 @@ export const authOptions: NextAuthOptions = {
         password: { name: 'password', label: 'Password', type: 'password', placeholder: 'Enter Password' }
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const internalUrl = process.env.NEXT_APP_INTERNAL_BACKEND_URL;
+        const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+        // Remove trailing /api from publicUrl if it exists to avoid double /api
+        const baseBackendUrl = internalUrl || (publicUrl?.endsWith('/api') ? publicUrl.slice(0, -4) : publicUrl);
+        const loginUrl = (baseBackendUrl || '') + '/api/account/login';
+
+        console.log('--- AUTH ATTEMPT ---');
+        console.log('Internal URL Env:', internalUrl);
+        console.log('Public URL Env:', publicUrl);
+        console.log('Resolved Login URL:', loginUrl);
+
         try {
-          // Send login request to the new Java Backend AuthController
-          const res = await fetch('http://localhost:8080/api/account/login', {
+          const res = await fetch(loginUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              password: credentials?.password,
-              email: credentials?.email
-            })
+              email: credentials.email,
+              password: credentials.password,
+            }),
+            headers: { 'Content-Type': 'application/json' },
           });
 
-          const data = await res.json();
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error('Backend Login Failed:', res.status, errorText);
+            throw new Error(errorText || 'Authentication failed');
+          }
 
-          if (res.ok && data.user) {
-            data.user['accessToken'] = data.serviceToken;
-            return data.user;
+          const responseData = await res.json();
+          console.log('Backend Login Success:', responseData.user?.email);
+
+          if (res.ok && responseData.user) {
+            responseData.user['accessToken'] = responseData.serviceToken;
+            return responseData.user;
           } else {
-            throw new Error(data.message || 'Login failed');
           }
         } catch (e: any) {
           const errorMessage = e?.message || e?.response?.data?.message || 'Something went wrong!';

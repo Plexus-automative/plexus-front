@@ -40,7 +40,7 @@ import { useCart } from 'contexts/CartContext';
 export default function PanierPage() {
     const theme = useTheme();
     const { data: session } = useSession();
-    const { cartItems, totalPrice, removeFromCart, updateQuantity, clearCart } = useCart();
+    const { cartItems, totalPrice, removeFromCart, updateQuantity, toggleAdaptable, clearCart } = useCart();
 
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
@@ -139,12 +139,13 @@ export default function PanierPage() {
                         lineObjectNumber: item.number,
                         directUnitCost: item.price,
                         quantity: item.quantity,
-                        description: item.description
+                        description: item.description,
+                        UncertainReference: item.isAdaptable || false
                     })),
                     ...(isDossierChecked ? dossierData : {})
                 };
 
-                const response = await axiosServices.post('http://localhost:8080/api/purchase-orders/bulk', payload, {
+                const response = await axiosServices.post(`/api/purchase-orders/bulk`, payload, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
@@ -160,7 +161,7 @@ export default function PanierPage() {
 
             if (type === 'devis' && firstOrderData) {
                 // Generate and download ONE consolidated Devis PDF
-                const pdfRes = await axiosServices.post('http://localhost:8080/api/purchase-orders/generate-devis', {
+                const pdfRes = await axiosServices.post(`/api/purchase-orders/generate-devis`, {
                     ...firstOrderData,
                     lines: allLinesForDevis
                 }, { responseType: 'blob' });
@@ -269,7 +270,11 @@ export default function PanierPage() {
                                                 <Typography variant="body1">{item.quantity}</Typography>
                                             </TableCell>
                                             <TableCell>
-                                                <Checkbox color="primary" />
+                                                <Checkbox
+                                                    color="primary"
+                                                    checked={item.isAdaptable || false}
+                                                    onChange={(e) => toggleAdaptable(item.id, e.target.checked)}
+                                                />
                                             </TableCell>
                                             <TableCell>
                                                 <Stack direction="row" spacing={1}>

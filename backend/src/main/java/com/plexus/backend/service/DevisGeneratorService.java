@@ -6,10 +6,12 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
 
 @Service
 public class DevisGeneratorService {
@@ -85,11 +87,14 @@ public class DevisGeneratorService {
         PdfPCell logoCell = new PdfPCell();
         logoCell.setBorder(Rectangle.NO_BORDER);
         try {
-            File logoFile = new File("/Users/hemdaouitarek/Desktop/plexus-front/public/assets/images/logo.png");
-            if (logoFile.exists()) {
-                Image img = Image.getInstance(logoFile.getAbsolutePath());
-                img.scaleToFit(180, 80);
-                logoCell.addElement(img);
+            ClassPathResource res = new ClassPathResource("logo.png");
+            if (res.exists()) {
+                try (InputStream is = res.getInputStream()) {
+                    byte[] bytes = is.readAllBytes();
+                    Image img = Image.getInstance(bytes);
+                    img.scaleToFit(180, 80);
+                    logoCell.addElement(img);
+                }
             }
         } catch (Exception e) {
         }
@@ -272,12 +277,15 @@ public class DevisGeneratorService {
         // CACHE
         document.add(new Paragraph(" "));
         try {
-            File f = new File("/Users/hemdaouitarek/Desktop/plexus-front/backend/src/main/resources/cache-devis.png");
-            if (f.exists()) {
-                Image stamp = Image.getInstance(f.getAbsolutePath());
-                stamp.scaleToFit(160, 160);
-                stamp.setAlignment(Element.ALIGN_CENTER);
-                document.add(stamp);
+            ClassPathResource res = new ClassPathResource("cache-devis.png");
+            if (res.exists()) {
+                try (InputStream is = res.getInputStream()) {
+                    byte[] bytes = is.readAllBytes();
+                    Image stamp = Image.getInstance(bytes);
+                    stamp.scaleToFit(160, 160);
+                    stamp.setAlignment(Element.ALIGN_CENTER);
+                    document.add(stamp);
+                }
             }
         } catch (Exception e) {
         }

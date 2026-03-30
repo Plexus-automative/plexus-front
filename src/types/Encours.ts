@@ -6,9 +6,13 @@ export interface Encours {
   payToVendorNumber: string;
   fullyReceived: boolean;
   status: string;
+  ReceivedPurchaseHeader?: string;
+  QtyReceived?: string;
+  postingDate: string;
   lastModifiedDateTime: string;
   plexuspurchaseOrderLines?: PurchaseOrderLine[];
   ShippingAdvice?: string;
+  invoiceQuantity?: number;
 
 }
 export interface PurchaseOrderLine {
@@ -27,4 +31,6 @@ export interface PurchaseOrderLine {
   QuantityAvailable?: number;
   receivedQuantity?: number;
   OldRemplacementItemNo?: string;
+  DeliveryDate?: string;
+  invoiceQuantity?: number;
 }

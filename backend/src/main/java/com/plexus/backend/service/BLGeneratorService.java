@@ -6,9 +6,11 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Service;
 
 @Service
 public class BLGeneratorService {
@@ -83,15 +85,19 @@ public class BLGeneratorService {
         PdfPCell logoCell = new PdfPCell();
         logoCell.setBorder(Rectangle.NO_BORDER);
         try {
-            File logoFile = new File("/Users/hemdaouitarek/Desktop/plexus-front/public/assets/images/logo.png");
-            if (logoFile.exists()) {
-                Image img = Image.getInstance(logoFile.getAbsolutePath());
-                img.scaleToFit(160, 80);
-                logoCell.addElement(img);
+            ClassPathResource res = new ClassPathResource("logo.png");
+            if (res.exists()) {
+                try (InputStream is = res.getInputStream()) {
+                    byte[] bytes = is.readAllBytes();
+                    Image img = Image.getInstance(bytes);
+                    img.scaleToFit(160, 80);
+                    logoCell.addElement(img);
+                }
             } else {
                 logoCell.addElement(new Paragraph("PLEXUS", TITLE_FONT));
             }
         } catch (Exception e) {
+            logoCell.addElement(new Paragraph("PLEXUS", TITLE_FONT));
         }
         headerTable.addCell(logoCell);
 
@@ -315,13 +321,15 @@ public class BLGeneratorService {
         plexusBox.setHorizontalAlignment(Element.ALIGN_CENTER);
         plexusBox.setVerticalAlignment(Element.ALIGN_MIDDLE);
         try {
-            File cacheFile = new File(
-                    "/Users/hemdaouitarek/Desktop/plexus-front/backend/src/main/resources/cache-plexus.png");
-            if (cacheFile.exists()) {
-                Image stamp = Image.getInstance(cacheFile.getAbsolutePath());
-                stamp.scaleToFit(140, 95);
-                stamp.setAlignment(Element.ALIGN_CENTER);
-                plexusBox.addElement(stamp);
+            ClassPathResource res = new ClassPathResource("cache-plexus.png");
+            if (res.exists()) {
+                try (InputStream is = res.getInputStream()) {
+                    byte[] bytes = is.readAllBytes();
+                    Image stamp = Image.getInstance(bytes);
+                    stamp.scaleToFit(140, 95);
+                    stamp.setAlignment(Element.ALIGN_CENTER);
+                    plexusBox.addElement(stamp);
+                }
             } else {
                 plexusBox.addElement(new Paragraph(" "));
             }

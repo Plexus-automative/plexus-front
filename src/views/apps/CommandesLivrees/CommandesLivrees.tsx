@@ -49,11 +49,16 @@ import {
 } from 'components/third-party/react-table';
 
 import { Eye, SearchNormal1, DocumentDownload, CloseCircle, TickCircle, Warning2 } from '@wandersonalwes/iconsax-react';
+import { useSearchParams } from 'next/navigation';
 
 import { fetchLivreesOrders } from 'app/api/services/CommandesLivrees/CommandesLivreesService';
+import axiosServices from 'utils/axios';
 import { Encours } from 'types/Encours';
 
 export default function CommandesLivrees() {
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get('highlight');
+
     const [data, setData] = useState<Encours[]>([]);
     const [sorting, setSorting] = useState<SortingState>([
         { id: 'orderDate', desc: true }
@@ -80,6 +85,26 @@ export default function CommandesLivrees() {
     // Alerts
     const [successMsg, setSuccessMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
+    const [customers, setCustomers] = useState<{ [key: string]: string }>({});
+
+    // Fetch customers
+    useEffect(() => {
+        const loadCustomers = async () => {
+            try {
+                const res = await axiosServices.get('/api/purchase-orders/customers');
+                if (res.data && res.data.value) {
+                    const map: { [key: string]: string } = {};
+                    res.data.value.forEach((c: any) => {
+                        map[c.number] = c.displayName;
+                    });
+                    setCustomers(map);
+                }
+            } catch (err) {
+                console.error('Error fetching customers:', err);
+            }
+        };
+        loadCustomers();
+    }, []);
 
     // Fetch data
     useEffect(() => {
@@ -87,20 +112,20 @@ export default function CommandesLivrees() {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-                const result = await fetchLivreesOrders(token, pageIndex, pageSize);
+                const result = await fetchLivreesOrders(pageIndex, pageSize);
                 setData(
                     result.data.map((o: Encours) => ({
                         id: o.id,
                         number: o.number,
                         orderDate: o.orderDate,
-                        vendorName: o.vendorName,
+                        vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -126,17 +151,11 @@ export default function CommandesLivrees() {
         if (!selectedOrder) return;
         setDownloading(true);
         try {
-            const response = await fetch('http://localhost:8080/api/purchase-orders/generate-bl', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(selectedOrder)
+            const response = await axiosServices.post(`/api/purchase-orders/generate-bl`, selectedOrder, {
+                responseType: 'blob'
             });
 
-            if (!response.ok) throw new Error('Failed to generate BL');
-
-            const blob = await response.blob();
+            const blob = response.data;
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -151,45 +170,6 @@ export default function CommandesLivrees() {
             setErrorMsg('Erreur lors du téléchargement: ' + (err.message || 'Erreur inconnue'));
         } finally {
             setDownloading(false);
-        }
-    };
-
-    // Validate order — client confirms reception
-    const handleValidate = async (withReclamation: boolean) => {
-        if (!selectedOrder) return;
-        setValidating(true);
-        try {
-            const res = await fetch(
-                'http://localhost:8080/api/purchase-orders/confirm-reception',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: selectedOrder.id,
-                        withReclamation
-                    })
-                }
-            );
-
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(errText);
-            }
-
-            // Remove from local state immediately for snappy UX
-            setData(prev => prev.filter(o => o.id !== selectedOrder.id));
-            setTotalCount(prev => prev - 1);
-            setSelectedOrder(null);
-
-            setSuccessMsg(
-                withReclamation
-                    ? 'Commande validée avec réclamation!'
-                    : 'Commande validée avec succès!'
-            );
-        } catch (err: any) {
-            setErrorMsg('Erreur: ' + (err.message || 'Erreur inconnue'));
-        } finally {
-            setValidating(false);
         }
     };
 
@@ -228,8 +208,9 @@ export default function CommandesLivrees() {
             cell: ({ row }) => {
                 const name = (row.original as any).shipToName;
                 const no = (row.original as any).SellToCustomerNo;
+                const clientName = customers[no] || name || no || '-';
                 return (
-                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                    <Typography variant="body2" fontWeight={500}>{clientName}</Typography>
                 );
             }
         },
@@ -257,7 +238,7 @@ export default function CommandesLivrees() {
                 </Button>
             )
         }
-    ], []);
+    ], [customers]);
 
     const table = useReactTable({
         data,
@@ -339,15 +320,27 @@ export default function CommandesLivrees() {
                             </TableHead>
                             <TableBody>
                                 {table.getRowModel().rows.length > 0 ? (
-                                    table.getRowModel().rows.map(row => (
-                                        <TableRow key={row.id} hover>
-                                            {row.getVisibleCells().map(cell => (
-                                                <TableCell key={cell.id}>
-                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))
+                                    table.getRowModel().rows.map(row => {
+                                        const isHighlighted = highlightId === String((row.original as Encours).id);
+                                        return (
+                                            <TableRow
+                                                key={row.id}
+                                                hover
+                                                sx={{
+                                                    ...(isHighlighted && {
+                                                        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                                                        borderLeft: (theme) => `4px solid ${theme.palette.primary.main}`
+                                                    })
+                                                }}
+                                            >
+                                                {row.getVisibleCells().map(cell => (
+                                                    <TableCell key={cell.id}>
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        );
+                                    })
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
@@ -411,6 +404,7 @@ export default function CommandesLivrees() {
                                     <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>Quantité livrée</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>Quantité reçue</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>Confirmation</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>Date Livraison</TableCell>
                                 </TableRow>
@@ -422,9 +416,10 @@ export default function CommandesLivrees() {
                                             <TableCell>{line.lineObjectNumber}</TableCell>
                                             <TableCell>{line.description}</TableCell>
                                             <TableCell>{line.quantity}</TableCell>
-                                            <TableCell>{line.receiveQuantity ?? 0}</TableCell>
+                                            <TableCell>{line.receivedQuantity || 0}</TableCell>
+                                            <TableCell>{line.receivedQuantity || 0}</TableCell>
                                             <TableCell>{line.Decision || '-'}</TableCell>
-                                            <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                            <TableCell>{line.DeliveryDate || '-'}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
@@ -443,24 +438,6 @@ export default function CommandesLivrees() {
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ justifyContent: 'flex-end', gap: 1, p: 2 }}>
-                    <Button
-                        variant="outlined"
-                        color="success"
-                        startIcon={validating ? <CircularProgress size={16} /> : <TickCircle />}
-                        disabled={validating || downloading}
-                        onClick={() => handleValidate(false)}
-                    >
-                        Valider
-                    </Button>
-                    <Button
-                        variant="outlined"
-                        color="warning"
-                        startIcon={validating ? <CircularProgress size={16} /> : <Warning2 />}
-                        disabled={validating || downloading}
-                        onClick={() => handleValidate(true)}
-                    >
-                        Valider avec reclamation
-                    </Button>
                     <Button
                         variant="contained"
                         color="primary"

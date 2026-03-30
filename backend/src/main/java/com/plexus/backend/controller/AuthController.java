@@ -1,6 +1,8 @@
 package com.plexus.backend.controller;
 
 import com.plexus.backend.service.BusinessCentralTokenService;
+import com.plexus.backend.security.JwtUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +20,19 @@ public class AuthController {
 
     private final WebClient webClient;
     private final BusinessCentralTokenService tokenService;
+    private final JwtUtil jwtUtil;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public AuthController(WebClient webClient, BusinessCentralTokenService tokenService) {
+    @Value("${business-central.api.system-url}")
+    private String systemUrl;
+
+    @Value("${business-central.api.company-id}")
+    private String companyId;
+
+    public AuthController(WebClient webClient, BusinessCentralTokenService tokenService, JwtUtil jwtUtil) {
         this.webClient = webClient;
         this.tokenService = tokenService;
+        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping("/login")
@@ -35,14 +45,19 @@ public class AuthController {
                     .body(Map.of("message", "Email and password are required."));
         }
 
+        // Convert email and password to lowercase for case-insensitive login and trim
+        email = email.trim().toLowerCase();
+        password = password.trim().toLowerCase();
+
         String token = tokenService.getAccessToken();
 
         // Step 1: Fetch the User from Business Central
-        // User provided endpoint: UserB2BLists
-        String url = "https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessSystemAPI/v1.0/companies(FDCEC2EC-FCB9-F011-AF5F-6045BDC898A3)/UserB2BLists?$filter=login eq '"
+        // Using tolower() in OData filter for case-insensitive search
+        String url = systemUrl + "/UserB2BLists?$filter=tolower(login) eq '"
                 + email + "'";
 
         try {
+
             String responseStr = webClient.get()
                     .uri(url)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -75,7 +90,9 @@ public class AuthController {
                         .body(Map.of("message", "Invalid credentials (No password configured)."));
             }
 
-            if (!password.equals(bcPassword)) {
+            String trimmedBcPassword = bcPassword.trim();
+
+            if (!password.equalsIgnoreCase(trimmedBcPassword)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("message", "Invalid credentials (Password mismatch)."));
             }
@@ -107,12 +124,21 @@ public class AuthController {
                 userData.put("vendorNo", userNode.get("vendorNo").asText());
             }
 
+            // Generate REAL JWT Token using JwtUtil
+            Map<String, Object> extraClaims = new HashMap<>();
+            extraClaims.put("role", role);
+            if (isClient)
+                extraClaims.put("customerNo", userNode.get("customerNo").asText());
+            if (isFournisseur)
+                extraClaims.put("vendorNo", userNode.get("vendorNo").asText());
+
+            String generatedToken = jwtUtil.generateToken(email, extraClaims);
+
             // Format expected by frontend NextAuth
             Map<String, Object> responseBody = new HashMap<>();
             responseBody.put("user", userData);
-            responseBody.put("serviceToken", "mock-jwt-token-for-client");
+            responseBody.put("serviceToken", generatedToken);
 
-            System.out.println("JAVA LOGIN RES: " + responseBody);
             return ResponseEntity.ok(responseBody);
 
         } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {

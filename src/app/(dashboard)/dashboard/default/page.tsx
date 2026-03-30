@@ -1,5 +1,10 @@
+'use client';
+
+// next
+import dynamic from 'next/dynamic';
+
 // project-imports
-import DashboardDefault from 'views/dashboard/DashboardDefault';
+const DashboardDefault = dynamic(() => import('views/dashboard/DashboardDefault'), { ssr: false });
 
 // ==============================|| DASHBOARD - DEFAULT ||============================== //
 

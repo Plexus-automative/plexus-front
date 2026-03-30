@@ -3,24 +3,21 @@ import { Traitee } from 'types/Traitee';
 import { recuesApi } from '../../lib/RecusApi';
 
 export const fetchTraitees = async (
-  token: string,
   pageIndex: number,
-  pageSize: number
+  pageSize: number,
+  filter?: string
 ): Promise<{ data: Traitee[]; totalCount: number }> => {
 
   const skip = pageIndex * pageSize;
+  let url = `/api/purchase-orders/recues/traitee?skip=${skip}&top=${pageSize}`;
+  if (filter && filter.trim()) {
+    url += `&search=${encodeURIComponent(filter.trim())}`;
+  }
 
   const res = await recuesApi.get<{
     value: Traitee[];
     '@odata.count'?: number;
-  }>(
-    `http://localhost:8080/api/purchase-orders/recues/traitee?skip=${skip}&top=${pageSize}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    }
-  );
+  }>(url);
 
   return {
     data: res.data.value,

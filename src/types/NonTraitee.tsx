@@ -7,7 +7,10 @@ export interface NonTraitee {
   fullyReceived: boolean;
   ShippingAdvice: string
   status: string;
+  postingDate: string;
   lastModifiedDateTime: string;
+  QtyReceived?: string;
+  ReceivedPurchaseHeader?: string;
   plexuspurchaseOrderLines?: PurchaseOrderLine[]; // 👈 ADD THIS
 
 }
@@ -27,4 +30,5 @@ export interface PurchaseOrderLine {
   QuantityAvailable?: number;
   receivedQuantity?: number;
   OldRemplacementItemNo?: string;
+  DeliveryDate?: string;
 }

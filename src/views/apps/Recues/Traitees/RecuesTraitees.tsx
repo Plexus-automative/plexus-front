@@ -51,9 +51,11 @@ import IconButton from 'components/@extended/IconButton';
 import { InfoCircle } from '@wandersonalwes/iconsax-react';
 
 import { fetchTraitees } from 'app/api/services/Recues/TraiteeRecues';
+import axiosServices from 'utils/axios';
 
 export default function RecuesTraitees() {
     const [data, setData] = useState<Traitee[]>([]);
+    const [customers, setCustomers] = useState<{ [key: string]: string }>({});
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
         { id: 'orderDate', desc: true }
@@ -73,20 +75,22 @@ export default function RecuesTraitees() {
 
     const [totalCount, setTotalCount] = useState(0);
 
+    // Reset to page 0 when filter changes
+    useEffect(() => {
+        setPagination(p => ({ ...p, pageIndex: 0 }));
+    }, [globalFilter]);
+
     // Fetch data when pageIndex or pageSize changes
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-
                 // Fetch with proper pagination
-
                 const result = await fetchTraitees(
-                    token,
                     pageIndex,
-                    pageSize
+                    pageSize,
+                    globalFilter
                 );
                 setData(
                     result.data.map((o: Traitee, index: number) => ({
@@ -95,11 +99,12 @@ export default function RecuesTraitees() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -115,10 +120,29 @@ export default function RecuesTraitees() {
         };
 
         loadData();
-    }, [pageIndex, pageSize, sorting]);
+    }, [pageIndex, pageSize, sorting, globalFilter]);
+
+    // Fetch customers lookup data
+    useEffect(() => {
+        const loadCustomers = async () => {
+            try {
+                const res = await axiosServices.get('/api/purchase-orders/customers');
+                if (res.data && res.data.value) {
+                    const map: { [key: string]: string } = {};
+                    res.data.value.forEach((c: any) => {
+                        map[c.number] = c.displayName;
+                    });
+                    setCustomers(map);
+                }
+            } catch (err) {
+                console.error('Error fetching customers:', err);
+            }
+        };
+        loadCustomers();
+    }, []);
 
     const columns = useMemo<ColumnDef<Traitee>[]>(() => [
-        
+
         {
             header: 'N° Commande',
             accessorKey: 'number',
@@ -137,12 +161,13 @@ export default function RecuesTraitees() {
             cell: ({ row }) => {
                 const name = (row.original as any).shipToName;
                 const no = (row.original as any).SellToCustomerNo;
+                const clientName = customers[no] || name || no || '-';
                 return (
-                    <Typography variant="body2" fontWeight={500}>{name || no || '-'}</Typography>
+                    <Typography variant="body2" fontWeight={500}>{clientName}</Typography>
                 );
             }
         },
-        
+
         {
             header: 'Statut',
             accessorKey: 'ShippingAdvice',
@@ -170,7 +195,7 @@ export default function RecuesTraitees() {
                 </Tooltip>
             )
         }
-    ], []);
+    ], [customers]);
 
     const table = useReactTable({
         data,
@@ -212,7 +237,7 @@ export default function RecuesTraitees() {
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Search ${totalCount} records...`}
+                    placeholder={`Chercher ${totalCount} commandes...`}
                 />
             </Stack>
 
@@ -275,7 +300,7 @@ export default function RecuesTraitees() {
                                                                     <strong>Détails des lignes</strong>
                                                                     <TextField
                                                                         size="small"
-                                                                        label="Rechercher dans les lignes"
+                                                                        label="Chercher"
                                                                         value={detailSearch[row.id] || ''}
                                                                         onChange={(e) =>
                                                                             setDetailSearch(prev => ({
@@ -353,7 +378,7 @@ export default function RecuesTraitees() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                                            No records found
+                                            No commandes trouvées
                                         </TableCell>
                                     </TableRow>
                                 )}

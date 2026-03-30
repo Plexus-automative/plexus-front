@@ -1,22 +1,30 @@
-// app/api/services/NonTraiteeEmises.ts
+// app/api/services/EncoursRecues.ts
 
 import { Encours } from 'types/Encours';
 import { recuesApi } from 'app/api/lib/RecusApi';
 
 export const fetchEncours = async (
-    token: string,
     pageIndex: number,
-    pageSize: number
+    pageSize: number,
+    sortField?: string,
+    sortDesc?: boolean,
+    filter?: string
 ): Promise<{ data: Encours[]; totalCount: number }> => {
 
     const skip = pageIndex * pageSize;
+    let url = `/api/purchase-orders/recues/en-cours?skip=${skip}&top=${pageSize}`;
+
+    if (sortField) {
+        url += `&sort=${sortField}&desc=${!!sortDesc}`;
+    }
+    if (filter && filter.trim()) {
+        url += `&search=${encodeURIComponent(filter.trim())}`;
+    }
 
     const res = await recuesApi.get<{
         value: Encours[];
         '@odata.count'?: number;
-    }>(
-        `http://localhost:8080/api/purchase-orders/recues/en-cours?skip=${skip}&top=${pageSize}`
-    );
+    }>(url);
 
     return {
         data: res.data.value,

@@ -62,16 +62,15 @@ export default function AuthLogin({ providers, csrfToken }: any) {
     <>
       <Formik
         initialValues={{
-          email: 'DCME',
-          password: 'dcm2021',
+          email: '',
+          password: '',
           submit: null
         }}
         validationSchema={Yup.object().shape({
-          email: Yup.string().max(255).required('Username is required'),
+          email: Yup.string().max(255).required('Nom d\'utilisateur est requis'),
           password: Yup.string()
-            .required('Password is required')
-            .test('no-leading-trailing-whitespace', 'Password can not start or end with spaces', (value) => value === value.trim())
-            .max(10, 'Password must be less than 10 characters')
+            .required('Mot de passe est requis')
+            .test('no-leading-trailing-whitespace', 'Le mot de passe ne peut pas commencer ou se terminer par des espaces', (value) => value === value.trim())
         })}
         onSubmit={async (values, { setErrors, setStatus, setSubmitting }) => {
           try {
@@ -150,26 +149,6 @@ export default function AuthLogin({ providers, csrfToken }: any) {
                     {errors.password}
                   </FormHelperText>
                 )}
-              </Grid>
-
-              <Grid sx={{ mt: -1 }} size={12}>
-                <Stack direction="row" sx={{ gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={checked}
-                        onChange={(event) => setChecked(event.target.checked)}
-                        name="checked"
-                        color="primary"
-                        size="small"
-                      />
-                    }
-                    label={<Typography variant="h6">Keep me sign in</Typography>}
-                  />
-                  <Links variant="h6" component={Link} href={session ? '/auth/forgot-password' : '/forgot-password'} color="text.primary">
-                    Forgot Password?
-                  </Links>
-                </Stack>
               </Grid>
               {errors.submit && (
                 <Grid size={12}>

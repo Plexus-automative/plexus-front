@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import axiosServices from 'utils/axios';
 
 // material-ui
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -31,17 +33,37 @@ import { TruckTime } from '@wandersonalwes/iconsax-react'; // replace with your 
 
 export default function Livraison() {
   const downMD = useMediaQuery((theme: any) => theme.breakpoints.down('md'));
+  const router = useRouter();
   const anchorRef = useRef<any>(null);
   const [open, setOpen] = useState(false);
 
-  // Fake deliveries
-  const deliveries = [
-    { id: 1, title: 'Order #123', status: 'On the way' },
-    { id: 2, title: 'Order #124', status: 'Delivered' },
-    { id: 3, title: 'Order #129', status: 'Delivered' }
-  ];
+  const [deliveryCount, setDeliveryCount] = useState(0);
+  const [deliveries, setDeliveries] = useState<any[]>([]);
 
-  const deliveryCount = deliveries.length;
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const response = await axiosServices.get('/api/purchase-orders/commandes-livree?skip=0&top=5');
+
+        if (response.data && response.data['@odata.count'] !== undefined) {
+          setDeliveryCount(response.data['@odata.count']);
+        }
+
+        if (response.data && response.data.value) {
+          setDeliveries(response.data.value);
+          if (response.data['@odata.count'] === undefined) {
+            setDeliveryCount(response.data.value.length);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch delivery count:', error);
+      }
+    };
+
+    fetchCount();
+    const intervalId = setInterval(fetchCount, 60000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleToggle = () => setOpen((prev) => !prev);
   const handleClose = (event: MouseEvent | TouchEvent) => {
@@ -67,7 +89,7 @@ export default function Livraison() {
           ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
         })}
       >
-        <Badge badgeContent={deliveryCount} color="success">
+        <Badge badgeContent={deliveryCount > 9 ? '+9' : deliveryCount} color="success">
           <TruckTime size={26} variant="Bulk" />
         </Badge>
       </IconButton>
@@ -96,17 +118,30 @@ export default function Livraison() {
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
                       <List component="nav" sx={{ mt: 1 }}>
-                        {deliveries.map((item) => (
-                          <ListItem key={item.id} component={ListItemButton} sx={{ my: 1, border: '1px solid', borderColor: 'divider' }}>
+                        {deliveries.map((item: any, index: number) => (
+                          <ListItem
+                            key={item.id || index}
+                            component={ListItemButton}
+                            onClick={() => {
+                              router.push(`/pages/commandes-livree?highlight=${item.id}`);
+                              setOpen(false);
+                            }}
+                            sx={{ my: 1, border: '1px solid', borderColor: 'divider' }}
+                          >
                             <ListItemAvatar>
-                              <Avatar type="combined">{item.title[0]}</Avatar>
+                              <Avatar type="combined">{item.number ? item.number[0] : 'O'}</Avatar>
                             </ListItemAvatar>
                             <ListItemText
-                              primary={<Typography variant="h6">{item.title}</Typography>}
-                              secondary={item.status}
+                              primary={<Typography variant="h6">{item.number || `Order #${item.id}`}</Typography>}
+                              secondary={`${item.status || 'En attente'} • ${item.orderDate ? new Date(item.orderDate).toLocaleDateString() : ''}`}
                             />
                           </ListItem>
                         ))}
+                        {deliveries.length === 0 && (
+                          <Typography variant="body2" color="textSecondary" align="center" sx={{ py: 2 }}>
+                            Aucune livraison à afficher.
+                          </Typography>
+                        )}
                       </List>
                     </SimpleBar>
 

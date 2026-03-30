@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import axiosServices from 'utils/axios';
 
 // material-ui
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -25,7 +27,7 @@ import MainCard from 'components/MainCard';
 import SimpleBar from 'components/third-party/SimpleBar';
 
 // assets
-import { Gift, MessageText1, Notification, Setting2 } from '@wandersonalwes/iconsax-react';
+import { Notification } from '@wandersonalwes/iconsax-react';
 
 const actionSX = {
   mt: '6px',
@@ -39,11 +41,38 @@ const actionSX = {
 // ==============================|| HEADER CONTENT - NOTIFICATION ||============================== //
 
 export default function NotificationPage() {
-  const downMD = useMediaQuery((theme) => theme.breakpoints.down('md'));
+  const downMD = useMediaQuery((theme: any) => theme.breakpoints.down('md'));
+  const router = useRouter();
 
   const anchorRef = useRef<any>(null);
-  const [read] = useState(2);
+  const [read, setRead] = useState(0);
+  const [orders, setOrders] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const response = await axiosServices.get('/api/purchase-orders/validation-reception?skip=0&top=5');
+
+        if (response.data && response.data['@odata.count'] !== undefined) {
+          setRead(response.data['@odata.count']);
+        }
+
+        if (response.data && response.data.value) {
+          setOrders(response.data.value);
+          if (response.data['@odata.count'] === undefined) {
+            setRead(response.data.value.length);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch notification count:', error);
+      }
+    };
+
+    fetchCount();
+    const intervalId = setInterval(fetchCount, 60000); // refresh every minute
+    return () => clearInterval(intervalId);
+  }, []);
   const handleToggle = () => {
     setOpen((prevOpen) => !prevOpen);
   };
@@ -73,7 +102,7 @@ export default function NotificationPage() {
           ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
         })}
       >
-        <Badge badgeContent={read} color="success" slotProps={{ badge: { sx: { top: 2, right: 4 } } }}>
+        <Badge badgeContent={read > 9 ? '+9' : read} color="success" slotProps={{ badge: { sx: { top: 2, right: 4 } } }}>
           <Notification variant="Bold" />
         </Badge>
       </IconButton>
@@ -112,111 +141,33 @@ export default function NotificationPage() {
                           }
                         })}
                       >
-                        <ListItem
-                          component={ListItemButton}
-                          secondaryAction={
-                            <Typography variant="caption" noWrap>
-                              3:00 AM
-                            </Typography>
-                          }
-                        >
-                          <ListItemAvatar>
-                            <Avatar type="filled">
-                              <Gift size={20} variant="Bold" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Typography variant="h6">
-                                It&apos;s{' '}
-                                <Typography component="span" variant="subtitle1">
-                                  Cristina danny&apos;s
-                                </Typography>{' '}
-                                birthday today.
-                              </Typography>
-                            }
-                            secondary="2 min ago"
-                          />
-                        </ListItem>
-
-                        <ListItem
-                          component={ListItemButton}
-                          secondaryAction={
-                            <Typography variant="caption" noWrap>
-                              6:00 PM
-                            </Typography>
-                          }
-                        >
-                          <ListItemAvatar>
-                            <Avatar type="outlined">
-                              <MessageText1 size={20} variant="Bold" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Typography variant="h6">
-                                <Typography component="span" variant="subtitle1">
-                                  Aida Burg
-                                </Typography>{' '}
-                                commented your post.
-                              </Typography>
-                            }
-                            secondary="5 August"
-                          />
-                        </ListItem>
-
-                        <ListItem
-                          component={ListItemButton}
-                          secondaryAction={
-                            <Typography variant="caption" noWrap>
-                              2:45 PM
-                            </Typography>
-                          }
-                        >
-                          <ListItemAvatar>
-                            <Avatar>
-                              <Setting2 size={20} variant="Bold" />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Typography variant="h6">
-                                Your Profile is Complete &nbsp;
-                                <Typography component="span" variant="subtitle1">
-                                  60%
-                                </Typography>{' '}
-                              </Typography>
-                            }
-                            secondary="7 hours ago"
-                          />
-                        </ListItem>
-
-                        <ListItem
-                          component={ListItemButton}
-                          secondaryAction={
-                            <Typography variant="caption" noWrap>
-                              9:10 PM
-                            </Typography>
-                          }
-                        >
-                          <ListItemAvatar>
-                            <Avatar type="combined">C</Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Typography variant="h6">
-                                <Typography component="span" variant="subtitle1">
-                                  Cristina Danny
-                                </Typography>{' '}
-                                invited to join{' '}
-                                <Typography component="span" variant="subtitle1">
-                                  Meeting.
+                        {orders.map((order: any, index: number) => (
+                          <ListItem
+                            key={order.id || index}
+                            component={ListItemButton}
+                            onClick={() => {
+                              router.push(`/pages/validation-reception?highlight=${order.id}`);
+                              setOpen(false);
+                            }}
+                          >
+                            <ListItemAvatar>
+                              <Avatar type="combined">{order.number ? order.number[0] : 'O'}</Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={
+                                <Typography variant="h6">
+                                  Commande <Typography component="span" variant="subtitle1">{order.number || `#${order.id}`}</Typography> livrée
                                 </Typography>
-                              </Typography>
-                            }
-                            secondary="Daily scrum meeting time"
-                          />
-                        </ListItem>
+                              }
+                              secondary={`${order.vendorName || 'Fournisseur inconnu'} • ${order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ''}`}
+                            />
+                          </ListItem>
+                        ))}
+                        {orders.length === 0 && (
+                          <Typography variant="body2" color="textSecondary" align="center" sx={{ py: 2 }}>
+                            Aucune notification à afficher.
+                          </Typography>
+                        )}
                       </List>
                     </SimpleBar>
                     <Stack direction="row" sx={{ justifyContent: 'center', mt: 1.5 }}>

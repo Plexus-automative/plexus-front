@@ -74,34 +74,38 @@ export default function EmisesNonTraitees() {
 
     const [totalCount, setTotalCount] = useState(0);
 
+    // Reset to page 0 when filter changes
+    useEffect(() => {
+        setPagination(p => ({ ...p, pageIndex: 0 }));
+    }, [globalFilter]);
+
     // Fetch data when pageIndex or pageSize changes
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-
                 // Fetch with proper pagination
                 const sort = sorting[0];
 
                 const result = await fetchNonTraitees(
-                    token,
                     pageIndex,
                     pageSize,
                     sort?.id,
-                    sort?.desc
+                    sort?.desc,
+                    globalFilter
                 );
                 setData(
                     result.data.map((o: NonTraitee, index: number) => ({
-                        id: pageIndex * pageSize + index + 1,
+                        id: o.id || String(pageIndex * pageSize + index + 1),
                         number: o.number,
                         orderDate: o.orderDate,
-                        vendorName: o.vendorName,
+                        vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         ShippingAdvice: o.ShippingAdvice,
                         status: o.status,
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [] // ✅ ADD THIS
 
@@ -118,10 +122,10 @@ export default function EmisesNonTraitees() {
         };
 
         loadData();
-    }, [pageIndex, pageSize, sorting]);
+    }, [pageIndex, pageSize, sorting, globalFilter]);
 
     const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
-        
+
 
         {
             header: 'Num Commande',
@@ -212,14 +216,13 @@ export default function EmisesNonTraitees() {
         autoResetPageIndex: false,
     });
 
-
     return (
         <MainCard content={false}>
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Search ${totalCount} records...`}
+                    placeholder={`Chercher ${totalCount} commandes...`}
                 />
             </Stack>
 
@@ -278,11 +281,10 @@ export default function EmisesNonTraitees() {
                                                                     bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
                                                                 }}
                                                             >
-                                                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                                                                    <strong>Purchase Order Lines</strong>
+                                                                <Stack direction="row" justifyContent="flex-end" alignItems="center" mb={2}>
                                                                     <TextField
                                                                         size="small"
-                                                                        label="Search lines"
+                                                                        label="Chercher"
                                                                         value={detailSearch[row.id] || ''}
                                                                         onChange={(e) =>
                                                                             setDetailSearch(prev => ({
@@ -317,7 +319,7 @@ export default function EmisesNonTraitees() {
                                                                                     <TableRow>
                                                                                         <TableCell>Num article</TableCell>
                                                                                         <TableCell>Description</TableCell>
-                                                                                        <TableCell>Qty</TableCell>
+                                                                                        <TableCell>Quantité</TableCell>
                                                                                         <TableCell>Quantité livree</TableCell>
                                                                                         <TableCell>Confirmation</TableCell>
                                                                                         <TableCell>Date Livraison</TableCell>
@@ -332,25 +334,24 @@ export default function EmisesNonTraitees() {
                                                                                                 <TableCell>{line.description}</TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
                                                                                                 <TableCell>{line.receivedQuantity}</TableCell>
-                                                                                                <TableCell>{line.Decision}</TableCell>
-                                                                                                <TableCell>{line.expectedReceiptDate}</TableCell>
+                                                                                                <TableCell>{line.Decision != "" ? line.Decision : '-'}</TableCell>
+                                                                                                <TableCell>{line.DeliveryDate != "" ? line.DeliveryDate : '-'}</TableCell>
                                                                                             </TableRow>
                                                                                         ))
                                                                                     ) : (
                                                                                         <TableRow>
                                                                                             <TableCell colSpan={8} align="center">
-                                                                                                No lines found
-                                                                                            </TableCell>
+                                                                                                Aucun ligne trouvée                                                                                            </TableCell>
                                                                                         </TableRow>
                                                                                     )}
                                                                                 </TableBody>
                                                                             </Table>
                                                                         );
                                                                     })() : (
-                                                                        <Box mt={2}>
-                                                                            <Alert severity="info">No purchase lines available</Alert>
-                                                                        </Box>
-                                                                    )}
+                                                                    <Box mt={2}>
+                                                                        <Alert severity="info">Aucune ligne d'achat disponible</Alert>
+                                                                    </Box>
+                                                                )}
                                                             </Box>
                                                         </Collapse>
                                                     </TableCell>
@@ -361,7 +362,7 @@ export default function EmisesNonTraitees() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                                            No records found
+                                            No commandes trouvées
                                         </TableCell>
                                     </TableRow>
                                 )}

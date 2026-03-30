@@ -75,35 +75,39 @@ export default function EmisesTraitees() {
 
     const [totalCount, setTotalCount] = useState(0);
 
+    // Reset to page 0 when filter changes
+    useEffect(() => {
+        setPagination(p => ({ ...p, pageIndex: 0 }));
+    }, [globalFilter]);
+
     // Fetch data when pageIndex or pageSize changes
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const token = process.env.TOKEN || '';
-
                 const result = await fetchTraitees(
-                    token,
                     pageIndex,
-                    pageSize
+                    pageSize,
+                    globalFilter
                 );
                 setData(
                     result.data.map((o: Traitee, index: number) => ({
                         id: o.id || String(pageIndex * pageSize + index + 1),
                         number: o.number,
                         orderDate: o.orderDate,
-                        vendorName: o.vendorName,
-                        payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived ?? false,
+                vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
+                payToVendorNumber: o.payToVendorNumber || '',
+                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
+                        postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
+                        reclamation: o.Reclamation,
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
                 );
                 setTotalCount(result.totalCount || 0);
-
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch data');
                 console.error('Error loading data:', err);
@@ -113,10 +117,10 @@ export default function EmisesTraitees() {
         };
 
         loadData();
-    }, [pageIndex, pageSize, sorting]);
+    }, [pageIndex, pageSize, sorting, globalFilter]);
 
     const columns = useMemo<ColumnDef<Traitee>[]>(() => [
-        
+
         {
             header: 'N° Commande',
             accessorKey: 'number',
@@ -131,11 +135,11 @@ export default function EmisesTraitees() {
         {
             header: 'Fournisseur',
             accessorKey: 'vendorName',
-            enableSorting: false
+            enableSorting: true
         },
         {
             header: 'N° BL',
-            enableSorting: false,
+            enableSorting: true,
             cell: ({ row }) => {
                 const num = row.original.number || '';
                 const base = num.replace(/[^0-9]/g, '');
@@ -143,9 +147,18 @@ export default function EmisesTraitees() {
             }
         },
         {
+            header: 'Réclamation',
+            accessorKey: 'reclamation',
+            enableSorting: true,
+            cell: ({ getValue }) => {
+                const value = getValue<string>();
+                return value || '-';
+            }
+        },
+        {
             header: 'Statut',
             accessorKey: 'ShippingAdvice',
-            enableSorting: false,
+            enableSorting: true,
             cell: ({ getValue }) => {
                 const value = getValue<string>() || 'Confirmé';
                 return <Chip color="success" label={value} size="small" variant="light" />;
@@ -211,7 +224,7 @@ export default function EmisesTraitees() {
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Search ${totalCount} records...`}
+                    placeholder={`Chercher ${totalCount} commandes...`}
                 />
             </Stack>
 
@@ -273,7 +286,7 @@ export default function EmisesTraitees() {
                                                                 <Stack direction="row" justifyContent="flex-end" mb={2}>
                                                                     <TextField
                                                                         size="small"
-                                                                        label="Rechercher dans les lignes"
+                                                                        label="Chercher"
                                                                         value={detailSearch[row.id] || ''}
                                                                         onChange={(e) =>
                                                                             setDetailSearch(prev => ({
@@ -324,7 +337,7 @@ export default function EmisesTraitees() {
                                                                                             <TableCell>{line.receiveQuantity ?? line.quantity}</TableCell>
                                                                                             <TableCell>{line.receivedQuantity ?? line.quantity}</TableCell>
                                                                                             <TableCell>{line.Decision || '-'}</TableCell>
-                                                                                            <TableCell>{line.expectedReceiptDate || '-'}</TableCell>
+                                                                                            <TableCell>{line.DeliveryDate || '-'}</TableCell>
                                                                                         </TableRow>
                                                                                     ))
                                                                                 ) : (
@@ -350,7 +363,7 @@ export default function EmisesTraitees() {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                                            No records found
+                                            No commandes trouvées
                                         </TableCell>
                                     </TableRow>
                                 )}

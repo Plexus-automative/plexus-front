@@ -223,5 +223,18 @@
   "search_placeholder": "Rechercher {count} articles...",
   "add-to-basket-success": "Commande créée avec succès!",
   "Panier":"Panier",
-  "validation-reception":"Validation de la réception"
+  "validation-reception":"Validation de la réception",
+  "articles-rechercher":"Rechercher articles",
+  "import-articles": "Télécharger articles",
+  "download-excel-template": "1) Télécharger le modèle Excel",
+  "add-excel-file": "2) Ajouter votre fichier Excel",
+  "download-all": "Télécharger Tous",
+  "download-stock": "Télécharger stock",
+  "remarks": "Remarques:",
+  "file-format": "Télécharger le format:",
+  "export-excel": "Exporter Fichier Excel",
+  "import-remark-1": "Merci de vérifier votre fichier Excel avant de l'enregistrer",
+  "import-remark-2": "Le code article ne doit pas contenir des caractères spéciaux exemple: ( ) * $",
+  "import-remark-3": "Pour chaque article vous devez mentionner la désignation",
+  "import-remark-4": "Les prix et les quantités: avec des virgules exemple: (200,500)"
 }

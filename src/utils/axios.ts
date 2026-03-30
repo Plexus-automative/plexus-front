@@ -1,7 +1,23 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { getSession, signOut } from 'next-auth/react';
 
-const axiosServices = axios.create({ baseURL: process.env.NEXT_APP_API_URL });
+const isServer = typeof window === 'undefined';
+const baseURL = isServer
+  ? (process.env.NEXT_APP_INTERNAL_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_APP_API_URL)
+  : (process.env.NEXT_PUBLIC_BACKEND_URL || '');
+
+// Basic URL normalization to fix common typos like http:/ instead of http://
+const normalizeBaseURL = (url: string | undefined) => {
+  if (!url) return '';
+  // Fix protocol if it has only one slash instead of two
+  let normalized = url.replace(/^(https?):\/([^\/])/, '$1://$2');
+  // Ensure no trailing slash
+  return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+};
+
+const cleanBaseURL = normalizeBaseURL(baseURL);
+
+const axiosServices = axios.create({ baseURL: cleanBaseURL });
 
 // ==============================|| AXIOS - FOR MOCK SERVICES ||============================== //
 

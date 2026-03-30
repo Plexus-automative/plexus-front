@@ -74,7 +74,7 @@ export default function Panier() {
         })}
       >
         <Badge
-          badgeContent={totalItems}
+          badgeContent={totalItems > 9 ? '+9' : totalItems}
           color="success"
           slotProps={{ badge: { sx: { top: 2, right: 4 } } }}
         >
@@ -113,7 +113,7 @@ export default function Panier() {
                             Votre panier est vide.
                           </Typography>
                         ) : (
-                          cartItems.map((item) => (
+                          cartItems.slice(0, 5).map((item) => (
                             <ListItem
                               key={item.id}
                               sx={{
@@ -139,7 +139,7 @@ export default function Panier() {
                                 }
                                 secondary={
                                   <Typography variant="body2" color="textSecondary">
-                                    Qté: {item.quantity} | {item.price} 
+                                    Qté: {item.quantity} | {item.price}
                                   </Typography>
                                 }
                               />

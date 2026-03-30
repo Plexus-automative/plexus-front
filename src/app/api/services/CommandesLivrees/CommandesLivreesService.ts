@@ -1,9 +1,9 @@
 import { commandesLivreesApi } from '../../lib/CommandesLivreesApi';
 
-export const fetchLivreesOrders = async (token: string, skip: number, top: number) => {
+export const fetchLivreesOrders = async (skip: number, top: number) => {
     try {
         const response = await commandesLivreesApi.get(
-            `http://localhost:8080/api/purchase-orders/commandes-livree?skip=${skip}&top=${top}`
+            `/api/purchase-orders/commandes-livree?skip=${skip}&top=${top}`
         );
 
         const data = response.data;

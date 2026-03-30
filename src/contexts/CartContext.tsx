@@ -10,13 +10,16 @@ export interface CartItem {
     description: string;
     price: number;
     quantity: number;
+    isAdaptable?: boolean;
 }
+
 
 interface CartContextType {
     cartItems: CartItem[];
     addToCart: (item: CartItem) => void;
     removeFromCart: (itemId: string) => void;
     updateQuantity: (itemId: string, quantity: number) => void;
+    toggleAdaptable: (itemId: string, isAdaptable: boolean) => void;
     clearCart: () => void;
     totalItems: number;
     totalPrice: number;
@@ -51,12 +54,12 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const addToCart = (newItem: CartItem) => {
         setCartItems((prevItems) => {
             // Check if item already exists in the cart
-            const existingItem = prevItems.find((item) => item.id === newItem.id && item.vendorNumber === newItem.vendorNumber);
+            const existingItem = prevItems.find((item) => item.id === newItem.id && item.vendorNumber === newItem.vendorNumber && item.isAdaptable === newItem.isAdaptable);
 
             if (existingItem) {
                 // Increment quantity
                 return prevItems.map((item) =>
-                    item.id === newItem.id && item.vendorNumber === newItem.vendorNumber
+                    item.id === newItem.id && item.vendorNumber === newItem.vendorNumber && item.isAdaptable === newItem.isAdaptable
                         ? { ...item, quantity: item.quantity + newItem.quantity }
                         : item
                 );
@@ -84,6 +87,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         );
     };
 
+    const toggleAdaptable = (itemId: string, isAdaptable: boolean) => {
+        setCartItems((prevItems) =>
+            prevItems.map((item) =>
+                item.id === itemId ? { ...item, isAdaptable } : item
+            )
+        );
+    };
+
     const clearCart = () => {
         setCartItems([]);
     };
@@ -103,6 +114,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 addToCart,
                 removeFromCart,
                 updateQuantity,
+                toggleAdaptable,
                 clearCart,
                 totalItems,
                 totalPrice,

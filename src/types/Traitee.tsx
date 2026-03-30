@@ -8,6 +8,7 @@ export interface TraiteeLine {
   receiveQuantity?: number;
   Decision?: string;
   expectedReceiptDate?: string;
+  DeliveryDate?: string;
 }
 
 export interface Traitee {
@@ -19,6 +20,10 @@ export interface Traitee {
   fullyReceived: boolean;
   status: string;
   ShippingAdvice?: string;
+  ReceivedPurchaseHeader?: string;
+  QtyReceived?: string;
+  postingDate: string;
   lastModifiedDateTime: string;
   plexuspurchaseOrderLines?: TraiteeLine[];
+  Reclamation?: string;
 }

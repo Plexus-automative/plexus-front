@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, Fragment, MouseEvent, useEffect } from 'react';
-import axios from 'axios';
+import axiosServices from 'utils/axios';
 import { useIntl } from 'react-intl';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,6 +45,7 @@ import TablePagination from 'components/third-party/react-table/TablePagination'
 
 // icons
 import { ShoppingCart } from "@wandersonalwes/iconsax-react";
+import { useSearchParams } from 'next/navigation';
 // ==============================|| TYPES ||============================== //
 
 interface Item {
@@ -75,6 +76,10 @@ function ReactTable({ columns, data, searchTerm, setSearchTerm, isAdaptable, set
   const [rowSelection, setRowSelection] = useState({});
   const [globalFilter, setGlobalFilter] = useState(searchTerm);
   const intl = useIntl();
+
+  useEffect(() => {
+    setGlobalFilter(searchTerm);
+  }, [searchTerm]);
 
   const table = useReactTable({
     data,
@@ -116,7 +121,6 @@ function ReactTable({ columns, data, searchTerm, setSearchTerm, isAdaptable, set
             sx={{ mr: 0 }}
           />
         </Stack>
-        <CSVExport data={data} headers={headers} filename="items-list.csv" />
       </Stack>
 
       <TableContainer>
@@ -172,14 +176,23 @@ function ReactTable({ columns, data, searchTerm, setSearchTerm, isAdaptable, set
 export default function ArticlesListPage() {
   const theme = useTheme();
   const intl = useIntl();
+  const searchParams = useSearchParams();
+  const search = searchParams.get('search');
+
   const [items, setItems] = useState<Item[]>([]);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(search || '');
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
-  const [isAdaptable, setIsAdaptable] = useState<boolean>(false);
+  const [isAdaptable, setIsAdaptable] = useState<boolean>(true);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+
+  useEffect(() => {
+    if (search) {
+      setSearchTerm(search);
+    }
+  }, [search]);
 
   const { addToCart } = useCart();
 
@@ -208,11 +221,11 @@ export default function ArticlesListPage() {
         number: selectedItem.number, // The actual Item No
         description: selectedItem.description, //  Item description
         price: selectedItem.price,
-        quantity: quantity
+        quantity: quantity,
+        isAdaptable: isAdaptable
       });
-
-      setShowSuccessAlert(true);
       handleCloseModal();
+      setShowSuccessAlert(true);
     } catch (error) {
       console.error("Error adding to cart:", error);
     }
@@ -251,8 +264,8 @@ export default function ArticlesListPage() {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const url = `http://localhost:8080/api/purchase-orders/ItemVendors?$filter=itemNo eq '${searchTerm}'`;
-        const response = await axios.get(url, {
+        const url = `/api/purchase-orders/ItemVendors?$filter=itemNo eq '${searchTerm}'`;
+        const response = await axiosServices.get(url, {
           headers: {
             'Content-Type': 'application/json'
           }
@@ -431,7 +444,7 @@ export default function ArticlesListPage() {
                       fontSize: '1.5rem'
                     }}
                   >
-                    ${parseFloat(String(selectedItem?.price)).toFixed(2)}
+                    {parseFloat(String(selectedItem?.price)).toFixed(2)}
                   </Typography>
                 </Box>
               </Stack>
@@ -523,7 +536,7 @@ export default function ArticlesListPage() {
                     fontSize: '1.4rem'
                   }}
                 >
-                  ${(parseFloat(String(selectedItem?.price)) * quantity).toFixed(2)}
+                  {(parseFloat(String(selectedItem?.price)) * quantity).toFixed(2)}
                 </Typography>
               </Stack>
             </Paper>
