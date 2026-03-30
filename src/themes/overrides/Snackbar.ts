@@ -8,6 +8,10 @@ export default function Snackbar(theme: Theme) {
     MuiSnackbar: {
       styleOverrides: {
         root: {
+          top: 65,
+          [theme.breakpoints.up('sm')]: {
+            top: 65
+          },
           '& .MuiAlert-root': {
             '& .MuiAlert-message': {
               marginTop: 4,

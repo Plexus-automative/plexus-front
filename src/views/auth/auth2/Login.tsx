@@ -20,7 +20,6 @@ import AuthLogin from 'sections/auth/auth-forms/AuthLogin';
 // assets
 const imgFacebook = '/assets/images/auth/facebook.svg';
 const imgTwitter = '/assets/images/auth/twitter.svg';
-const imgGoogle = '/assets/images/auth/google.svg';
 
 // ================================|| LOGIN ||================================ //
 
@@ -45,11 +44,7 @@ export default function Login2Page() {
                 <CardMedia component="img" src={imgTwitter} alt="Facebook" sx={{ my: 0, mx: 1.25, width: 'auto' }} /> Sign In with Twitter
               </AuthSocButton>
             </Grid>
-            <Grid size={12}>
-              <AuthSocButton>
-                <CardMedia component="img" src={imgGoogle} alt="Facebook" sx={{ my: 0, mx: 1.25, width: 'auto' }} /> Sign In with Google
-              </AuthSocButton>
-            </Grid>
+
           </Grid>
         </Grid>
         <Grid size={12}>

@@ -272,28 +272,14 @@ export default function Header({ layout = 'landing', ...others }: Props) {
                 <Logo to="/" />
               </Box>
               <Stack direction="row" sx={{ gap: 2 }}>
-                {layout !== 'component' && (
-                  <Button
-                    variant="outlined"
-                    color="warning"
-                    component={Link}
-                    href={`/components-overview/buttons${getQueryParams}`}
-                    sx={{ mt: 0.25 }}
-                  >
-                    All Components
-                  </Button>
-                )}
-
                 <IconButton
                   size="large"
                   color="secondary"
-                  {...(layout === 'component'
-                    ? { onClick: () => handlerComponentDrawer(!menuMaster.isComponentDrawerOpened) }
-                    : { onClick: drawerToggler(true) })}
+                  onClick={drawerToggler(true)}
                   sx={{ p: 1 }}
                 >
                   <HambergerMenu />
-                </IconButton>
+                </IconButton> 
               </Stack>
               <Drawer
                 anchor="top"
@@ -321,19 +307,7 @@ export default function Header({ layout = 'landing', ...others }: Props) {
                         <ListItemText primary="Dashboard" slotProps={{ primary: { variant: 'h6', color: 'secondary.main' } }} />
                       </ListItemButton>
                     </Links>
-                    <Links
-                      style={{ textDecoration: 'none' }}
-                      component={Link}
-                      href={`/components-overview/buttons${getQueryParams}`}
-                      target="_blank"
-                    >
-                      <ListItemButton>
-                        <ListItemIcon>
-                          <Minus />
-                        </ListItemIcon>
-                        <ListItemText primary="All Components" slotProps={{ primary: { variant: 'h6', color: 'secondary.main' } }} />
-                      </ListItemButton>
-                    </Links>
+
                     <Links
                       style={{ textDecoration: 'none' }}
                       href="https://github.com/phoenixcoded/able-pro-free-admin-dashboard-template"

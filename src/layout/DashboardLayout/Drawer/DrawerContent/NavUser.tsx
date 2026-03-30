@@ -55,19 +55,17 @@ export default function UserList() {
   const { data: session } = useSession();
   const provider = session?.provider;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     switch (provider) {
       case 'auth0':
-        signOut({ callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/logout/auth0` });
+        await signOut({ callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/logout/auth0` });
         break;
       case 'cognito':
-        signOut({ callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/logout/cognito` });
+        await signOut({ callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/logout/cognito` });
         break;
       default:
-        signOut({ redirect: false });
+        await signOut({ callbackUrl: '/login' });
     }
-
-    router.push('/login');
   };
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -108,7 +106,7 @@ export default function UserList() {
           <ListItemAvatar>
             <Avatar alt="Avatar" src={avatar1} sx={{ ...(drawerOpen && { width: 46, height: 46 }) }} />
           </ListItemAvatar>
-          <ListItemText primary={user ? user?.name : ''} sx={{ ...(!drawerOpen && { display: 'none' }) }} secondary="UI/UX Designer" />
+          <ListItemText primary={user ? user?.name : ''} sx={{ ...(!drawerOpen && { display: 'none' }) }} secondary={user ? user.role : 'User'} />
         </ListItem>
       </List>
       <Menu
@@ -120,13 +118,7 @@ export default function UserList() {
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <MenuItem onClick={handleLogout}>Logout</MenuItem>
-        <MenuItem component={Link} href="/apps/profiles/user/personal" onClick={handleClose}>
-          Profile
-        </MenuItem>
-        <MenuItem component={Link} href="/apps/profiles/account/my-account" onClick={handleClose}>
-          My account
-        </MenuItem>
+        <MenuItem onClick={handleLogout}>Déconnexion</MenuItem>
       </Menu>
     </Box>
   );

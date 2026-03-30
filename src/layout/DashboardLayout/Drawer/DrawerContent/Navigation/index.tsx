@@ -9,11 +9,11 @@ import Box from '@mui/material/Box';
 // project-imports
 import NavGroup from './NavGroup';
 import NavItem from './NavItem';
-import { useGetMenu, useGetMenuMaster } from 'api/menu';
+import { useGetMenuMaster } from 'api/menu';
 import { MenuOrientation, HORIZONTAL_MAX_ITEM } from 'config';
 import useConfig from 'hooks/useConfig';
+import useUser from 'hooks/useUser';
 import menuItem from 'menu-items';
-import { MenuFromAPI } from 'menu-items/dashboard';
 
 // types
 import { NavItemType } from 'types/menu';
@@ -33,31 +33,44 @@ export default function Navigation() {
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
 
   const { menuOrientation } = useConfig();
-  const { menuLoading } = useGetMenu();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
 
+  const user = useUser();
   const [selectedID, setSelectedID] = useState<string | null>(menuMaster.openedHorizontalItem);
   const [selectedItems, setSelectedItems] = useState<string | undefined>('');
   const [selectedLevel, setSelectedLevel] = useState<number>(0);
   const [menuItems, setMenuItems] = useState<{ items: NavItemType[] }>({ items: [] });
 
-  const dashboardMenu = MenuFromAPI();
-
   useLayoutEffect(() => {
-    if (menuLoading && !isFound(menuItem, 'group-dashboard-loading')) {
-      menuItem.items.splice(0, 0, dashboardMenu);
-      setMenuItems({ items: [...menuItem.items] });
-    } else if (!menuLoading && dashboardMenu?.id !== undefined && !isFound(menuItem, 'group-dashboard')) {
-      menuItem.items.splice(0, 1, dashboardMenu);
-      setMenuItems({ items: [...menuItem.items] });
-    } else {
-      setMenuItems({ items: [...menuItem.items] });
-    }
+    const currentItems = [...menuItem.items];
+
+    // Role-based filtering
+    const userRole = user ? user.role : '';
+    const filteredItems = currentItems.map((group) => {
+      if (group.id === 'group-applications' && group.children) {
+        const filteredChildren = group.children.filter((child) => {
+          if (userRole === 'Client and Fournisseur') return true;
+
+          if (userRole === 'Fournisseur') {
+            return ['articles', 'commandes-recus', 'commandes-livrees', 'panier', 'add-reference'].includes(child.id!);
+          }
+          if (userRole === 'Client') {
+            return ['articles', 'commandes-emis', 'validation-reception', 'panier', 'add-reference'].includes(child.id!);
+          }
+          return true; // Fallback for other roles (admin, etc.) if any
+        });
+        return { ...group, children: filteredChildren };
+      }
+      return group;
+    });
+
+    setMenuItems({ items: filteredItems });
     // eslint-disable-next-line
-  }, [menuLoading]);
+  }, [user ? user.role : '']);
 
   const isHorizontal = menuOrientation === MenuOrientation.HORIZONTAL && !downLG;
+
 
   const lastItem = isHorizontal ? HORIZONTAL_MAX_ITEM : null;
   let lastItemIndex = menuItems.items.length - 1;

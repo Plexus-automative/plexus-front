@@ -135,10 +135,10 @@ function ReactTable({ data, columns, modalToggler }: Props) {
             displayEmpty
             slotProps={{ input: { 'aria-label': 'Status Filter' } }}
           >
-            <MenuItem value="">All Status</MenuItem>
-            <MenuItem value={1}>Verified</MenuItem>
-            <MenuItem value={2}>Pending</MenuItem>
-            <MenuItem value={3}>Rejected</MenuItem>
+            <MenuItem value="">Tous les statuts</MenuItem>
+            <MenuItem value={1}>Non traitées</MenuItem>
+            <MenuItem value={2}>Traitées</MenuItem>
+            <MenuItem value={3}>En cours</MenuItem>
           </Select>
           <SelectColumnSorting {...{ getState: table.getState, getAllColumns: table.getAllColumns, setSorting }} />
           <Stack direction="row" sx={{ gap: 2, alignItems: 'center' }}>
@@ -269,7 +269,7 @@ export default function CustomerListPage() {
       },
       { header: '#', accessorKey: 'id', meta: { align: 'center' } },
       {
-        header: 'Customer Name',
+        header: 'Num commande',
         accessorKey: 'name',
         cell: ({ row, getValue }) => (
           <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
@@ -282,12 +282,17 @@ export default function CustomerListPage() {
         )
       },
       {
-        header: 'Contact',
+        header: 'Date commande',
         accessorKey: 'contact',
         cell: ({ getValue }) => <PatternFormat displayType="text" format="+1 (###) ###-####" mask="_" defaultValue={getValue() as number} />
       },
-      { header: 'Age', accessorKey: 'age', meta: { align: 'right' } },
-      { header: 'Country', accessorKey: 'country' },
+
+      {
+        header: 'Fournisseur',
+        accessorKey: 'fournisseur',
+        cell: ({ getValue }) => <PatternFormat displayType="text" format="+1 (###) ###-####" mask="_" defaultValue={getValue() as number} />
+      },
+
       {
         header: 'Status',
         accessorKey: 'status',

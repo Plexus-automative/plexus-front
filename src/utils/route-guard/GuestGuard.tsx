@@ -9,6 +9,7 @@ import { useSession } from 'next-auth/react';
 // project-imports
 import Loader from 'components/Loader';
 import { useBuyNowLink } from 'hooks/getBuyNowLink';
+import { APP_DEFAULT_PATH } from 'config';
 
 // types
 import { GuardProps } from 'types/auth';
@@ -25,7 +26,7 @@ export default function GuestGuard({ children }: GuardProps) {
       const res: any = await fetch('/api/auth/protected');
       const json = await res?.json();
       if (json?.protected) {
-        router.push(`/dashboard/default${getQueryParams}`);
+        router.push(`${APP_DEFAULT_PATH}${getQueryParams}`);
       }
     };
     fetchData();

@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+business-central:
+  oauth2:
+    token-uri: ${BC_TOKEN_URI}
+    grant-type: client_credentials
+    scope: https://api.businesscentral.dynamics.com/.default
+    client-id: YOUR_BC_CLIENT_ID_HERE
+    client-secret: YOUR_BC_CLIENT_SECRET_HERE
+    tenant-id: YOUR_BC_TENANT_ID_HERE
+  api:
+    base-url: ${BC_BASE_URL}
+    system-url: ${BC_SYSTEM_API_URL}
+    tarek-system-url: ${BC_TAREK_SYSTEM_API_URL}
+    company-id: ${BC_COMPANY_ID}
+ 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    com.plexus: DEBUG
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: ${JWT_EXPIRATION:86400}

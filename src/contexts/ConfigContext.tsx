@@ -45,8 +45,8 @@ function ConfigProvider({ children }: ConfigProviderProps) {
   );
 
   const onChangeLocalization = useCallback(
-    (lang: I18n) => {
-      setConfig((prev: DefaultConfigProps) => ({ ...prev, i18n: lang }));
+    (_lang: I18n) => {
+      setConfig((prev: DefaultConfigProps) => ({ ...prev, i18n: 'fr' }));
     },
     [setConfig]
   );

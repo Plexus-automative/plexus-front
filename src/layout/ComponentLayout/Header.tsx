@@ -106,15 +106,6 @@ export default function Header() {
               </Links>
               <Links
                 className="header-link"
-                color="primary"
-                component={Link}
-                href={`/components-overview/buttons${getQueryParams}`}
-                underline="none"
-              >
-                Components
-              </Links>
-              <Links
-                className="header-link"
                 color="secondary.main"
                 href="https://phoenixcoded.gitbook.io/able-pro"
                 target="_blank"
@@ -173,17 +164,8 @@ export default function Header() {
                 <Button variant="outlined" color="warning" component={Link} href={APP_DEFAULT_PATH + getQueryParams} sx={{ mt: 0.25 }}>
                   Dashboard
                 </Button>
-
-                <IconButton
-                  size="large"
-                  color="secondary"
-                  onClick={() => handlerComponentDrawer(!menuMaster.isComponentDrawerOpened)}
-                  sx={{ p: 1 }}
-                >
-                  <HambergerMenu />
-                </IconButton>
               </Stack>
-            </Box>
+            </Box> 
           </Toolbar>
         </Container>
       </AppBar>

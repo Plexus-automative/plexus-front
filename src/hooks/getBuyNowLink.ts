@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 
 export function useBuyNowLink() {
   return useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     const ispValue = params.get('isp');
     const refValue = params.get('ref');
 

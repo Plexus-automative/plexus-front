@@ -21,7 +21,7 @@ declare module 'next-auth' {
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET_KEY,
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       id: 'login',
@@ -31,20 +31,49 @@ export const authOptions: NextAuthOptions = {
         password: { name: 'password', label: 'Password', type: 'password', placeholder: 'Enter Password' }
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const internalUrl = process.env.NEXT_APP_INTERNAL_BACKEND_URL;
+        const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+        // Remove trailing /api from publicUrl if it exists to avoid double /api
+        const baseBackendUrl = internalUrl || (publicUrl?.endsWith('/api') ? publicUrl.slice(0, -4) : publicUrl);
+        const loginUrl = (baseBackendUrl || '') + '/api/account/login';
+
+        console.log('--- AUTH ATTEMPT ---');
+        console.log('Internal URL Env:', internalUrl);
+        console.log('Public URL Env:', publicUrl);
+        console.log('Resolved Login URL:', loginUrl);
+
         try {
-          const user = await axios.post('/api/account/login', {
-            password: credentials?.password,
-            email: credentials?.email
+          const res = await fetch(loginUrl, {
+            method: 'POST',
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+            headers: { 'Content-Type': 'application/json' },
           });
 
-          if (user) {
-            user.data.user['accessToken'] = user.data.serviceToken;
-            return user.data.user;
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error('Backend Login Failed:', res.status, errorText);
+            throw new Error(errorText || 'Authentication failed');
+          }
+
+          const responseData = await res.json();
+          console.log('Backend Login Success:', responseData.user?.email);
+
+          if (res.ok && responseData.user) {
+            responseData.user['accessToken'] = responseData.serviceToken;
+            return responseData.user;
+          } else {
           }
         } catch (e: any) {
           const errorMessage = e?.message || e?.response?.data?.message || 'Something went wrong!';
           throw new Error(errorMessage);
         }
+
       }
     }),
     CredentialsProvider({
@@ -80,19 +109,32 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     jwt: async ({ token, user, account }) => {
+      console.log(">>> [NEXTAUTH] JWT Callback - user:", user);
       if (user) {
         token.accessToken = user.accessToken;
         token.id = user.id;
         token.provider = account?.provider;
+        token.role = (user as any).role;
+        token.customerNo = (user as any).customerNo;
+        token.vendorNo = (user as any).vendorNo;
       }
+      console.log(">>> [NEXTAUTH] JWT Callback - Output token:", token);
       return token;
     },
     session: ({ session, token }) => {
+      console.log(">>> [NEXTAUTH] SESSION Callback - Input token:", token);
       if (token) {
         session.id = token.id;
         session.provider = token.provider;
         session.token = token;
+        console.log(">>> [NEXTAUTH] SESSION Callback - session.user:", session.user);
+        if (session.user) {
+          (session.user as any).role = token.role;
+          (session.user as any).customerNo = token.customerNo;
+          (session.user as any).vendorNo = token.vendorNo;
+        }
       }
+      console.log(">>> [NEXTAUTH] SESSION Callback - Final session:", session);
       return session;
     },
     async signIn(params) {

@@ -9,7 +9,7 @@ import { DefaultConfigProps } from 'types/config';
 export const facebookColor = '#3b5998';
 export const linkedInColor = '#0e76a8';
 
-export const APP_DEFAULT_PATH = '/dashboard/default';
+export const APP_DEFAULT_PATH = '/bienvenue';
 export const HORIZONTAL_MAX_ITEM = 8;
 export const DRAWER_WIDTH = 280;
 export const MINI_DRAWER_WIDTH = 90;
@@ -58,7 +58,7 @@ export enum DropzopType {
 
 const config: DefaultConfigProps = {
   fontFamily: inter.style.fontFamily,
-  i18n: 'en',
+  i18n: 'fr',
   menuOrientation: MenuOrientation.VERTICAL,
   menuCaption: true,
   miniDrawer: false,

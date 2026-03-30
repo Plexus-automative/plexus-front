@@ -167,13 +167,13 @@ export default function ProfilePage() {
                           <Stack>
                             <Typography variant="subtitle1">{user ? user?.name : ''}</Typography>
                             <Typography variant="body2" color="secondary">
-                              UI/UX Designer
+                              {user ? user.role : 'User'}
                             </Typography>
                           </Stack>
                         </Stack>
                       </Grid>
                       <Grid>
-                        <Tooltip title="Logout">
+                        <Tooltip title="Déconnexion">
                           <IconButton size="large" color="error" sx={{ p: 1 }} onClick={handleLogout}>
                             <Logout variant="Bulk" />
                           </IconButton>
@@ -182,18 +182,6 @@ export default function ProfilePage() {
                     </Grid>
                   </CardContent>
 
-                  <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                    <Tabs variant="fullWidth" value={value} onChange={handleChange} aria-label="profile tabs">
-                      <Tab sx={tabStyle} icon={<Profile size={18} style={{ marginBottom: 0 }} />} label="Profile" {...a11yProps(0)} />
-                      <Tab sx={tabStyle} icon={<Setting2 size={18} style={{ marginBottom: 0 }} />} label="Setting" {...a11yProps(1)} />
-                    </Tabs>
-                  </Box>
-                  <TabPanel value={value} index={0} dir={theme.direction}>
-                    <ProfileTab handleLogout={handleLogout} />
-                  </TabPanel>
-                  <TabPanel value={value} index={1} dir={theme.direction}>
-                    <SettingTab />
-                  </TabPanel>
                 </MainCard>
               </ClickAwayListener>
             </Paper>

@@ -14,10 +14,10 @@ export default function useLocalStorage<ValueType>(key: string, defaultValue: Va
         setValue(e.newValue ? JSON.parse(e.newValue) : e.newValue);
       }
     };
-    window.addEventListener('storage', listener);
+    if (typeof window !== 'undefined') window.addEventListener('storage', listener);
 
     return () => {
-      window.removeEventListener('storage', listener);
+      if (typeof window !== 'undefined') window.removeEventListener('storage', listener);
     };
   }, [key, defaultValue]);
 

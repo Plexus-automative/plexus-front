@@ -41,7 +41,6 @@ import { preload } from 'swr';
 
 const Auth0 = '/assets/images/icons/auth0.svg';
 const Cognito = '/assets/images/icons/aws-cognito.svg';
-const Google = '/assets/images/icons/google.svg';
 
 // ============================|| JWT - LOGIN ||============================ //
 
@@ -63,16 +62,15 @@ export default function AuthLogin({ providers, csrfToken }: any) {
     <>
       <Formik
         initialValues={{
-          email: 'info@phoenixcoded.co',
-          password: '123456',
+          email: '',
+          password: '',
           submit: null
         }}
         validationSchema={Yup.object().shape({
-          email: Yup.string().email('Must be a valid email').max(255).required('Email is required'),
+          email: Yup.string().max(255).required('Nom d\'utilisateur est requis'),
           password: Yup.string()
-            .required('Password is required')
-            .test('no-leading-trailing-whitespace', 'Password can not start or end with spaces', (value) => value === value.trim())
-            .max(10, 'Password must be less than 10 characters')
+            .required('Mot de passe est requis')
+            .test('no-leading-trailing-whitespace', 'Le mot de passe ne peut pas commencer ou se terminer par des espaces', (value) => value === value.trim())
         })}
         onSubmit={async (values, { setErrors, setStatus, setSubmitting }) => {
           try {
@@ -99,7 +97,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
             <Grid container spacing={3}>
               <Grid size={12}>
                 <Stack sx={{ gap: 1 }}>
-                  <InputLabel htmlFor="email-login">Email Address</InputLabel>
+                  <InputLabel htmlFor="email-login">Username</InputLabel>
                   <OutlinedInput
                     id="email-login"
                     type="email"
@@ -107,7 +105,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
                     name="email"
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    placeholder="Enter email address"
+                    placeholder="Enter username"
                     fullWidth
                     error={Boolean(touched.email && errors.email)}
                   />
@@ -152,26 +150,6 @@ export default function AuthLogin({ providers, csrfToken }: any) {
                   </FormHelperText>
                 )}
               </Grid>
-
-              <Grid sx={{ mt: -1 }} size={12}>
-                <Stack direction="row" sx={{ gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={checked}
-                        onChange={(event) => setChecked(event.target.checked)}
-                        name="checked"
-                        color="primary"
-                        size="small"
-                      />
-                    }
-                    label={<Typography variant="h6">Keep me sign in</Typography>}
-                  />
-                  <Links variant="h6" component={Link} href={session ? '/auth/forgot-password' : '/forgot-password'} color="text.primary">
-                    Forgot Password?
-                  </Links>
-                </Stack>
-              </Grid>
               {errors.submit && (
                 <Grid size={12}>
                   <FormHelperText error>{errors.submit}</FormHelperText>
@@ -196,52 +174,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
           justifyContent={{ xs: 'space-around', sm: 'space-between' }}
           sx={{ mt: 3, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 }, ml: { xs: 0, sm: -0.5 } } }}
         >
-          {Object.values(providers).map((provider: any) => {
-            if (provider.id === 'login' || provider.id === 'register') {
-              return;
-            }
 
-            return (
-              <Box key={provider.name} sx={{ width: '100%' }}>
-                <Divider sx={{ mt: 2 }}>
-                  <Typography variant="caption"> Login with</Typography>
-                </Divider>
-                {provider.id === 'google' && (
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    fullWidth={!downSM}
-                    startIcon={<Image src={Google} alt="Twitter" width={16} height={16} />}
-                    onClick={() => signIn(provider.id, { callbackUrl: APP_DEFAULT_PATH })}
-                  >
-                    {!downSM && 'Google'}
-                  </Button>
-                )}
-                {provider.id === 'auth0' && (
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    fullWidth={!downSM}
-                    startIcon={<Image src={Auth0} alt="Twitter" width={16} height={16} />}
-                    onClick={() => signIn(provider.id, { callbackUrl: APP_DEFAULT_PATH })}
-                  >
-                    {!downSM && 'Auth0'}
-                  </Button>
-                )}
-                {provider.id === 'cognito' && (
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    fullWidth={!downSM}
-                    startIcon={<Image src={Cognito} alt="Twitter" width={16} height={16} />}
-                    onClick={() => signIn(provider.id, { callbackUrl: APP_DEFAULT_PATH })}
-                  >
-                    {!downSM && 'Cognito'}
-                  </Button>
-                )}
-              </Box>
-            );
-          })}
         </Stack>
       )}
       {!providers && (

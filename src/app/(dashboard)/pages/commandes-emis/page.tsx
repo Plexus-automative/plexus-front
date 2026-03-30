@@ -1,8 +1,8 @@
 // project-imports
-import CustomerList from 'views/apps/CustomerList';
+import OrderListPage_Emises from 'views/apps/Emises/OrderListPage_Emises';
 
 // ==============================|| CUSTOMER - LIST ||============================== //
 
 export default function CustomerListPage() {
-  return <CustomerList />;
+  return <OrderListPage_Emises />;
 }
