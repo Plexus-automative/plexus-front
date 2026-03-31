@@ -81,9 +81,20 @@ interface Props {
   selectedItems: string | undefined;
   setSelectedLevel: Dispatch<SetStateAction<number>>;
   selectedLevel: number;
+  // When true, this collapse/item is rendered inside a sidebar dropdown menu.
+  isSidebarDropdownMenu?: boolean;
 }
 
-export default function NavCollapse({ menu, level, parentId, setSelectedItems, selectedItems, setSelectedLevel, selectedLevel }: Props) {
+export default function NavCollapse({
+  menu,
+  level,
+  parentId,
+  setSelectedItems,
+  selectedItems,
+  setSelectedLevel,
+  selectedLevel,
+  isSidebarDropdownMenu = false
+}: Props) {
   const theme = useTheme();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
@@ -175,6 +186,8 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
   }, [pathname, menu]);
 
   const navCollapse = menu.children?.map((item) => {
+    // Children of these collapses (their menu when opened) should be red.
+    const isCommandesChildParent = level === 1 && (menu.id === 'commandes-emis' || menu.id === 'commandes-recus');
     switch (item.type) {
       case 'collapse':
         return (
@@ -187,10 +200,18 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
             menu={item}
             level={level + 1}
             parentId={parentId}
+            isSidebarDropdownMenu={isSidebarDropdownMenu || menu.isDropdown || isCommandesChildParent}
           />
         );
       case 'item':
-        return <NavItem key={item.id} item={item} level={level + 1} />;
+        return (
+          <NavItem
+            key={item.id}
+            item={item}
+            level={level + 1}
+            isSidebarDropdownMenu={isSidebarDropdownMenu || menu.isDropdown || isCommandesChildParent}
+          />
+        );
       default:
         return (
           <Typography key={item.id} variant="h6" color="error" align="center">
@@ -207,9 +228,13 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
   const popperId = miniMenuOpened ? `collapse-pop-${menu.id}` : undefined;
   const FlexBox = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' };
 
+  // Only submenu items under specific collapses should be red, not the collapse label itself.
+  const inSidebarDropdownMenu = isSidebarDropdownMenu || menu.isDropdown;
   const selectedTextColor = isSelected || anchorEl ? 'primary.main' : null;
-  const lightTextColor = selectedTextColor || 'secondary.main';
-  const darkTextColor = selectedTextColor || 'secondary.400';
+  // Sidebar dropdown header + its dropdown entries color
+  const dropdownColor = '#48617d';
+  const lightTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : 'text.primary');
+  const darkTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : 'text.secondary');
 
   const arrowStyle = { size: 12, style: { marginLeft: 1 } };
 
@@ -297,7 +322,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
                 }
                 secondary={
                   menu.caption && (
-                    <Typography variant="caption" color="secondary">
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       <FormattedMessage id={menu.caption} />
                     </Typography>
                   )
@@ -413,7 +438,16 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
         >
           <Box onClick={handlerIconLink} sx={FlexBox}>
             {menuIcon && (
-              <ListItemIcon sx={{ my: 'auto', minWidth: !menu.icon ? 18 : 36, color: 'secondary.dark' }}>{menuIcon}</ListItemIcon>
+              <ListItemIcon
+                sx={(theme) => ({
+                  my: 'auto',
+                  minWidth: !menu.icon ? 18 : 36,
+                  color: 'text.primary',
+                  ...theme.applyStyles('dark', { color: 'text.secondary' })
+                })}
+              >
+                {menuIcon}
+              </ListItemIcon>
             )}
             <ListItemText
               primary={

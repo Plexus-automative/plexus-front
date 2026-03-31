@@ -171,13 +171,14 @@ export default function EmisesTraitees() {
             cell: ({ row }) => (
                 <Tooltip title="Détails">
                     <IconButton
+                    
                         color="primary"
                         onClick={(e: MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
                             setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
                         }}
                     >
-                        <InfoCircle />
+                        <InfoCircle style={{ width: 36, height: 36 }}/>
                     </IconButton>
                 </Tooltip>
             )
