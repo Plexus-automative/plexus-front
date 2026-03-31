@@ -27,21 +27,21 @@ export default function IconButton(theme: Theme) {
           }
         },
         sizeMedium: {
-          width: theme.spacing(4.5),
-          height: theme.spacing(4.5),
+          width: theme.spacing(5.25),
+          height: theme.spacing(5.25),
           fontSize: '1rem',
           '& svg': {
-            width: 20,
-            height: 20
+            width: 26,
+            height: 26
           }
         },
         sizeSmall: {
-          width: theme.spacing(3.75),
-          height: theme.spacing(3.75),
+          width: theme.spacing(4.75),
+          height: theme.spacing(4.75),
           fontSize: '0.75rem',
           '& svg': {
-            width: 16,
-            height: 16
+            width: 24,
+            height: 24
           }
         }
       }
