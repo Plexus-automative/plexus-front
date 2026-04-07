@@ -35,9 +35,11 @@ interface Props {
   level: number;
   isParents?: boolean;
   setSelectedID?: () => void;
+  // When true, this item is rendered inside a sidebar dropdown (header menu).
+  isSidebarDropdownMenu?: boolean;
 }
 
-export default function NavItem({ item, level, isParents = false, setSelectedID }: Props) {
+export default function NavItem({ item, level, isParents = false, setSelectedID, isSidebarDropdownMenu = false }: Props) {
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
 
   const { menuMaster } = useGetMenuMaster();
@@ -71,7 +73,10 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   }, [pathname]);
 
   const iconSelectedColor = 'primary.main';
-
+  // Sidebar submenu (dropdown) text color
+  const dropdownColor = '#48617d';
+  const baseTextColor = isSidebarDropdownMenu ? dropdownColor : 'text.primary';
+  const baseDarkTextColor = isSidebarDropdownMenu ? dropdownColor : 'text.secondary';
   const itemHandler = () => {
     if (downLG) handlerDrawerOpen(false);
 
@@ -100,11 +105,11 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
               }),
               ...(drawerOpen &&
                 level === 1 && {
-                  mx: 1.25,
-                  my: 0.5,
-                  borderRadius: 1,
-                  '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
-                }),
+                mx: 1.25,
+                my: 0.5,
+                borderRadius: 1,
+                '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
+              }),
               ...(!drawerOpen && {
                 px: 2.75,
                 justifyContent: 'center',
@@ -118,24 +123,24 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
               <ListItemIcon
                 sx={(theme) => ({
                   minWidth: 38,
-                  color: 'secondary.main',
-                  ...theme.applyStyles('dark', { color: 'secondary.400' }),
+                  color: baseTextColor,
+                  ...theme.applyStyles('dark', { color: baseDarkTextColor }),
                   ...(isSelected && { color: iconSelectedColor }),
                   ...(!drawerOpen &&
                     level === 1 && {
-                      borderRadius: 1,
-                      width: 46,
-                      height: 46,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
-                    }),
+                    borderRadius: 1,
+                    width: 46,
+                    height: 46,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
+                  }),
                   ...(!drawerOpen &&
                     isSelected && {
-                      bgcolor: 'primary.lighter',
-                      '&:hover': { bgcolor: 'primary.lighter' },
-                      ...theme.applyStyles('dark', { bgcolor: 'divider', '&:hover': { bgcolor: 'divider' } })
-                    })
+                    bgcolor: 'primary.lighter',
+                    '&:hover': { bgcolor: 'primary.lighter' },
+                    ...theme.applyStyles('dark', { bgcolor: 'divider', '&:hover': { bgcolor: 'divider' } })
+                  })
                 })}
               >
                 {itemIcon}
@@ -148,7 +153,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
                   minWidth: 30
                 }}
               >
-                <Dot size={isSelected ? 6 : 5} color={isSelected ? 'primary' : 'secondary'} />
+                <Dot size={isSelected ? 6 : 5} color={isSelected ? 'primary' : isSidebarDropdownMenu ? 'secondary' : 'secondary'} />
               </ListItemIcon>
             )}
 
@@ -158,8 +163,8 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
                   <Typography
                     variant="h6"
                     sx={(theme) => ({
-                      color: 'secondary.main',
-                      ...theme.applyStyles('dark', { color: 'secondary.400' }),
+                      color: baseTextColor,
+                      ...theme.applyStyles('dark', { color: baseDarkTextColor }),
                       ...(isSelected && { color: iconSelectedColor }),
                       fontWeight: isSelected ? 500 : 400
                     })}
@@ -212,7 +217,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
                     p: 0.25,
                     borderColor: isSelected ? 'primary.light' : 'secondary.light',
                     '&:hover': { borderColor: isSelected ? 'primary.main' : 'secondary.main' },
-                    ...theme.applyStyles('dark', { color: isSelected ? 'primary.main' : 'secondary.400' })
+                    ...theme.applyStyles('dark', { color: isSelected ? 'primary.main' : baseDarkTextColor })
                   })}
                 >
                   <ActionIcon size={12} style={{ marginLeft: 1 }} />
@@ -237,7 +242,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
             zIndex: 1201,
             borderRadius: !isParents && level >= 1 ? 0 : 1,
             height: 46,
-            ...(isParents && { color: 'secondary.main', ...theme.applyStyles('dark', { color: 'secondary.400' }), p: 1, mr: 1 }),
+            ...(isParents && { color: baseTextColor, ...theme.applyStyles('dark', { color: baseDarkTextColor }), p: 1, mr: 1 }),
             ...(!isParents && {
               '&.Mui-selected': {
                 bgcolor: 'transparent',
@@ -275,8 +280,8 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
               <Typography
                 variant="h6"
                 sx={(theme) => ({
-                  color: 'secondary.main',
-                  ...theme.applyStyles('dark', { color: 'secondary.400' }),
+                  color: baseTextColor,
+                  ...theme.applyStyles('dark', { color: baseDarkTextColor }),
                   ...(isSelected && { color: iconSelectedColor }),
                   fontWeight: isSelected ? 500 : 400
                 })}

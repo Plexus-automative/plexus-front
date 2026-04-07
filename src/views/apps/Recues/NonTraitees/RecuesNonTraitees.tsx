@@ -274,7 +274,7 @@ export default function RecuesNonTraitees() {
                                 setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
                             }}
                         >
-                            <Eye />
+                            <Eye style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Valide">
@@ -282,7 +282,7 @@ export default function RecuesNonTraitees() {
                             color="primary"
                             onClick={() => setEditOrder(row.original as ExtendedNonTraitee)}
                         >
-                            <Edit />
+                            <Edit style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Exporter Excel">
@@ -294,7 +294,7 @@ export default function RecuesNonTraitees() {
                                 style={{ textDecoration: 'none', display: 'flex' }}
                             >
                                 <IconButton color="success">
-                                    <DocumentDownload size={22} />
+                                    <DocumentDownload style={{ width: 36, height: 36 }} />
                                 </IconButton>
                             </CSVLink>
                         </span>

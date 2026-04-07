@@ -70,7 +70,11 @@ export default function Emises() {
     if (anchorRef.current && anchorRef.current.contains(event.target)) return;
     setOpen(false);
   };
-
+  const getOrderStatusLabel = (order: any) => {
+    const rawStatus = order.ShippingAdvice || order.shippingAdvice || order.status;
+    if (!rawStatus) return 'Pending';
+    return rawStatus.toLowerCase() === 'attente' ? 'En attente' : rawStatus;
+  };
   return (
     <Box sx={{ flexShrink: 0, ml: 0.5 }}>
       <IconButton
@@ -133,8 +137,7 @@ export default function Emises() {
                             </ListItemAvatar>
                             <ListItemText
                               primary={<Typography variant="h6">{order.number || `Order #${order.id}`}</Typography>}
-                              secondary={`${order.status || 'Pending'} • ${order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ''}`}
-                            />
+                              secondary={`${getOrderStatusLabel(order)} • ${order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ''}`} />
                           </ListItem>
                         ))}
                         {orders.length === 0 && (

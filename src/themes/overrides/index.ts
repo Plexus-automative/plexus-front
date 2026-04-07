@@ -34,6 +34,7 @@ import LinearProgress from './LinearProgress';
 import Link from './Link';
 import ListItemButton from './ListItemButton';
 import ListItemIcon from './ListItemIcon';
+import MenuItem from './MenuItem';
 import LoadingButton from './LoadingButton';
 import OutlinedInput from './OutlinedInput';
 import Pagination from './Pagination';
@@ -90,6 +91,7 @@ export default function ComponentsOverrides(theme: Theme) {
     Link(),
     ListItemButton(theme),
     ListItemIcon(theme),
+    MenuItem(theme),
     LoadingButton(),
     OutlinedInput(theme),
     Pagination(),

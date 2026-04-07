@@ -6,14 +6,15 @@ import { useEffect, ReactNode } from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
-import Link from '@mui/material/Link';
-import Toolbar from '@mui/material/Toolbar';
 import Box from '@mui/material/Box';
+import Link from 'next/link';
+
+// icons
+import { ShoppingCart, TaskSquare, DocumentText, TruckTime, BoxTick } from '@wandersonalwes/iconsax-react';
 
 // project-imports
 import Drawer from './Drawer';
 import Header from './Header';
-import Footer from './Footer';
 import HorizontalBar from './Drawer/HorizontalBar';
 import Breadcrumbs from 'components/@extended/Breadcrumbs';
 import Loader from 'components/Loader';
@@ -22,10 +23,7 @@ import AddCustomer from 'sections/apps/customer/AddCustomer';
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 import { DRAWER_WIDTH, MenuOrientation } from 'config';
 import useConfig from 'hooks/useConfig';
-import { useBuyNowLink } from 'hooks/getBuyNowLink';
-
-// assets
-import { ShoppingCart } from '@wandersonalwes/iconsax-react';
+import { Toolbar } from '@mui/material';
 
 // ==============================|| MAIN LAYOUT ||============================== //
 
@@ -33,8 +31,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { menuMasterLoading } = useGetMenuMaster();
   const downXL = useMediaQuery((theme) => theme.breakpoints.down('xl'));
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
-
-  const { buyNowLink } = useBuyNowLink();
 
   const { container, miniDrawer, menuOrientation } = useConfig();
 
@@ -68,6 +64,52 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           }}
         >
           <Breadcrumbs />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 1, mb: 2 }}>
+            <Button
+              component={Link}
+              href="/panier"
+              variant="outlined"
+              color="secondary"
+              size="small"
+              startIcon={<ShoppingCart size={18} variant="Outline" />}
+              sx={{ textTransform: 'none', minWidth: 155 }}
+            >
+              Panier
+            </Button>
+            <Button
+              component={Link}
+              href="/pages/commandes-emis/non-traitees"
+              variant="outlined"
+              color="secondary"
+              size="small"
+              startIcon={<TaskSquare size={18} variant="Outline" />}
+              sx={{ textTransform: 'none', minWidth: 155 }}
+            >
+              Commande en attente
+            </Button>
+            <Button
+              component={Link}
+              href="/pages/commandes-recus/non-traitees"
+              variant="outlined"
+              color="secondary"
+              size="small"
+              startIcon={<DocumentText size={18} variant="Outline" />}
+              sx={{ textTransform: 'none', minWidth: 155 }}
+            >
+              Commandes reçues
+            </Button>
+            <Button
+              component={Link}
+              href="/pages/commandes-recus/en-cours"
+              variant="outlined"
+              color="secondary"
+              size="small"
+              startIcon={<TruckTime size={18} variant="Outline" />}
+              sx={{ textTransform: 'none', minWidth: 155 }}
+            >
+              Etat de livraison
+            </Button>
+          </Box>
           {children}
         </Container>
 

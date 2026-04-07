@@ -277,7 +277,7 @@ export default function EmisesEncours() {
                                     setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
                                 }}
                             >
-                                <Eye />
+                                <Eye style={{ width: 36, height: 36 }} />
                             </IconButton>
                         </Tooltip>
                         {
@@ -287,7 +287,7 @@ export default function EmisesEncours() {
                                     color="primary"
                                     onClick={() => setEditOrder(row.original as ExtendedEncours)}
                                 >
-                                    <Edit />
+                                    <Edit style={{ width: 36, height: 36 }} />
                                 </IconButton>
                             </Tooltip>
                         }
@@ -299,7 +299,7 @@ export default function EmisesEncours() {
                                     printOrder(row.original);
                                 }}
                             >
-                                <Printer />
+                                <Printer style={{ width: 36, height: 36 }} />
                             </IconButton>
                         </Tooltip>
                         <Tooltip title="Exporter Excel">
@@ -311,7 +311,7 @@ export default function EmisesEncours() {
                                     style={{ textDecoration: 'none', display: 'flex' }}
                                 >
                                     <IconButton color="success">
-                                        <DocumentDownload size={22} />
+                                        <DocumentDownload style={{ width: 36, height: 36 }} />
                                     </IconButton>
                                 </CSVLink>
                             </span>

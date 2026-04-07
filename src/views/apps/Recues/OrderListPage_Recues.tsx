@@ -160,7 +160,7 @@ export default function OrderListPage_Recues() {
                                 [row.id]: prev[row.id] === 'view' ? null : 'view'
                             }));
                         }}>
-                            <Eye />
+                            <Eye style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Edit">
@@ -171,12 +171,12 @@ export default function OrderListPage_Recues() {
                                 setEditOrder(row.original);   // open modal
                             }}
                         >
-                            <Edit />
+                            <Edit style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
                         <IconButton color="error">
-                            <Trash />
+                            <Trash style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                 </Stack>
@@ -214,7 +214,7 @@ export default function OrderListPage_Recues() {
         <MainCard content={false}>
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
                 <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder={`Search ${OrderRecues.length} records...`} />
-                
+
             </Stack>
 
             <Stack>
