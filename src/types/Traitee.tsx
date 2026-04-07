@@ -9,6 +9,7 @@ export interface TraiteeLine {
   Decision?: string;
   expectedReceiptDate?: string;
   DeliveryDate?: string;
+  nature?: string;
 }
 
 export interface Traitee {

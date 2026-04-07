@@ -102,7 +102,7 @@ export default function NotificationPage() {
           ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
         })}
       >
-        <Badge badgeContent={read > 9 ? '+9' : read} color="success" slotProps={{ badge: { sx: { top: 2, right: 4 } } }}>
+        <Badge badgeContent={read} color="success" slotProps={{ badge: { sx: { top: 2, right: 4 } } }}>
           <Notification variant="Bold" />
         </Badge>
       </IconButton>
@@ -141,7 +141,7 @@ export default function NotificationPage() {
                           }
                         })}
                       >
-                        {orders.map((order: any, index: number) => (
+                        {orders.slice(0, 5).map((order: any, index: number) => (
                           <ListItem
                             key={order.id || index}
                             component={ListItemButton}

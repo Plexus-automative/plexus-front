@@ -57,6 +57,7 @@ import {
 import IconButton from 'components/@extended/IconButton';
 import { Eye, Edit, Trash, DocumentDownload, ArrowCircleRight, Printer } from '@wandersonalwes/iconsax-react';
 import { useSearchParams } from 'next/navigation';
+import { CSVLink } from "react-csv";
 
 import { fetchEncours } from 'app/api/services/Emises/EncoursEmises';
 import axiosServices from 'utils/axios';
@@ -160,6 +161,34 @@ export default function EmisesEncours() {
         loadData();
     }, [pageIndex, pageSize, sorting, globalFilter]);
 
+    // Export headers
+    const csvHeaders = [
+        { label: "Nom", key: "description" },
+        { label: "Reference", key: "lineObjectNumber" },
+        { label: "Prix Unit HT", key: "directUnitCost" },
+        { label: "TVA", key: "taxPercent" },
+        { label: "Disponiblite", key: "QuantityAvailable" },
+        { label: "Nature", key: "nature" }
+    ];
+
+    const getExportDataForOrder = (order: Encours) => {
+        const allLines: any[] = [];
+        if (order.plexuspurchaseOrderLines) {
+            order.plexuspurchaseOrderLines.forEach(l => {
+                allLines.push({
+                    ...l,
+                    description: l.description || '',
+                    lineObjectNumber: l.lineObjectNumber || '',
+                    directUnitCost: l.directUnitCost || 0,
+                    taxPercent: l.taxPercent || 0,
+                    QuantityAvailable: l.QuantityAvailable || 0,
+                    nature: (l as any).nature?.toLowerCase() === 'adaptable' ? 2 : (l as any).nature?.toLowerCase() === 'casse' ? 3 : 1
+                });
+            });
+        }
+        return allLines;
+    };
+
     // Mirror editOrder into a local editable copy
     useEffect(() => {
         if (editOrder) {
@@ -239,7 +268,7 @@ export default function EmisesEncours() {
             cell: ({ row }) => {
                 const ShippingAdvice = (row.original as any).ShippingAdvice;
                 return (
-                    <Stack direction="row" gap={1} justifyContent="center">
+                    <Stack direction="row" gap={1} justifyContent="center" alignItems="center">
                         <Tooltip title="View">
                             <IconButton
                                 color="secondary"
@@ -272,6 +301,20 @@ export default function EmisesEncours() {
                             >
                                 <Printer />
                             </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Exporter Excel">
+                            <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                                <CSVLink
+                                    data={getExportDataForOrder(row.original)}
+                                    headers={csvHeaders}
+                                    filename={`Commandes_${row.original.number.replace(/\//g, '-')}_${new Date().toISOString().split('T')[0]}.csv`}
+                                    style={{ textDecoration: 'none', display: 'flex' }}
+                                >
+                                    <IconButton color="success">
+                                        <DocumentDownload size={22} />
+                                    </IconButton>
+                                </CSVLink>
+                            </span>
                         </Tooltip>
                     </Stack>
                 )

@@ -24,6 +24,15 @@ public class PurchaseOrderController {
         @Value("${business-central.api.base-url}")
         private String baseUrl;
 
+        @Value("${business-central.api.system-url}")
+        private String systemUrl;
+
+        @Value("${business-central.api.tarek-system-url}")
+        private String tarekSystemUrl;
+
+        @Value("${business-central.api.company-id}")
+        private String companyId;
+
         public PurchaseOrderController(WebClient webClient, BusinessCentralTokenService tokenService,
                         BLGeneratorService blGeneratorService, DevisGeneratorService devisGeneratorService) {
                 this.webClient = webClient;
@@ -198,8 +207,8 @@ public class PurchaseOrderController {
                 String token = tokenService.getAccessToken();
                 try {
                         String queryString = request.getQueryString();
-                        // Using the standard NEL API endpoint requested by the user
-                        String itemVendorUrl = "https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessSystemAPI/v1.0/companies(683ADB98-EA07-F111-8405-7CED8D83AA60)/ItemVendors";
+                        // Using the standard NEL API endpoint
+                        String itemVendorUrl = systemUrl + "/ItemVendors";
 
                         java.net.URI uri1 = org.springframework.web.util.UriComponentsBuilder
                                         .fromHttpUrl(itemVendorUrl)
@@ -280,11 +289,37 @@ public class PurchaseOrderController {
                 try {
                         // Using AcessSystemAPI/v1.0 and the correct company ID as per ItemVendors
                         // pattern
-                        String vendorUrl = "https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessSystemAPI/v1.0/companies(FDCEC2EC-FCB9-F011-AF5F-6045BDC898A3)/VendorLists";
+                        String vendorUrl = systemUrl + "/VendorLists";
                         String response = webClient.get()
                                         .uri(uriBuilder -> {
                                                 return org.springframework.web.util.UriComponentsBuilder
                                                                 .fromHttpUrl(vendorUrl)
+                                                                .query(request.getQueryString())
+                                                                .build(true)
+                                                                .toUri();
+                                        })
+                                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                        .retrieve()
+                                        .bodyToMono(String.class)
+                                        .block();
+                        return ResponseEntity.ok(response);
+                } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+                        return ResponseEntity.status(e.getStatusCode()).body("Error: " + e.getResponseBodyAsString());
+                } catch (Exception e) {
+                        return ResponseEntity.status(500).body("Error: " + e.getMessage());
+                }
+        }
+
+        @GetMapping("/customers")
+        public ResponseEntity<String> getCustomers(HttpServletRequest request) {
+                String token = tokenService.getAccessToken();
+                try {
+                        String standardUrl = baseUrl.replace("/api/NEL/AcessPurchasesAPI/v2.0", "/api/v2.0")
+                                        + "/customers";
+                        String response = webClient.get()
+                                        .uri(uriBuilder -> {
+                                                return org.springframework.web.util.UriComponentsBuilder
+                                                                .fromHttpUrl(standardUrl)
                                                                 .query(request.getQueryString())
                                                                 .build(true)
                                                                 .toUri();
@@ -312,34 +347,113 @@ public class PurchaseOrderController {
                         String vendorNumber = rootNode.has("vendorNumber") ? rootNode.get("vendorNumber").asText() : "";
                         com.fasterxml.jackson.databind.JsonNode items = rootNode.get("items");
 
-                        String baseUrlForItems = "https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/plexustarek/AcessSystemAPI/v1.0/companies(FDCEC2EC-FCB9-F011-AF5F-6045BDC898A3)";
-                        String itemUrl = baseUrlForItems + "/plexusItemVendors";
+                        // Base URL for the new AcessSystemAPI endpoints
+                        // (Display Name: Plexus)
+                        String bcApiUrl = tarekSystemUrl;
+                        String itemUrl = bcApiUrl + "/plexusProducts";
+                        String vendorLinkUrl = bcApiUrl + "/plexusVendorPosts";
 
                         if (items != null && items.isArray()) {
                                 for (com.fasterxml.jackson.databind.JsonNode item : items) {
-                                        com.fasterxml.jackson.databind.node.ObjectNode bcItem = mapper
-                                                        .createObjectNode();
+                                        String reference = item.has("reference") ? item.get("reference").asText() : "";
+                                        String designation = item.has("designation") ? item.get("designation").asText()
+                                                        : "";
 
-                                        // Mapping frontend to the NEW Extended Item Vendor API
-                                        // itemNo is now AUTO-INCREMENTED in Business Central
-                                        bcItem.put("itemNo", "");
-                                        bcItem.put("vendorNo", vendorNumber);
-                                        bcItem.put("variantCode", ""); // Required for primary key
-                                        bcItem.put("vendorItemNo",
-                                                        item.has("reference") ? item.get("reference").asText() : "");
-                                        bcItem.put("ItemDescription",
-                                                        item.has("designation") ? item.get("designation").asText()
-                                                                        : "");
+                                        // --- STEP 1: Ensure the Item exists in BC ---
+                                        boolean itemExistsOrCreated = false;
+                                        try {
+                                                // GET item filtered by its number
+                                                String filter = "number eq '" + reference + "'";
+                                                String encodedFilter = java.net.URLEncoder.encode(filter, "UTF-8")
+                                                                .replace("+", "%20");
+                                                String existingItemResponse = webClient.get()
+                                                                .uri(java.net.URI.create(
+                                                                                itemUrl + "?$filter=" + encodedFilter))
+                                                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                                                .retrieve()
+                                                                .bodyToMono(String.class)
+                                                                .block();
 
-                                        // POST to Business Central
-                                        webClient.post()
-                                                        .uri(java.net.URI.create(itemUrl))
-                                                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                                                        .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                                                        .bodyValue(bcItem.toString())
-                                                        .retrieve()
-                                                        .bodyToMono(String.class)
-                                                        .block();
+                                                com.fasterxml.jackson.databind.JsonNode existingNode = mapper
+                                                                .readTree(existingItemResponse);
+
+                                                // If search returns 0 results, create the item
+                                                if (existingNode.has("value")
+                                                                && existingNode.get("value").size() == 0) {
+                                                        com.fasterxml.jackson.databind.node.ObjectNode newItem = mapper
+                                                                        .createObjectNode();
+                                                        newItem.put("number", reference);
+                                                        newItem.put("description", designation);
+                                                        newItem.put("baseUnitOfMeasure", "PCS"); // Must match BC exact
+                                                                                                 // unit code e.g., PCS,
+                                                                                                 // UN, etc.
+                                                        newItem.put("inventoryPostingGroup", "REVENTE");
+                                                        newItem.put("unitPrice", 0.999);
+
+                                                        // POST to create the Item
+                                                        webClient.post()
+                                                                        .uri(java.net.URI.create(itemUrl))
+                                                                        .header(HttpHeaders.AUTHORIZATION,
+                                                                                        "Bearer " + token)
+                                                                        .header(HttpHeaders.CONTENT_TYPE,
+                                                                                        "application/json")
+                                                                        .bodyValue(newItem.toString())
+                                                                        .retrieve()
+                                                                        .bodyToMono(String.class)
+                                                                        .block();
+                                                }
+                                                itemExistsOrCreated = true;
+                                        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+                                                String responseBody = e.getResponseBodyAsString();
+                                                System.err.println("BC API Error (HTTP " + e.getStatusCode()
+                                                                + ") for Item "
+                                                                + reference + ": " + responseBody);
+                                                // Let it fail fast so it doesn't try vendor link
+                                                throw new RuntimeException(
+                                                                "Failed to ensure Item exists in BC: " + responseBody);
+                                        } catch (Exception e) {
+                                                System.err.println("Item existence check/creation failed for "
+                                                                + reference + ": " + e.getMessage());
+                                                throw new RuntimeException(
+                                                                "Failed to check/create item: " + e.getMessage());
+                                        }
+
+                                        // --- STEP 2: Create the Item Vendor Link ---
+                                        if (itemExistsOrCreated) {
+                                                try {
+                                                        com.fasterxml.jackson.databind.node.ObjectNode bcVendorLink = mapper
+                                                                        .createObjectNode();
+                                                        bcVendorLink.put("itemNo", reference);
+                                                        bcVendorLink.put("vendorNo", vendorNumber);
+                                                        bcVendorLink.put("variantCode", ""); // Empty variant
+                                                        bcVendorLink.put("vendorItemNo", reference);
+                                                        bcVendorLink.put("ItemDescription", designation);
+
+                                                        // POST to the stable plexusVendorPosts API
+                                                        webClient.post()
+                                                                        .uri(java.net.URI.create(vendorLinkUrl))
+                                                                        .header(HttpHeaders.AUTHORIZATION,
+                                                                                        "Bearer " + token)
+                                                                        .header(HttpHeaders.CONTENT_TYPE,
+                                                                                        "application/json")
+                                                                        .bodyValue(bcVendorLink.toString())
+                                                                        .retrieve()
+                                                                        .bodyToMono(String.class)
+                                                                        .block();
+                                                } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+                                                        String responseBody = e.getResponseBodyAsString();
+                                                        System.err.println("BC API Error (HTTP " + e.getStatusCode()
+                                                                        + ") for VendorLink "
+                                                                        + reference + ": " + responseBody);
+                                                        throw new RuntimeException("Failed to link vendor to item: "
+                                                                        + responseBody);
+                                                } catch (Exception e) {
+                                                        System.err.println("Vendor link creation failed for "
+                                                                        + reference + ": " + e.getMessage());
+                                                        throw new RuntimeException("Failed to create vendor link: "
+                                                                        + e.getMessage());
+                                                }
+                                        }
                                 }
                         }
 
@@ -357,7 +471,7 @@ public class PurchaseOrderController {
         public ResponseEntity<String> getEmisesNonTraitee(HttpServletRequest request,
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
-                return getFilteredPurchaseOrders(request, "status eq 'Draft' and ShippingAdvice eq 'Attente'", skip,
+                return getFilteredPurchaseOrders(request, "ShippingAdvice eq 'Attente'", skip,
                                 top, "customer");
         }
 
@@ -366,7 +480,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle')",
+                                "(ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité') and status eq 'Draft' and fullyReceived eq false and Delivred eq 'Non' and QtyReceived eq 'Non'",
                                 skip, top, "customer");
         }
 
@@ -375,7 +489,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "fullyReceived eq true and status eq 'Open' and ShippingAdvice eq 'Confirmé'",
+                                "ShippingAdvice eq 'Confirmé' and QtyReceived eq 'Oui'",
                                 skip, top, "customer");
         }
 
@@ -384,8 +498,8 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "fullyReceived eq false and status eq 'Draft' and ShippingAdvice eq 'Confirmé' and QtyReceived ne 'Oui'",
-                                skip, top, "vendor");
+                                "ShippingAdvice eq 'Confirmé' and Delivred eq 'Oui' and QtyReceived eq 'Non' and status eq 'Draft' and fullyReceived eq false",
+                                skip, top, "customer");
         }
 
         @GetMapping("/recues/non-traitee")
@@ -401,7 +515,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité')",
+                                "status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité') and Delivred ne 'Oui'",
                                 skip, top, "vendor");
         }
 
@@ -410,7 +524,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "fullyReceived eq true and status eq 'Open' and ShippingAdvice eq 'Confirmé'",
+                                "QtyReceived eq 'Oui' and ShippingAdvice eq 'Confirmé'",
                                 skip, top, "vendor");
         }
 
@@ -419,7 +533,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "fullyReceived eq false and status eq 'Draft' and ShippingAdvice eq 'Confirmé' and QtyReceived ne 'Oui'",
+                                "ShippingAdvice eq 'Confirmé' and Delivred eq 'Oui' and QtyReceived ne 'Oui'",
                                 skip, top, "vendor");
         }
 
@@ -428,6 +542,10 @@ public class PurchaseOrderController {
                 String vendorNo = request.getHeader("X-Vendor-No");
                 String customerNo = request.getHeader("X-Customer-No");
 
+                String search = request.getParameter("search");
+                String sort = request.getParameter("sort");
+                String desc = request.getParameter("desc");
+
                 // Explicitly filter based on the route type
                 if ("customer".equals(filterMode)) {
                         // Emises: orders the CLIENT placed, filter by SellToCustomerNo
@@ -435,17 +553,29 @@ public class PurchaseOrderController {
                                 filterValue += " and SellToCustomerNo eq '" + customerNo + "'";
                         }
                 } else if ("vendor".equals(filterMode)) {
-                        // Recues: orders the VENDOR received, filter by vendorNumber
+                        // Recues: orders the VENDOR received, filter by payToVendorNumber to map raw
+                        // login IDs
                         if (vendorNo != null && !vendorNo.isEmpty()) {
-                                filterValue += " and vendorNumber eq '" + vendorNo + "'";
+                                filterValue += " and payToVendorNumber eq '" + vendorNo + "'";
                         }
+                }
+
+                if (search != null && !search.trim().isEmpty()) {
+                        String cleanSearch = search.trim().replace("'", "''");
+                        filterValue += " and contains(number, '" + cleanSearch + "')";
                 }
 
                 String token = tokenService.getAccessToken();
                 try {
                         // URL-encode OData query values properly
                         String encodedFilter = java.net.URLEncoder.encode(filterValue, "UTF-8");
-                        String encodedOrderBy = java.net.URLEncoder.encode("lastModifiedDateTime desc", "UTF-8");
+
+                        String orderBy = "orderDate desc";
+                        if (sort != null && !sort.trim().isEmpty()) {
+                                boolean isDesc = "true".equalsIgnoreCase(desc);
+                                orderBy = sort.trim() + (isDesc ? " desc" : " asc");
+                        }
+                        String encodedOrderBy = java.net.URLEncoder.encode(orderBy, "UTF-8");
 
                         String fullUrl = baseUrl + "/PlexuspurchaseOrders"
                                         + "?$filter=" + encodedFilter
@@ -528,6 +658,12 @@ public class PurchaseOrderController {
                                 return ResponseEntity.badRequest().body("{\"error\": \"Missing order id\"}");
                         }
 
+                        boolean withReclamation = rootNode.has("withReclamation")
+                                        && rootNode.get("withReclamation").asBoolean();
+                        String reclamationText = rootNode.has("reclamationText")
+                                        ? rootNode.get("reclamationText").asText("")
+                                        : "";
+
                         // Step 1: Get the etag
                         String orderResponse = webClient.get()
                                         .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
@@ -543,6 +679,9 @@ public class PurchaseOrderController {
                         com.fasterxml.jackson.databind.node.ObjectNode patchPayload = mapper.createObjectNode();
                         patchPayload.put("QtyReceived", "Oui");
                         patchPayload.put("ReceivedPurchaseHeader", "Oui");
+                        if (withReclamation && reclamationText != null && !reclamationText.isEmpty()) {
+                                patchPayload.put("Reclamation", reclamationText);
+                        }
 
                         webClient.patch()
                                         .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
@@ -685,6 +824,9 @@ public class PurchaseOrderController {
                                                 if (poLine.has("QuantityAvailable"))
                                                         linePatch.put("QuantityAvailable",
                                                                         poLine.get("QuantityAvailable").asDouble());
+                                                if (poLine.has("quantity"))
+                                                        linePatch.put("quantity",
+                                                                        poLine.get("quantity").asDouble());
                                                 if (poLine.has("receiveQuantity"))
                                                         linePatch.put("receiveQuantity",
                                                                         poLine.get("receiveQuantity").asDouble());

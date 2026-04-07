@@ -11,15 +11,60 @@ import {
     Grid,
     useTheme,
     alpha,
-    Paper,
 } from '@mui/material';
 import MainCard from 'components/MainCard';
-import { DocumentCopy, DocumentUpload, ExportSquare, TruckFast } from '@wandersonalwes/iconsax-react';
+import { DocumentUpload, ExportSquare, TruckFast } from '@wandersonalwes/iconsax-react';
+import axios from 'utils/axios';
+import { openSnackbar } from 'api/snackbar';
+import { CircularProgress } from '@mui/material';
 
 export default function ImportArticles() {
     const theme = useTheme();
     const intl = useIntl();
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileUpload = async (mode: 'all' | 'stock') => {
+        if (!selectedFile) {
+            openSnackbar({
+                open: true,
+                message: 'Merci de choisir un fichier',
+                variant: 'alert',
+                alert: { color: 'error' },
+                close: true
+            });
+            return;
+        }
+
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('mode', mode);
+
+        try {
+            await axios.post('/api/articles/import', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            openSnackbar({
+                open: true,
+                message: 'Importation réussie!',
+                variant: 'alert',
+                alert: { color: 'success' },
+                close: true
+            });
+            setSelectedFile(null);
+        } catch (error: any) {
+            openSnackbar({
+                open: true,
+                message: error.message || 'Échec de l\'importation',
+                variant: 'alert',
+                alert: { color: 'error' },
+                close: true
+            });
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files && event.target.files.length > 0) {
@@ -28,15 +73,17 @@ export default function ImportArticles() {
     };
 
     const handleDownloadTemplate = () => {
-        // Placeholder functionality to download Excel template
-        const csvContent = "data:text/csv;charset=utf-8,Code Article,Designation,Marque,Quantite,Prix\n";
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "modele_articles.csv");
+        const headers = ['CodeArticle', 'CodeFrs', 'Designation', 'Prix', 'Qte'];
+        const csvContent = '\uFEFF' + headers.join(';') + '\n';
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'modele_articles.csv');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     return (
@@ -44,7 +91,7 @@ export default function ImportArticles() {
             <MainCard sx={{ borderRadius: 3, boxShadow: theme.customShadows.z1 }}>
                 <Grid container spacing={4}>
                     {/* LEFT COLUMN: Download Template */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Stack spacing={3}>
                             <Typography variant="h4" color="error" fontWeight={800}>
                                 {intl.formatMessage({ id: 'download-excel-template', defaultMessage: '1) Télécharger le modèle Excel' })}
@@ -75,7 +122,7 @@ export default function ImportArticles() {
                     </Grid>
 
                     {/* RIGHT COLUMN: Upload and Process File */}
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Stack spacing={3}>
                             <Typography variant="h4" color="success.main" fontWeight={800}>
                                 {intl.formatMessage({ id: 'add-excel-file', defaultMessage: '2) Ajouter votre fichier Excel' })}
@@ -118,7 +165,9 @@ export default function ImportArticles() {
                                     <Button
                                         variant="outlined"
                                         color="primary"
-                                        startIcon={<DocumentUpload variant="Bold" />}
+                                        disabled={isUploading}
+                                        onClick={() => handleFileUpload('all')}
+                                        startIcon={isUploading ? <CircularProgress size={20} /> : <DocumentUpload variant="Bold" />}
                                         fullWidth
                                         sx={{
                                             borderRadius: 2,
@@ -134,7 +183,9 @@ export default function ImportArticles() {
                                     <Button
                                         variant="outlined"
                                         color="success"
-                                        startIcon={<TruckFast variant="Bold" />}
+                                        disabled={isUploading}
+                                        onClick={() => handleFileUpload('stock')}
+                                        startIcon={isUploading ? <CircularProgress size={20} /> : <TruckFast variant="Bold" />}
                                         fullWidth
                                         sx={{
                                             borderRadius: 2,

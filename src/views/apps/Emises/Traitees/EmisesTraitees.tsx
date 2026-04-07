@@ -48,7 +48,8 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { InfoCircle } from '@wandersonalwes/iconsax-react';
+import { InfoCircle, DocumentDownload } from '@wandersonalwes/iconsax-react';
+import { CSVLink } from "react-csv";
 // project-imports
 
 import { fetchTraitees } from 'app/api/services/Emises/TraiteeEmises';
@@ -96,8 +97,8 @@ export default function EmisesTraitees() {
                         id: o.id || String(pageIndex * pageSize + index + 1),
                         number: o.number,
                         orderDate: o.orderDate,
-                vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
-                payToVendorNumber: o.payToVendorNumber || '',
+                        vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
+                        payToVendorNumber: o.payToVendorNumber || '',
                         fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
@@ -118,6 +119,34 @@ export default function EmisesTraitees() {
 
         loadData();
     }, [pageIndex, pageSize, sorting, globalFilter]);
+
+    // Export headers
+    const csvHeaders = [
+        { label: "Nom", key: "description" },
+        { label: "Reference", key: "lineObjectNumber" },
+        { label: "Prix Unit HT", key: "directUnitCost" },
+        { label: "TVA", key: "taxPercent" },
+        { label: "Disponiblite", key: "QuantityAvailable" },
+        { label: "Nature", key: "nature" }
+    ];
+
+    const getExportDataForOrder = (order: Traitee) => {
+        const allLines: any[] = [];
+        if (order.plexuspurchaseOrderLines) {
+            order.plexuspurchaseOrderLines.forEach(l => {
+                allLines.push({
+                    ...l,
+                    description: l.description || '',
+                    lineObjectNumber: l.lineObjectNumber || '',
+                    directUnitCost: l.directUnitCost || 0,
+                    taxPercent: (l as any).taxPercent || 0,
+                    QuantityAvailable: (l as any).QuantityAvailable || l.quantity || 0,
+                    nature: (l as any).nature?.toLowerCase() === 'adaptable' ? 2 : (l as any).nature?.toLowerCase() === 'casse' ? 3 : 1
+                });
+            });
+        }
+        return allLines;
+    };
 
     const columns = useMemo<ColumnDef<Traitee>[]>(() => [
 
@@ -169,17 +198,33 @@ export default function EmisesTraitees() {
             meta: { align: 'center' },
             enableSorting: false,
             cell: ({ row }) => (
-                <Tooltip title="Détails">
-                    <IconButton
-                        color="primary"
-                        onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation();
-                            setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
-                        }}
-                    >
-                        <InfoCircle />
-                    </IconButton>
-                </Tooltip>
+                <Stack direction="row" gap={1} justifyContent="center" alignItems="center">
+                    <Tooltip title="Détails">
+                        <IconButton
+                            color="primary"
+                            onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                                e.stopPropagation();
+                                setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
+                            }}
+                        >
+                            <InfoCircle />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Exporter Excel">
+                        <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                            <CSVLink
+                                data={getExportDataForOrder(row.original)}
+                                headers={csvHeaders}
+                                filename={`Commandes_${row.original.number.replace(/\//g, '-')}_${new Date().toISOString().split('T')[0]}.csv`}
+                                style={{ textDecoration: 'none', display: 'flex' }}
+                            >
+                                <IconButton color="success">
+                                    <DocumentDownload size={22} />
+                                </IconButton>
+                            </CSVLink>
+                        </span>
+                    </Tooltip>
+                </Stack>
             )
         }
     ], []);
@@ -334,7 +379,7 @@ export default function EmisesTraitees() {
                                                                                             <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                             <TableCell>{line.description}</TableCell>
                                                                                             <TableCell>{line.quantity}</TableCell>
-                                                                                            <TableCell>{line.receiveQuantity ?? line.quantity}</TableCell>
+                                                                                            <TableCell>{line.receivedQuantity ?? line.quantity}</TableCell>
                                                                                             <TableCell>{line.receivedQuantity ?? line.quantity}</TableCell>
                                                                                             <TableCell>{line.Decision || '-'}</TableCell>
                                                                                             <TableCell>{line.DeliveryDate || '-'}</TableCell>

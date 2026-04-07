@@ -6,9 +6,9 @@ business-central:
     token-uri: ${BC_TOKEN_URI}
     grant-type: client_credentials
     scope: https://api.businesscentral.dynamics.com/.default
-    client-id: YOUR_BC_CLIENT_ID_HERE
-    client-secret: YOUR_BC_CLIENT_SECRET_HERE
-    tenant-id: YOUR_BC_TENANT_ID_HERE
+    client-id: ${BC_CLIENT_ID}
+    client-secret: ${BC_CLIENT_SECRET}
+    tenant-id: ${BC_TENANT_ID}
   api:
     base-url: ${BC_BASE_URL}
     system-url: ${BC_SYSTEM_API_URL}

@@ -31,4 +31,5 @@ export interface PurchaseOrderLine {
   receivedQuantity?: number;
   OldRemplacementItemNo?: string;
   DeliveryDate?: string;
+  nature?: string;
 }

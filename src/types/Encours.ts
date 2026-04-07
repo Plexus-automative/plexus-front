@@ -33,4 +33,5 @@ export interface PurchaseOrderLine {
   OldRemplacementItemNo?: string;
   DeliveryDate?: string;
   invoiceQuantity?: number;
+  nature?: string;
 }

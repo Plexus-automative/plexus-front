@@ -89,7 +89,7 @@ export default function Emises() {
           ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
         })}
       >
-        <Badge badgeContent={ordersCount > 9 ? '+9' : ordersCount} color="success">
+        <Badge badgeContent={ordersCount} color="success">
           <BoxIcon size={26} variant="Bulk" />
         </Badge>
       </IconButton>
@@ -118,7 +118,7 @@ export default function Emises() {
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
                       <List component="nav" sx={{ mt: 1 }}>
-                        {orders.map((order: any, index: number) => (
+                        {orders.slice(0, 5).map((order: any, index: number) => (
                           <ListItem
                             key={order.id || index}
                             component={ListItemButton}

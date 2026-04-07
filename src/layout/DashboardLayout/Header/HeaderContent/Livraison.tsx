@@ -89,7 +89,7 @@ export default function Livraison() {
           ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
         })}
       >
-        <Badge badgeContent={deliveryCount > 9 ? '+9' : deliveryCount} color="success">
+        <Badge badgeContent={deliveryCount} color="success">
           <TruckTime size={26} variant="Bulk" />
         </Badge>
       </IconButton>
@@ -118,7 +118,7 @@ export default function Livraison() {
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
                       <List component="nav" sx={{ mt: 1 }}>
-                        {deliveries.map((item: any, index: number) => (
+                        {deliveries.slice(0, 5).map((item: any, index: number) => (
                           <ListItem
                             key={item.id || index}
                             component={ListItemButton}

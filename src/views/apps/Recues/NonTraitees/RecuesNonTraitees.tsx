@@ -50,7 +50,8 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit, Trash } from '@wandersonalwes/iconsax-react';
+import { Eye, Edit, Trash, DocumentDownload } from '@wandersonalwes/iconsax-react';
+import { CSVLink } from "react-csv";
 import { useSearchParams } from 'next/navigation';
 
 import { fetchNonTraitees } from 'app/api/services/Recues/NonTraiteeRecues';
@@ -169,6 +170,34 @@ export default function RecuesNonTraitees() {
         loadData();
     }, [pageIndex, pageSize, sorting, globalFilter]);
 
+    // Export headers
+    const csvHeaders = [
+        { label: "Nom", key: "description" },
+        { label: "Reference", key: "lineObjectNumber" },
+        { label: "Prix Unit HT", key: "directUnitCost" },
+        { label: "TVA", key: "taxPercent" },
+        { label: "Disponiblite", key: "QuantityAvailable" },
+        { label: "Nature", key: "nature" }
+    ];
+
+    const getExportDataForOrder = (order: NonTraitee) => {
+        const allLines: any[] = [];
+        if (order.plexuspurchaseOrderLines) {
+            order.plexuspurchaseOrderLines.forEach(l => {
+                allLines.push({
+                    ...l,
+                    description: l.description || '',
+                    lineObjectNumber: l.lineObjectNumber || '',
+                    directUnitCost: l.directUnitCost || 0,
+                    taxPercent: (l as any).taxPercent || 0,
+                    QuantityAvailable: (l as any).QuantityAvailable || l.quantity || 0,
+                    nature: (l as any).nature?.toLowerCase() === 'adaptable' ? 2 : (l as any).nature?.toLowerCase() === 'casse' ? 3 : 1
+                });
+            });
+        }
+        return allLines;
+    };
+
     // Mirror editOrder into a local editable copy
     useEffect(() => {
         if (editOrder) {
@@ -236,7 +265,7 @@ export default function RecuesNonTraitees() {
             meta: { align: 'center' },
             enableSorting: false,
             cell: ({ row }) => (
-                <Stack direction="row" gap={1} justifyContent="center">
+                <Stack direction="row" gap={1} justifyContent="center" alignItems="center">
                     <Tooltip title="View">
                         <IconButton
                             color="secondary"
@@ -256,7 +285,20 @@ export default function RecuesNonTraitees() {
                             <Edit />
                         </IconButton>
                     </Tooltip>
-
+                    <Tooltip title="Exporter Excel">
+                        <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                            <CSVLink
+                                data={getExportDataForOrder(row.original)}
+                                headers={csvHeaders}
+                                filename={`Commandes_${row.original.number.replace(/\//g, '-')}_${new Date().toISOString().split('T')[0]}.csv`}
+                                style={{ textDecoration: 'none', display: 'flex' }}
+                            >
+                                <IconButton color="success">
+                                    <DocumentDownload size={22} />
+                                </IconButton>
+                            </CSVLink>
+                        </span>
+                    </Tooltip>
                 </Stack>
             )
         }
@@ -424,7 +466,7 @@ export default function RecuesNonTraitees() {
 
                                                                                                 <TableCell>{line.receivedQuantity ?? 0}</TableCell>
                                                                                                 <TableCell>{line.Decision || '-'}</TableCell>
-                                                                                                <TableCell>{line.deliveryDate}</TableCell>
+                                                                                                <TableCell>{line.deliveryDate || '-'}</TableCell>
                                                                                             </TableRow>
                                                                                         ))
                                                                                     ) : (

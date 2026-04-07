@@ -74,7 +74,7 @@ export default function Panier() {
         })}
       >
         <Badge
-          badgeContent={totalItems > 9 ? '+9' : totalItems}
+          badgeContent={totalItems}
           color="success"
           slotProps={{ badge: { sx: { top: 2, right: 4 } } }}
         >
