@@ -120,6 +120,10 @@ public class PurchaseOrderController {
                                 }
                         }
 
+                        System.out.println("====== BC HEADER PAYLOAD ======");
+                        System.out.println(headerPayload.toPrettyString());
+                        System.out.println("===============================");
+
                         // 2. Create Header
                         String headerResponseStr = webClient.post()
                                         .uri(uriBuilder -> org.springframework.web.util.UriComponentsBuilder
@@ -132,36 +136,44 @@ public class PurchaseOrderController {
                                         .bodyToMono(String.class)
                                         .block();
 
+                        System.out.println("====== BC HEADER RESPONSE ======");
+                        System.out.println(headerResponseStr);
+                        System.out.println("================================");
+
                         com.fasterxml.jackson.databind.JsonNode headerNode = mapper.readTree(headerResponseStr);
                         String orderId = headerNode.get("id").asText();
                         String orderEtag = headerNode.has("@odata.etag") ? headerNode.get("@odata.etag").asText() : "*";
 
-                        // 2b. PATCH to set SellToCustomerNo (BC ignores it during POST for relational
-                        // fields)
+                        // 2b. PATCH to set SellToCustomerNo and ensure QtyReceived is 'Non'
+                        // (BC ignores relational fields during POST, and we want to prevent
+                        // auto-reception)
+                        com.fasterxml.jackson.databind.node.ObjectNode patchPayload = mapper.createObjectNode();
+                        patchPayload.put("QtyReceived", "Non");
+
                         if (headerPayload.has("SellToCustomerNo")
                                         && !headerPayload.get("SellToCustomerNo").asText().isEmpty()) {
-                                String sellToCustomerNo = headerPayload.get("SellToCustomerNo").asText();
-                                com.fasterxml.jackson.databind.node.ObjectNode patchPayload = mapper.createObjectNode();
-                                patchPayload.put("SellToCustomerNo", sellToCustomerNo);
-                                try {
-                                        String patchResponse = webClient
-                                                        .method(org.springframework.http.HttpMethod.PATCH)
-                                                        .uri(org.springframework.web.util.UriComponentsBuilder
-                                                                        .fromHttpUrl(baseUrl + "/PlexuspurchaseOrders("
-                                                                                        + orderId + ")")
-                                                                        .build(true).toUri())
-                                                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                                                        .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                                                        .header("If-Match", orderEtag)
-                                                        .bodyValue(patchPayload.toString())
-                                                        .retrieve()
-                                                        .bodyToMono(String.class)
-                                                        .block();
-                                        if (patchResponse != null && !patchResponse.isBlank()) {
-                                                headerResponseStr = patchResponse;
-                                        }
-                                } catch (Exception patchEx) {
+                                patchPayload.put("SellToCustomerNo", headerPayload.get("SellToCustomerNo").asText());
+                        }
+
+                        try {
+                                String patchResponse = webClient
+                                                .method(org.springframework.http.HttpMethod.PATCH)
+                                                .uri(org.springframework.web.util.UriComponentsBuilder
+                                                                .fromHttpUrl(baseUrl + "/PlexuspurchaseOrders("
+                                                                                + orderId + ")")
+                                                                .build(true).toUri())
+                                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                                                .header("If-Match", orderEtag)
+                                                .bodyValue(patchPayload.toString())
+                                                .retrieve()
+                                                .bodyToMono(String.class)
+                                                .block();
+                                if (patchResponse != null && !patchResponse.isBlank()) {
+                                        headerResponseStr = patchResponse;
                                 }
+                        } catch (Exception patchEx) {
+                                // Silent fail for metadata patch
                         }
 
                         // 3. Create Lines
@@ -480,7 +492,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "(ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité') and status eq 'Draft' and fullyReceived eq false and Delivred eq 'Non' and QtyReceived eq 'Non'",
+                                "(ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité' or ShippingAdvice eq 'LivraisonDispo') and status eq 'Draft' and fullyReceived eq false and Delivred eq 'Non' and QtyReceived eq 'Non'",
                                 skip, top, "customer");
         }
 
@@ -515,7 +527,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité') and Delivred ne 'Oui'",
+                                "status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité' or ShippingAdvice eq 'LivraisonDispo') and Delivred ne 'Oui'",
                                 skip, top, "vendor");
         }
 

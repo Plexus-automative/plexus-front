@@ -349,11 +349,12 @@ export default function RecuesEncours() {
                     case 'Totalité':
                         return <Chip color="success" label="Totalité" size="small" variant="light" />;
                     case 'ConfirmationPartielle':
-                        return <Chip color="info" label="Confirmation Partielle" size="small" variant="light" />;
+                        return <Chip color="warning" label="Confirmation Partielle" size="small" variant="light" />;
                     case 'Draft':
                         return <Chip color="warning" label="Draft" size="small" variant="light" />;
                     case 'Livrer Disponible':
-                        return <Chip color="info" label="Livrer Disponible" size="small" variant="light" />;
+                    case 'LivraisonDispo':
+                        return <Chip color="info" label="Livraison Dispo" size="small" variant="light" />;
                     default:
                         return <Chip color="default" label={ShippingAdvice} size="small" />;
                 }
@@ -499,10 +500,12 @@ export default function RecuesEncours() {
                                 {table.getRowModel().rows.length > 0 ? (
                                     table.getRowModel().rows.map(row => {
                                         const mode = expandedRows[row.id];
-                                        const isTotalite = (row.original as any).ShippingAdvice === 'Totalité';
+                                        const rowStatus = (row.original as any).ShippingAdvice;
+                                        const isTotalite = rowStatus === 'Totalité';
+                                        const isLivraisonDispo = rowStatus === 'LivraisonDispo' || rowStatus === 'Livrer Disponible';
                                         return (
                                             <Fragment key={row.id}>
-                                                <TableRow hover sx={{ bgcolor: isTotalite ? 'success.lighter' : 'inherit' }}>
+                                                <TableRow hover sx={{ bgcolor: isTotalite ? '#d1ebbb' : isLivraisonDispo ? '#f2f4c2' : 'inherit' }}>
                                                     {row.getVisibleCells().map(cell => (
                                                         <TableCell key={cell.id}>
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}

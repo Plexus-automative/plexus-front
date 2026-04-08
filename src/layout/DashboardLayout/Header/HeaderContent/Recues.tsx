@@ -94,7 +94,7 @@ export default function Recues() {
         })}
       >
         <Badge badgeContent={ordersCount} color="success">
-          <DocumentDownload style={{ width: 36, height: 36 }} variant="Bulk" />
+          <DocumentDownload size={22} variant="Bulk" />
         </Badge>
       </IconButton>
 
