@@ -160,7 +160,7 @@ export default function OrderListPage_Emises() {
                                 [row.id]: prev[row.id] === 'view' ? null : 'view'
                             }));
                         }}>
-                            <Eye />
+                            <Eye style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Edit">
@@ -171,12 +171,12 @@ export default function OrderListPage_Emises() {
                                 setEditOrder(row.original);   // open modal
                             }}
                         >
-                            <Edit />
+                            <Edit style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
                         <IconButton color="error">
-                            <Trash />
+                            <Trash style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                 </Stack>
@@ -256,7 +256,7 @@ export default function OrderListPage_Emises() {
                                                         sx={{
                                                             p: 2,
                                                             bgcolor: (theme) => alpha(theme.palette.primary.lighter, 0.1),
-                                                            transition: 'all 0.3s ease', 
+                                                            transition: 'all 0.3s ease',
                                                         }}
                                                     >
                                                         {mode === 'edit' ? (

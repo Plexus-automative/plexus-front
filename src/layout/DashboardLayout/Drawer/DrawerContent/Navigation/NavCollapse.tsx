@@ -81,9 +81,19 @@ interface Props {
   selectedItems: string | undefined;
   setSelectedLevel: Dispatch<SetStateAction<number>>;
   selectedLevel: number;
+  isSidebarDropdownMenu?: boolean;
 }
 
-export default function NavCollapse({ menu, level, parentId, setSelectedItems, selectedItems, setSelectedLevel, selectedLevel }: Props) {
+export default function NavCollapse({
+  menu,
+  level,
+  parentId,
+  setSelectedItems,
+  selectedItems,
+  setSelectedLevel,
+  selectedLevel,
+  isSidebarDropdownMenu = false
+}: Props) {
   const theme = useTheme();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
@@ -175,6 +185,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
   }, [pathname, menu]);
 
   const navCollapse = menu.children?.map((item) => {
+    const isCommandesChildParent = level === 1 && (menu.id === 'commandes-emis' || menu.id === 'commandes-recus');
     switch (item.type) {
       case 'collapse':
         return (
@@ -187,11 +198,18 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
             menu={item}
             level={level + 1}
             parentId={parentId}
+            isSidebarDropdownMenu={isSidebarDropdownMenu || menu.isDropdown || isCommandesChildParent}
           />
         );
       case 'item':
-        return <NavItem key={item.id} item={item} level={level + 1} />;
-      default:
+        return (
+          <NavItem
+            key={item.id}
+            item={item}
+            level={level + 1}
+            isSidebarDropdownMenu={isSidebarDropdownMenu || menu.isDropdown || isCommandesChildParent}
+          />
+        ); default:
         return (
           <Typography key={item.id} variant="h6" color="error" align="center">
             Fix - Collapse or Item
@@ -206,10 +224,11 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
   const menuIcon = menu.icon ? <Icon variant="Bulk" size={drawerOpen ? 22 : 24} /> : borderIcon;
   const popperId = miniMenuOpened ? `collapse-pop-${menu.id}` : undefined;
   const FlexBox = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' };
-
+  const inSidebarDropdownMenu = isSidebarDropdownMenu || menu.isDropdown;
   const selectedTextColor = isSelected || anchorEl ? 'primary.main' : null;
-  const lightTextColor = selectedTextColor || 'secondary.main';
-  const darkTextColor = selectedTextColor || 'secondary.400';
+  const dropdownColor = '#48617d';
+  const lightTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : 'text.primary');
+  const darkTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : 'text.secondary');
 
   const arrowStyle = { size: 12, style: { marginLeft: 1 } };
 
@@ -227,11 +246,11 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
               py: !drawerOpen && level === 1 ? 1.25 : 1,
               ...(drawerOpen &&
                 level === 1 && {
-                  mx: 1.25,
-                  my: 0.5,
-                  borderRadius: 1,
-                  '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
-                }),
+                mx: 1.25,
+                my: 0.5,
+                borderRadius: 1,
+                '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
+              }),
               ...(!drawerOpen && {
                 px: 2.75,
                 '&:hover': { bgcolor: 'transparent' },
@@ -243,11 +262,11 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
             })}
             {...((drawerOpen &&
               menu.isDropdown && {
-                'aria-controls': openCollapse ? `${menu.id}-menu` : undefined,
-                'aria-haspopup': true,
-                'aria-expanded': openCollapse ? 'true' : undefined,
-                onClick: handleClickCollapse
-              }) as any)}
+              'aria-controls': openCollapse ? `${menu.id}-menu` : undefined,
+              'aria-haspopup': true,
+              'aria-expanded': openCollapse ? 'true' : undefined,
+              onClick: handleClickCollapse
+            }) as any)}
           >
             {menuIcon && (
               <ListItemIcon
@@ -297,7 +316,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
                 }
                 secondary={
                   menu.caption && (
-                    <Typography variant="caption" color="secondary">
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                       <FormattedMessage id={menu.caption} />
                     </Typography>
                   )
@@ -413,8 +432,16 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
         >
           <Box onClick={handlerIconLink} sx={FlexBox}>
             {menuIcon && (
-              <ListItemIcon sx={{ my: 'auto', minWidth: !menu.icon ? 18 : 36, color: 'secondary.dark' }}>{menuIcon}</ListItemIcon>
-            )}
+              <ListItemIcon
+                sx={(theme) => ({
+                  my: 'auto',
+                  minWidth: !menu.icon ? 18 : 36,
+                  color: 'text.primary',
+                  ...theme.applyStyles('dark', { color: 'text.secondary' })
+                })}
+              >
+                {menuIcon}
+              </ListItemIcon>)}
             <ListItemText
               primary={
                 <Typography

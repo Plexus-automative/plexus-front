@@ -99,6 +99,14 @@ export default function RecuesNonTraitees() {
         pageSize: 10,
     });
 
+    // Validation function - check if all lines have a confirmation status selected
+    const isOrderValid = useMemo(() => {
+        if (!editedOrderLocal?.plexuspurchaseOrderLines) return false;
+        return editedOrderLocal.plexuspurchaseOrderLines.every(
+            (line: ExtendedPurchaseOrderLine) => line.confirmationStatus && line.confirmationStatus.trim() !== ''
+        );
+    }, [editedOrderLocal]);
+
     const [totalCount, setTotalCount] = useState(0);
 
     // Reset to page 0 when filter changes
@@ -274,7 +282,7 @@ export default function RecuesNonTraitees() {
                                 setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
                             }}
                         >
-                            <Eye />
+                            <Eye style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Valide">
@@ -282,7 +290,7 @@ export default function RecuesNonTraitees() {
                             color="primary"
                             onClick={() => setEditOrder(row.original as ExtendedNonTraitee)}
                         >
-                            <Edit />
+                            <Edit style={{ width: 36, height: 36 }} />
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Exporter Excel">
@@ -294,7 +302,7 @@ export default function RecuesNonTraitees() {
                                 style={{ textDecoration: 'none', display: 'flex' }}
                             >
                                 <IconButton color="success">
-                                    <DocumentDownload size={22} />
+                                    <DocumentDownload style={{ width: 36, height: 36 }} />
                                 </IconButton>
                             </CSVLink>
                         </span>
@@ -594,15 +602,17 @@ export default function RecuesNonTraitees() {
                                                             <TableCell>
                                                                 <TextField
                                                                     size="small"
-                                                                    type="number"
+                                                                    type='number'
                                                                     value={line.directUnitCost ?? ''}
                                                                     onChange={(e) => {
-                                                                        const v = e.target.value;
+                                                                        const rawValue = e.target.value;
+                                                                        const normalizedValue = rawValue.replace(/^0+(?=\d)/, '');
+                                                                        const parsedValue = normalizedValue === '' ? undefined : Number(normalizedValue);
                                                                         setEditedOrderLocal(prev => {
                                                                             if (!prev) return prev;
                                                                             const copy = { ...prev };
                                                                             copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
-                                                                                l.id === line.id ? { ...l, directUnitCost: Number(v) } : l
+                                                                                l.id === line.id ? { ...l, directUnitCost: parsedValue } : l
                                                                             );
                                                                             return copy;
                                                                         });
@@ -652,8 +662,9 @@ export default function RecuesNonTraitees() {
                                                                     value={line.deliveryQuantity ?? (line.confirmationStatus === 'Non Disponible' ? 0 : line.quantity ?? 0)}
                                                                     disabled={line.confirmationStatus === 'Non Disponible'}
                                                                     onChange={(e) => {
-                                                                        const v = e.target.value;
-                                                                        const numValue = Number(v);
+                                                                        const rawValue = e.target.value;
+                                                                        const normalizedValue = rawValue.replace(/^0+(?=\d)/, '');
+                                                                        const numValue = normalizedValue === '' ? 0 : Number(normalizedValue);
                                                                         const maxQty = Number(line.quantity) || 0;
                                                                         if (numValue > maxQty) return;
                                                                         setEditedOrderLocal(prev => {
@@ -734,8 +745,14 @@ export default function RecuesNonTraitees() {
                 </DialogContent>
                 <DialogActions>
                     <Button variant="outlined" onClick={() => { setEditOrder(null); setEditedOrderLocal(null); }}>Cancel</Button>
+                    {!isOrderValid && editedOrderLocal?.plexuspurchaseOrderLines && editedOrderLocal.plexuspurchaseOrderLines.length > 0 && (
+                        <Typography variant="caption" sx={{ color: 'error.main', mr: 'auto' }}>
+                            Veuillez sélectionner une confirmation pour toutes les lignes
+                        </Typography>
+                    )}
                     <Button
                         variant="contained"
+                        disabled={!isOrderValid}
                         onClick={async () => {
                             if (!editedOrderLocal) return;
 

@@ -163,7 +163,7 @@ export default function NavGroup({
 
   const Icon = currentItem?.icon ? currentItem.icon : null;
   const itemIcon = Icon ? (
-    <Box component="span" sx={{ color: isSelected || anchorEl ? 'primary.main' : 'secondary.main' }}>
+    <Box component="span" sx={{ color: isSelected || anchorEl ? 'primary.main' : 'text.primary' }}>
       <Icon variant="Bulk" size={22} />
     </Box>
   ) : null;
@@ -277,7 +277,7 @@ export default function NavGroup({
                       sx={(theme) => ({
                         textTransform: 'uppercase',
                         fontSize: '0.688rem',
-                        color: 'secondary.dark',
+                        color: 'text.primary',
                         ...theme.applyStyles('dark', { color: 'text.secondary' })
                       })}
                     >
@@ -323,8 +323,8 @@ export default function NavGroup({
                   variant="h6"
                   sx={(theme) => ({
                     fontWeight: isSelected || anchorEl ? 500 : 400,
-                    color: 'secondary.main',
-                    ...theme.applyStyles('dark', { color: 'secondary.400' }),
+                    color: 'text.primary',
+                    ...theme.applyStyles('dark', { color: 'text.secondary' }),
                     ...((isSelected || anchorEl) && { color: 'primary.main' })
                   })}
                 >

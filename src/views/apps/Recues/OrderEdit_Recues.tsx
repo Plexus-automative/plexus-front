@@ -171,7 +171,7 @@ export default function OrderEdit_Recues({ lines, onClose }: Props) {
                       </>
                     ) : (
                       <IconButton onClick={() => startEdit(index)} size="small">
-                        <Edit />
+                        <Edit style={{ width: 36, height: 36 }} />
                       </IconButton>)}
                   </Stack>
                 </TableCell>

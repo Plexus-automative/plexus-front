@@ -25,7 +25,11 @@ export default function TableCell(theme: Theme) {
           const baseStyle = {
             fontSize: '0.875rem',
             padding: 12,
-            borderColor: theme.palette.divider
+            borderColor: theme.palette.divider,
+            '& .MuiIconButton-root svg': {
+              width: 18,
+              height: 18
+            }
           };
 
           const align = ownerState.align;

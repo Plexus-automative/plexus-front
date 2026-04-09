@@ -349,11 +349,14 @@ export default function RecuesEncours() {
                     case 'Totalité':
                         return <Chip color="success" label="Totalité" size="small" variant="light" />;
                     case 'ConfirmationPartielle':
-                        return <Chip color="info" label="Confirmation Partielle" size="small" variant="light" />;
+                        return <Chip color="warning" label="Confirmation Partielle" size="small" variant="light" />;
                     case 'Draft':
                         return <Chip color="warning" label="Draft" size="small" variant="light" />;
+                    case 'Livrer Disponible':
+                    case 'LivraisonDispo':
+                        return <Chip color="info" label="Livraison Dispo" size="small" variant="light" />;
                     default:
-                        return <Chip color="default" label={status} size="small" />;
+                        return <Chip color="default" label={ShippingAdvice} size="small" />;
                 }
             }
         },
@@ -374,7 +377,7 @@ export default function RecuesEncours() {
                                     setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
                                 }}
                             >
-                                <Eye />
+                                <Eye style={{ width: 36, height: 36 }} />
                             </IconButton>
                         </Tooltip>
                         {
@@ -383,7 +386,7 @@ export default function RecuesEncours() {
                                     color="primary"
                                     onClick={() => setEditOrder(row.original as ExtendedEncours)}
                                 >
-                                    <Edit />
+                                    <Edit style={{ width: 36, height: 36 }} />
                                 </IconButton>
                             </Tooltip>
                         }
@@ -395,7 +398,7 @@ export default function RecuesEncours() {
                                     printOrder(row.original);
                                 }}
                             >
-                                <Printer />
+                                <Printer style={{ width: 36, height: 36 }} />
                             </IconButton>
                         </Tooltip>
                         <Tooltip title="Exporter Excel">
@@ -407,7 +410,7 @@ export default function RecuesEncours() {
                                     style={{ textDecoration: 'none', display: 'flex' }}
                                 >
                                     <IconButton color="success">
-                                        <DocumentDownload size={22} />
+                                        <DocumentDownload style={{ width: 36, height: 36 }} />
                                     </IconButton>
                                 </CSVLink>
                             </span>
@@ -497,9 +500,12 @@ export default function RecuesEncours() {
                                 {table.getRowModel().rows.length > 0 ? (
                                     table.getRowModel().rows.map(row => {
                                         const mode = expandedRows[row.id];
+                                        const rowStatus = (row.original as any).ShippingAdvice;
+                                        const isTotalite = rowStatus === 'Totalité';
+                                        const isLivraisonDispo = rowStatus === 'LivraisonDispo' || rowStatus === 'Livrer Disponible';
                                         return (
                                             <Fragment key={row.id}>
-                                                <TableRow hover>
+                                                <TableRow hover sx={{ bgcolor: isTotalite ? '#d1ebbb' : isLivraisonDispo ? '#f2f4c2' : 'inherit' }}>
                                                     {row.getVisibleCells().map(cell => (
                                                         <TableCell key={cell.id}>
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
