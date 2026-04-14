@@ -100,8 +100,12 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
               pl: level === 2 ? 3.25 : drawerOpen ? (level <= 3 ? (level * 20) / 8 : (level * 20 + (level - 3) * 10) / 8) : 1.5,
               py: !drawerOpen && level === 1 ? 1.25 : 1,
               ...(drawerOpen && {
-                '&:hover': { bgcolor: 'transparent' },
-                '&.Mui-selected': { '&:hover': { bgcolor: 'transparent' }, bgcolor: 'transparent' }
+                '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) },
+                '&.Mui-selected': {
+                  '&:hover': { bgcolor: 'primary.lighter', ...theme.applyStyles('dark', { bgcolor: 'primary.800' }) },
+                  bgcolor: 'primary.lighter',
+                  ...theme.applyStyles('dark', { bgcolor: 'primary.800' })
+                }
               }),
               ...(drawerOpen &&
                 level === 1 && {
@@ -114,7 +118,11 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
                 px: 2.75,
                 justifyContent: 'center',
                 '&:hover': { bgcolor: 'transparent' },
-                '&.Mui-selected': { '&:hover': { bgcolor: 'transparent' }, bgcolor: 'transparent' }
+                '&.Mui-selected': {
+                  '&:hover': { bgcolor: 'primary.lighter', ...theme.applyStyles('dark', { bgcolor: 'primary.800' }) },
+                  bgcolor: 'primary.lighter',
+                  ...theme.applyStyles('dark', { bgcolor: 'primary.800' })
+                }
               })
             })}
             onClick={() => itemHandler()}
@@ -245,11 +253,13 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
             ...(isParents && { color: baseTextColor, ...theme.applyStyles('dark', { color: baseDarkTextColor }), p: 1, mr: 1 }),
             ...(!isParents && {
               '&.Mui-selected': {
-                bgcolor: 'transparent',
+                bgcolor: 'primary.lighter',
+                ...theme.applyStyles('dark', { bgcolor: 'primary.800' }),
                 color: iconSelectedColor,
                 '&:hover': {
                   color: iconSelectedColor,
-                  bgcolor: 'transparent'
+                  bgcolor: 'primary.lighter',
+                  ...theme.applyStyles('dark', { bgcolor: 'primary.800' })
                 }
               }
             })

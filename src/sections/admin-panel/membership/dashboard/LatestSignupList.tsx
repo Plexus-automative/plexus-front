@@ -62,7 +62,7 @@ function ReactTable({ columns, data }: ReactTableProps) {
       divider={false}
       secondary={
         <Link href="#" variant="h6" color="primary">
-          View all
+          Afficher Tous
         </Link>
       }
     >

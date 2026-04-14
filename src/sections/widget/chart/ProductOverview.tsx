@@ -219,7 +219,7 @@ export default function ProductOverview() {
         <Grid size={12}>
           <Stack direction="row" sx={{ gap: 1.25, alignItems: 'center' }}>
             <Button variant="outlined" fullWidth color="secondary">
-              View all
+              Afficher Tous
             </Button>
             <Button variant="contained" fullWidth>
               Create new page

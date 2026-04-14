@@ -24,7 +24,7 @@ export default function TasksCard() {
       content={false}
       secondary={
         <Links component={Link} href="#" color="primary">
-          View all
+          Afficher Tous
         </Links>
       }
     >

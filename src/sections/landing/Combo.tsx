@@ -36,7 +36,7 @@ const Technologies = [
     title: 'Explore Components',
     description: 'Access all components of Able Pro in one place to make your development work easier.',
     preview: '/components-overview/buttons',
-    label: 'View All Components'
+    label: 'Afficher Tous Components'
   },
   {
     icon: featureDocumentation,

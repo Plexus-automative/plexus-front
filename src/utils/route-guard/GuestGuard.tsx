@@ -17,24 +17,17 @@ import { GuardProps } from 'types/auth';
 // ==============================|| GUEST GUARD ||============================== //
 
 export default function GuestGuard({ children }: GuardProps) {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const { getQueryParams } = useBuyNowLink();
 
   useEffect(() => {
-    const fetchData = async () => {
-      const res: any = await fetch('/api/auth/protected');
-      const json = await res?.json();
-      if (json?.protected) {
-        router.push(`${APP_DEFAULT_PATH}${getQueryParams}`);
-      }
-    };
-    fetchData();
+    if (status === 'authenticated') {
+      router.push(`${APP_DEFAULT_PATH}${getQueryParams}`);
+    }
+  }, [status, router, getQueryParams]);
 
-    // eslint-disable-next-line
-  }, [session]);
-
-  if (status === 'loading' || session?.user) return <Loader />;
+  if (status === 'loading') return <Loader />;
 
   return <>{children}</>;
 }

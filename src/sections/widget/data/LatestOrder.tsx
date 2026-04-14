@@ -55,7 +55,7 @@ export default function LatestOrder() {
       content={false}
       secondary={
         <Links component={Link} href="#" color="primary">
-          View all
+          Afficher Tous
         </Links>
       }
     >

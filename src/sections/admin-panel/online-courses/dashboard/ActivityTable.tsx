@@ -43,7 +43,7 @@ export default function ActivityTableCard() {
       content={false}
       secondary={
         <Link href="#" variant="h6" color="primary">
-          View All
+          Afficher Tous
         </Link>
       }
     >

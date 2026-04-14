@@ -61,7 +61,7 @@ export default function CommandesLivrees() {
 
     const [data, setData] = useState<Encours[]>([]);
     const [sorting, setSorting] = useState<SortingState>([
-        { id: 'orderDate', desc: true }
+        { id: 'number', desc: true }
     ]);
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
@@ -120,7 +120,7 @@ export default function CommandesLivrees() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
+                        fullyReceived: o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',

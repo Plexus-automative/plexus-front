@@ -11,9 +11,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/purchase-orders")
+@Slf4j
 public class PurchaseOrderController {
 
         private final WebClient webClient;
@@ -98,6 +100,13 @@ public class PurchaseOrderController {
                                 "/PlexuspurchaseOrderLines(" + lineId + ")");
         }
 
+        @org.springframework.web.bind.annotation.DeleteMapping("/lines/{lineId}")
+        public ResponseEntity<String> deletePurchaseOrderLine(HttpServletRequest request,
+                        @org.springframework.web.bind.annotation.PathVariable("lineId") String lineId) {
+                return forwardRequest(request, org.springframework.http.HttpMethod.DELETE, null,
+                                "/PlexuspurchaseOrderLines(" + lineId + ")");
+        }
+
         @org.springframework.web.bind.annotation.PostMapping("/bulk")
         public ResponseEntity<String> createBulkPurchaseOrder(HttpServletRequest request,
                         @org.springframework.web.bind.annotation.RequestBody String body) {
@@ -143,6 +152,7 @@ public class PurchaseOrderController {
                         com.fasterxml.jackson.databind.JsonNode headerNode = mapper.readTree(headerResponseStr);
                         String orderId = headerNode.get("id").asText();
                         String orderEtag = headerNode.has("@odata.etag") ? headerNode.get("@odata.etag").asText() : "*";
+                        log.info("Creating order result: {}", headerResponseStr);
 
                         // 2b. PATCH to set SellToCustomerNo and ensure QtyReceived is 'Non'
                         // (BC ignores relational fields during POST, and we want to prevent
@@ -169,6 +179,9 @@ public class PurchaseOrderController {
                                                 .retrieve()
                                                 .bodyToMono(String.class)
                                                 .block();
+
+                        log.info("Bulk creation PATCH payload: {}", patchPayload);
+                        log.info("Bulk creation PATCH response: {}", patchResponse);
                                 if (patchResponse != null && !patchResponse.isBlank()) {
                                         headerResponseStr = patchResponse;
                                 }
@@ -492,7 +505,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "(ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité' or ShippingAdvice eq 'LivraisonDispo') and status eq 'Draft' and fullyReceived eq false and Delivred eq 'Non' and QtyReceived eq 'Non'",
+                                "(ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité' or ShippingAdvice eq 'LivraisonDispo') and status eq 'Draft' and Delivred eq 'Non' and QtyReceived eq 'Non'",
                                 skip, top, "customer");
         }
 
@@ -510,7 +523,7 @@ public class PurchaseOrderController {
                         @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
                         @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
                 return getFilteredPurchaseOrders(request,
-                                "ShippingAdvice eq 'Confirmé' and Delivred eq 'Oui' and QtyReceived eq 'Non' and status eq 'Draft' and fullyReceived eq false",
+                                "ShippingAdvice eq 'Confirmé' and Delivred eq 'Oui' and QtyReceived eq 'Non' and status eq 'Draft'",
                                 skip, top, "customer");
         }
 
@@ -643,6 +656,8 @@ public class PurchaseOrderController {
                         String response = requestBuilder.retrieve()
                                         .bodyToMono(String.class)
                                         .block();
+
+                        log.info("Forwarded request [{} {}] - Response: {}", method, path, response);
 
                         return ResponseEntity.ok(response);
                 } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
@@ -845,8 +860,33 @@ public class PurchaseOrderController {
                                                 if (poLine.has("directUnitCost"))
                                                         linePatch.put("directUnitCost",
                                                                         poLine.get("directUnitCost").asDouble());
-                                                if (poLine.has("Decision"))
-                                                        linePatch.put("Decision", poLine.get("Decision").asText());
+                                                boolean isDeleted = false;
+                                                if (poLine.has("Decision")) {
+                                                        String decision = poLine.get("Decision").asText();
+                                                        linePatch.put("Decision", decision);
+                                                        if ("NonDisponible".equalsIgnoreCase(decision)) {
+                                                                try {
+                                                                        webClient.delete()
+                                                                                        .uri(java.net.URI.create(baseUrl
+                                                                                                        + "/PlexuspurchaseOrderLines("
+                                                                                                        + poLineId + ")"))
+                                                                                        .header(HttpHeaders.AUTHORIZATION,
+                                                                                                        "Bearer " + token)
+                                                                                        .retrieve()
+                                                                                        .bodyToMono(Void.class)
+                                                                                        .block();
+                                                                        isDeleted = true;
+                                                                } catch (Exception e) {
+                                                                        System.err.println("Error deleting PO line "
+                                                                                        + poLineId + ": "
+                                                                                        + e.getMessage());
+                                                                }
+                                                        }
+                                                }
+
+                                                if (isDeleted)
+                                                        continue;
+
                                                 if (poLine.has("OldRemplacementItemNo"))
                                                         linePatch.put("OldRemplacementItemNo",
                                                                         poLine.get("OldRemplacementItemNo").asText());

@@ -79,7 +79,7 @@ export default function RecuesNonTraitees() {
     const [data, setData] = useState<NonTraitee[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
-        { id: 'orderDate', desc: true }
+        { id: 'number', desc: true }
     ]);
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
@@ -155,7 +155,7 @@ export default function RecuesNonTraitees() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
+                        fullyReceived: o.QtyReceived === 'Oui',
                         ShippingAdvice: o.ShippingAdvice,
                         status: o.status,
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
@@ -815,7 +815,7 @@ export default function RecuesNonTraitees() {
                                                     lineUpdateBody.Decision = 'LivPrevuaDate';
                                                     // Add delivery date to the line if this is the Liv pevu a date line
                                                     if (line.deliveryDate) {
-                                                        lineUpdateBody.expectedReceiptDate = line.deliveryDate;
+                                                        lineUpdateBody.DeliveryDate = line.deliveryDate;
                                                         console.log('Adding delivery date to line:', line.id, line.deliveryDate);
                                                     }
                                                     break;

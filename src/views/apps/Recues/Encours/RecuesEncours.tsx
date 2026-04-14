@@ -75,7 +75,7 @@ export default function RecuesEncours() {
     const [data, setData] = useState<Encours[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
-        { id: 'orderDate', desc: true }
+        { id: 'number', desc: true }
     ]);
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
@@ -148,7 +148,7 @@ export default function RecuesEncours() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
+                        fullyReceived: o.QtyReceived === 'Oui',
                         ShippingAdvice: (o as any).ShippingAdvice || '',
                         status: o.status,
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
@@ -347,14 +347,14 @@ export default function RecuesEncours() {
                 const ShippingAdvice = getValue<string>();
                 switch (ShippingAdvice) {
                     case 'Totalité':
-                        return <Chip color="success" label="Totalité" size="small" variant="light" />;
+                        return <Chip label="Totalité" size="small" sx={{ bgcolor: 'rgba(76, 175, 80, 0.15)', color: '#2E7D32', fontWeight: 600 }} />;
                     case 'ConfirmationPartielle':
                         return <Chip color="warning" label="Confirmation Partielle" size="small" variant="light" />;
                     case 'Draft':
                         return <Chip color="warning" label="Draft" size="small" variant="light" />;
                     case 'Livrer Disponible':
                     case 'LivraisonDispo':
-                        return <Chip color="info" label="Livraison Dispo" size="small" variant="light" />;
+                        return <Chip label="Livraison Dispo" size="small" sx={{ bgcolor: 'rgba(255, 193, 7, 0.2)', color: '#795548', fontWeight: 600 }} />;
                     default:
                         return <Chip color="default" label={ShippingAdvice} size="small" />;
                 }
@@ -381,7 +381,7 @@ export default function RecuesEncours() {
                             </IconButton>
                         </Tooltip>
                         {
-                            ShippingAdvice == "Totalité" && <Tooltip title="Valide">
+                            (ShippingAdvice === "Totalité" || ShippingAdvice === "LivraisonDispo" || ShippingAdvice === "Livrer Disponible") && <Tooltip title="Valide">
                                 <IconButton
                                     color="primary"
                                     onClick={() => setEditOrder(row.original as ExtendedEncours)}
@@ -500,12 +500,13 @@ export default function RecuesEncours() {
                                 {table.getRowModel().rows.length > 0 ? (
                                     table.getRowModel().rows.map(row => {
                                         const mode = expandedRows[row.id];
-                                        const rowStatus = (row.original as any).ShippingAdvice;
-                                        const isTotalite = rowStatus === 'Totalité';
-                                        const isLivraisonDispo = rowStatus === 'LivraisonDispo' || rowStatus === 'Livrer Disponible';
+                                        const status = (row.original as any).ShippingAdvice;
+                                        const rowBg = status === 'Totalité' ? 'rgba(76, 175, 80, 0.08)'
+                                            : (status === 'LivraisonDispo' || status === 'Livrer Disponible') ? 'rgba(255, 193, 7, 0.08)'
+                                            : 'transparent';
                                         return (
                                             <Fragment key={row.id}>
-                                                <TableRow hover sx={{ bgcolor: isTotalite ? '#d1ebbb' : isLivraisonDispo ? '#f2f4c2' : 'inherit' }}>
+                                                <TableRow hover sx={{ bgcolor: rowBg }}>
                                                     {row.getVisibleCells().map(cell => (
                                                         <TableCell key={cell.id}>
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -561,6 +562,8 @@ export default function RecuesEncours() {
                                                                                         <TableCell>Num article</TableCell>
                                                                                         <TableCell>Description</TableCell>
                                                                                         <TableCell>Prix unitaire</TableCell>
+                                                                                        <TableCell>Ancienne prix</TableCell>
+
                                                                                         <TableCell>Quantité</TableCell>
                                                                                         <TableCell>Quantité disponible</TableCell>
                                                                                         <TableCell>Quantité validée par le client</TableCell>
@@ -577,6 +580,7 @@ export default function RecuesEncours() {
                                                                                                 <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                                 <TableCell>{line.description}</TableCell>
                                                                                                 <TableCell>{line.directUnitCost}</TableCell>
+                                                                                                <TableCell>{line.OldUnitPrice || '-'}</TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
                                                                                                 <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
                                                                                                     {line.QuantityAvailable ?? 0}

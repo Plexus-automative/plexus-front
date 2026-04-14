@@ -39,7 +39,7 @@ export default function FileToolbar({ selectedItems }: { selectedItems: number[]
           )}
           <Button variant="outlined" color="secondary">
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
-              View all
+              Afficher Tous
               <ArrowRight2 size="18" />
             </Stack>
           </Button>

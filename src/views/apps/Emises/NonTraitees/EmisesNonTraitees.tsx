@@ -58,7 +58,7 @@ export default function EmisesNonTraitees() {
     const [data, setData] = useState<NonTraitee[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
-        { id: 'orderDate', desc: true }
+        { id: 'number', desc: true }
     ]); const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -103,7 +103,7 @@ export default function EmisesNonTraitees() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
+                        fullyReceived: o.QtyReceived === 'Oui',
                         ShippingAdvice: o.ShippingAdvice,
                         status: o.status,
                         postingDate: o.postingDate || o.orderDate,

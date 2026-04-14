@@ -1,6 +1,3 @@
-import { useMemo } from 'react';
-
-// material-ui
 import { Theme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Box from '@mui/material/Box';
@@ -33,11 +30,11 @@ export default function HeaderContent() {
       {!downLG && <Search />}
       {downLG && <Box sx={{ width: 1, ml: 1 }} />}
 
+      <Panier />
+      <Recues />
+      <Emises />
+      <Livraison />
       <Notification />
-      <Panier/>
-      <Livraison/>
-      <Emises/>
-      <Recues/>
       
       {!downLG && <Profile />}
     </>

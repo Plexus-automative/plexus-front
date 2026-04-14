@@ -69,7 +69,7 @@ export default function NotificationCard() {
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         >
           <ListItemButton onClick={handleClose}>Today</ListItemButton>
-          <ListItemButton onClick={handleClose}>View all</ListItemButton>
+          <ListItemButton onClick={handleClose}>Afficher Tous</ListItemButton>
         </Menu>
       </Stack>
       <List disablePadding sx={{ '& .MuiListItem-root': { px: 2.5, py: 1 } }}>

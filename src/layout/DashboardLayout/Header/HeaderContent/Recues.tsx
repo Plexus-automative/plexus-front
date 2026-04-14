@@ -43,7 +43,7 @@ export default function Recues() {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const response = await axiosServices.get('/api/purchase-orders/recues/non-traitee?skip=0&top=5');
+        const response = await axiosServices.get('/api/purchase-orders/recues/non-traitee?skip=0&top=5&sort=number&desc=true');
 
         if (response.data && response.data['@odata.count'] !== undefined) {
           setOrdersCount(response.data['@odata.count']);
@@ -72,8 +72,9 @@ export default function Recues() {
   };
   const getOrderStatusLabel = (order: any) => {
     const rawStatus = order.ShippingAdvice || order.shippingAdvice || order.status;
-    if (!rawStatus) return 'Status inconnu';
-    return rawStatus.toLowerCase() === 'attente' ? 'En attente' : rawStatus;
+    if (!rawStatus) return 'En attente';
+    const formattedStatus = rawStatus.replace(/([A-Z])/g, ' $1').trim();
+    return formattedStatus.toLowerCase() === 'attente' ? 'En attente' : formattedStatus;
   };
   return (
     <Box sx={{ flexShrink: 0, ml: 0.5 }}>
@@ -114,10 +115,7 @@ export default function Recues() {
                 <MainCard border={false} content={false}>
                   <CardContent>
                     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Typography variant="h5">Commandes Reçues</Typography>
-                      <Link href="#" variant="h6" color="primary">
-                        Clear
-                      </Link>
+                      <Typography variant="h5">Commandes Reçues Non Traitées</Typography>
                     </Stack>
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
@@ -149,7 +147,7 @@ export default function Recues() {
                     </SimpleBar>
 
                     <Stack direction="row" sx={{ justifyContent: 'center', mt: 1.5 }}>
-                      <Link href="#" variant="h6" color="primary">
+                      <Link href="/pages/commandes-recus/non-traitees" variant="h6" color="primary">
                         View all
                       </Link>
                     </Stack>

@@ -122,7 +122,7 @@ export default function LatestActivity() {
       </SimpleBarScroll>
       <Divider sx={{ mx: -3 }} />
       <Stack direction="row" sx={{ justifyContent: 'center', p: 3 }}>
-        <Link href="#">View all Feeds</Link>
+        <Link href="#">Afficher Tous Feeds</Link>
       </Stack>
     </MainCard>
   );

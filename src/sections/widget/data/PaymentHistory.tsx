@@ -153,7 +153,7 @@ export default function PaymentHistory() {
       </List>
       <Stack direction="row" sx={{ gap: 1.25, alignItems: 'center', p: 3 }}>
         <Button variant="outlined" fullWidth color="secondary">
-          View all
+          Afficher Tous
         </Button>
       </Stack>
       <Menu

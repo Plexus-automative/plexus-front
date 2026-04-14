@@ -85,7 +85,7 @@ export default function EmisesEncours() {
     const [data, setData] = useState<Encours[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
-        { id: 'orderDate', desc: true }
+        { id: 'number', desc: true }
     ]);
     const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
@@ -129,8 +129,8 @@ export default function EmisesEncours() {
                 const result = await fetchEncours(
                     pageIndex,
                     pageSize,
-                    undefined,
-                    undefined,
+                    sorting[0]?.id,
+                    sorting[0]?.desc,
                     globalFilter
                 );
                 setData(
@@ -140,7 +140,7 @@ export default function EmisesEncours() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
+                        fullyReceived: o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: (o as any).ShippingAdvice || '',
                         postingDate: o.postingDate || o.orderDate,
@@ -252,9 +252,9 @@ export default function EmisesEncours() {
                     case 'Confirmé':
                         return <Chip color="success" label="Confirmé" size="small" variant="light" />;
                     case 'Totalité':
-                        return <Chip color="primary" label="Livrer la totalité" size="small" variant="light" />;
+                        return <Chip label="Livrer la totalité" size="small" sx={{ bgcolor: 'rgba(76, 175, 80, 0.15)', color: '#2E7D32', fontWeight: 600 }} />;
                     case 'LivraisonDispo':
-                        return <Chip color="secondary" label="Livrer le disponible" size="small" variant="light" />;
+                        return <Chip label="Livrer le disponible" size="small" sx={{ bgcolor: 'rgba(255, 193, 7, 0.2)', color: '#795548', fontWeight: 600 }} />;
                     default:
                         return <Chip color="default" label={advice || '-'} size="small" />;
                 }
@@ -402,13 +402,19 @@ export default function EmisesEncours() {
                                     table.getRowModel().rows.map(row => {
                                         const mode = expandedRows[row.id];
                                         const isHighlighted = highlightId === String((row.original as Encours).id);
+                                        const status = (row.original as any).ShippingAdvice;
+                                        const statusBg = status === 'Totalité' ? 'rgba(76, 175, 80, 0.08)'
+                                            : status === 'LivraisonDispo' ? 'rgba(255, 193, 7, 0.08)'
+                                                : 'transparent';
                                         return (
                                             <Fragment key={row.id}>
                                                 <TableRow
                                                     hover
                                                     sx={{
+                                                        bgcolor: isHighlighted
+                                                            ? (theme) => alpha(theme.palette.primary.main, 0.1)
+                                                            : statusBg,
                                                         ...(isHighlighted && {
-                                                            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
                                                             borderLeft: (theme) => `4px solid ${theme.palette.primary.main}`
                                                         })
                                                     }}
@@ -741,7 +747,7 @@ export default function EmisesEncours() {
                                                             <Typography variant="body2">{line.Decision || '-'}</Typography>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Typography variant="body2">{line.expectedReceiptDate || '-'}</Typography>
+                                                            <Typography variant="body2">{line.DeliveryDate || '-'}</Typography>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))
@@ -790,6 +796,11 @@ export default function EmisesEncours() {
                                         );
 
                                         if (!originalLine) continue;
+
+                                        if (line.Decision === 'NonDisponible') {
+                                            await axiosServices.delete(`/api/purchase-orders/lines/${line.id}`);
+                                            continue;
+                                        }
 
                                         const lineUpdateBody: any = {};
 
@@ -842,6 +853,11 @@ export default function EmisesEncours() {
                                         );
 
                                         if (!originalLine) continue;
+
+                                        if (line.Decision === 'NonDisponible') {
+                                            await axiosServices.delete(`/api/purchase-orders/lines/${line.id}`);
+                                            continue;
+                                        }
 
                                         const lineUpdateBody: any = {
                                             receiveQuantity: Number(line.invoiceQuantity ?? line.quantity),

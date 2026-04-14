@@ -128,7 +128,7 @@ export default function InvoiceNotificationList() {
 
         <Grid size={12}>
           <Button fullWidth variant="outlined" color="secondary">
-            View All
+            Afficher Tous
           </Button>
         </Grid>
       </Grid>

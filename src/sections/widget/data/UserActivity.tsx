@@ -30,7 +30,7 @@ export default function UserActivity() {
       content={false}
       secondary={
         <Links component={Link} href="#" color="primary">
-          View all
+          Afficher Tous
         </Links>
       }
     >

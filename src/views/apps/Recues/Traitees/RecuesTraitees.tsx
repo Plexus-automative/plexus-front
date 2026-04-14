@@ -59,7 +59,7 @@ export default function RecuesTraitees() {
     const [customers, setCustomers] = useState<{ [key: string]: string }>({});
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
-        { id: 'orderDate', desc: true }
+        { id: 'number', desc: true }
     ]); const [globalFilter, setGlobalFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -100,7 +100,7 @@ export default function RecuesTraitees() {
                         orderDate: o.orderDate,
                         vendorName: o.vendorName,
                         payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.fullyReceived === true || o.QtyReceived === 'Oui',
+                        fullyReceived: o.QtyReceived === 'Oui',
                         status: o.status,
                         ShippingAdvice: o.ShippingAdvice || '',
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',

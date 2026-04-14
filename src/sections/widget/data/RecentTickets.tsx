@@ -46,7 +46,7 @@ export default function RecentTickets() {
       content={false}
       secondary={
         <Links component={Link} href="#" color="primary">
-          View all
+          Afficher Tous
         </Links>
       }
     >

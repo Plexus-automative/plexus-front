@@ -43,7 +43,7 @@ export default function Emises() {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const response = await axiosServices.get('/api/purchase-orders/emises/non-traitee?skip=0&top=5');
+        const response = await axiosServices.get('/api/purchase-orders/emises/en-cours?skip=0&top=5&sort=number&desc=true');
 
         if (response.data && response.data['@odata.count'] !== undefined) {
           setOrdersCount(response.data['@odata.count']);
@@ -72,8 +72,9 @@ export default function Emises() {
   };
   const getOrderStatusLabel = (order: any) => {
     const rawStatus = order.ShippingAdvice || order.shippingAdvice || order.status;
-    if (!rawStatus) return 'Pending';
-    return rawStatus.toLowerCase() === 'attente' ? 'En attente' : rawStatus;
+    if (!rawStatus) return 'En attente';
+    const formattedStatus = rawStatus.replace(/([A-Z])/g, ' $1').trim();
+    return formattedStatus.toLowerCase() === 'attente' ? 'En attente' : formattedStatus;
   };
   return (
     <Box sx={{ flexShrink: 0, ml: 0.5 }}>
@@ -114,10 +115,7 @@ export default function Emises() {
                 <MainCard border={false} content={false}>
                   <CardContent>
                     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Typography variant="h5">Commandes Émises</Typography>
-                      <Link href="#" variant="h6" color="primary">
-                        Clear
-                      </Link>
+                      <Typography variant="h5">Commandes Émises En cours</Typography>
                     </Stack>
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
@@ -127,7 +125,7 @@ export default function Emises() {
                             key={order.id || index}
                             component={ListItemButton}
                             onClick={() => {
-                              router.push(`/pages/commandes-emis/non-traitees?highlight=${order.id}`);
+                              router.push(`/pages/commandes-emis/en-cours?highlight=${order.id}`);
                               setOpen(false);
                             }}
                             sx={{ my: 1, border: '1px solid', borderColor: 'divider' }}
@@ -149,8 +147,8 @@ export default function Emises() {
                     </SimpleBar>
 
                     <Stack direction="row" sx={{ justifyContent: 'center', mt: 1.5 }}>
-                      <Link href="#" variant="h6" color="primary">
-                        View all
+                      <Link href="/pages/commandes-emis/en-cours" variant="h6" color="primary">
+                        Afficher Tous
                       </Link>
                     </Stack>
                   </CardContent>

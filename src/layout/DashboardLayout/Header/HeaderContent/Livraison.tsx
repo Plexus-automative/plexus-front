@@ -43,7 +43,7 @@ export default function Livraison() {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const response = await axiosServices.get('/api/purchase-orders/commandes-livree?skip=0&top=5');
+        const response = await axiosServices.get('/api/purchase-orders/recues/en-cours?skip=0&top=5&sort=number&desc=true');
 
         if (response.data && response.data['@odata.count'] !== undefined) {
           setDeliveryCount(response.data['@odata.count']);
@@ -69,6 +69,15 @@ export default function Livraison() {
   const handleClose = (event: MouseEvent | TouchEvent) => {
     if (anchorRef.current && anchorRef.current.contains(event.target)) return;
     setOpen(false);
+  };
+
+  const getOrderStatusLabel = (order: any) => {
+    const rawStatus = order.ShippingAdvice || order.shippingAdvice || order.status;
+    if (!rawStatus) return 'En attente';
+    
+    // Format camelCase to spaced labels (e.g. ConfirmationPartielle -> Confirmation Partielle)
+    const formattedStatus = rawStatus.replace(/([A-Z])/g, ' $1').trim();
+    return formattedStatus.toLowerCase() === 'attente' ? 'En attente' : formattedStatus;
   };
 
   return (
@@ -110,10 +119,7 @@ export default function Livraison() {
                 <MainCard border={false} content={false}>
                   <CardContent>
                     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Typography variant="h5">Livraison</Typography>
-                      <Link href="#" variant="h6" color="primary">
-                        Clear
-                      </Link>
+                      <Typography variant="h5">Commandes en attente de livraison</Typography>
                     </Stack>
 
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
@@ -123,7 +129,7 @@ export default function Livraison() {
                             key={item.id || index}
                             component={ListItemButton}
                             onClick={() => {
-                              router.push(`/pages/commandes-livree?highlight=${item.id}`);
+                              router.push(`/pages/commandes-recus/en-cours?highlight=${item.id}`);
                               setOpen(false);
                             }}
                             sx={{ my: 1, border: '1px solid', borderColor: 'divider' }}
@@ -133,7 +139,7 @@ export default function Livraison() {
                             </ListItemAvatar>
                             <ListItemText
                               primary={<Typography variant="h6">{item.number || `Order #${item.id}`}</Typography>}
-                              secondary={`${item.status || 'En attente'} • ${item.orderDate ? new Date(item.orderDate).toLocaleDateString() : ''}`}
+                              secondary={`${getOrderStatusLabel(item)} • ${item.orderDate ? new Date(item.orderDate).toLocaleDateString() : ''}`}
                             />
                           </ListItem>
                         ))}
@@ -146,8 +152,8 @@ export default function Livraison() {
                     </SimpleBar>
 
                     <Stack direction="row" sx={{ justifyContent: 'center', mt: 1.5 }}>
-                      <Link href="#" variant="h6" color="primary">
-                        View all
+                      <Link href="/pages/commandes-recus/en-cours" variant="h6" color="primary">
+                        Afficher Tous
                       </Link>
                     </Stack>
                   </CardContent>

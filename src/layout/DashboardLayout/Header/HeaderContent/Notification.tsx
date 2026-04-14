@@ -122,10 +122,7 @@ export default function NotificationPage() {
                 <MainCard border={false} content={false}>
                   <CardContent>
                     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Typography variant="h5">Notifications</Typography>
-                      <Link href="#" variant="h6" color="primary">
-                        Mark all read
-                      </Link>
+                      <Typography variant="h5">Commandes livrées non encore reçues</Typography>
                     </Stack>
                     <SimpleBar style={{ maxHeight: 'calc(100vh - 180px)' }}>
                       <List
@@ -156,7 +153,7 @@ export default function NotificationPage() {
                             <ListItemText
                               primary={
                                 <Typography variant="h6">
-                                  Commande <Typography component="span" variant="subtitle1">{order.number || `#${order.id}`}</Typography> livrée
+                                  Commande <Typography component="span" variant="subtitle1">{order.number || `#${order.id}`}</Typography> Receptionner
                                 </Typography>
                               }
                               secondary={`${order.vendorName || 'Fournisseur inconnu'} • ${order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ''}`}
@@ -172,7 +169,7 @@ export default function NotificationPage() {
                     </SimpleBar>
                     <Stack direction="row" sx={{ justifyContent: 'center', mt: 1.5 }}>
                       <Link href="#" variant="h6" color="primary">
-                        View all
+                        Afficher Tous
                       </Link>
                     </Stack>
                   </CardContent>

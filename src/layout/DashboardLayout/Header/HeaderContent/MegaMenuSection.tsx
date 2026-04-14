@@ -149,7 +149,7 @@ export default function MegaMenuSection() {
                                 href="/components-overview/buttons"
                                 target="_blank"
                               >
-                                View All
+                                Afficher Tous
                               </Button>
                             </AnimateButton>
                             <CardMedia component="img" src={imageChart} alt="Chart" sx={{ mr: -2.5, mb: -2.5, width: 124 }} />

@@ -62,7 +62,7 @@ export default function TransactionHistoryCard() {
       content={false}
       secondary={
         <Link href="#" variant="h6" color="primary">
-          View All
+          Afficher Tous
         </Link>
       }
     >
