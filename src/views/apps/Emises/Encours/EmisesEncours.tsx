@@ -487,7 +487,14 @@ export default function EmisesEncours() {
                                                                                 <TableBody>
                                                                                     {filteredLines.length > 0 ? (
                                                                                         filteredLines.map((line: ExtendedPurchaseOrderLine) => (
-                                                                                            <TableRow key={line.id}>
+                                                                                            <TableRow
+                                                                                                key={line.id}
+                                                                                                sx={{
+                                                                                                    bgcolor: line.Decision === 'NonDisponible'
+                                                                                                        ? (theme) => alpha(theme.palette.error.main, 0.12)
+                                                                                                        : 'inherit'
+                                                                                                }}
+                                                                                            >
                                                                                                 <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                                 <TableCell>{line.description}</TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
@@ -615,7 +622,14 @@ export default function EmisesEncours() {
                                         <TableBody>
                                             {filteredLines.length > 0 ? (
                                                 filteredLines.map((line: ExtendedPurchaseOrderLine, idx: number) => (
-                                                    <TableRow key={line.id || idx}>
+                                                    <TableRow
+                                                        key={line.id || idx}
+                                                        sx={{
+                                                            bgcolor: line.Decision === 'NonDisponible'
+                                                                ? (theme) => alpha(theme.palette.error.main, 0.12)
+                                                                : 'inherit'
+                                                        }}
+                                                    >
                                                         <TableCell>{line.lineObjectNumber}</TableCell>
                                                         <TableCell>
                                                             <Typography variant="body2">{line.description || ''}</Typography>

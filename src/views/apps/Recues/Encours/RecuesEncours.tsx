@@ -63,7 +63,7 @@ import { printOrder } from 'utils/printOrder';
 
 // Extend the PurchaseOrderLine type to include local UI properties
 interface ExtendedPurchaseOrderLine extends PurchaseOrderLine {
-    // Keep local extensions if needed, otherwise this can be omitted or merged
+    selected?: boolean;
 }
 
 // Extend Encours to use the extended line type
@@ -207,6 +207,7 @@ export default function RecuesEncours() {
                 ...editOrder,
                 plexuspurchaseOrderLines: editOrder.plexuspurchaseOrderLines?.map(line => ({
                     ...line,
+                    selected: true,
                     deliveryQuantity: line.quantity || 0,
                     QuantityAvailable: line.QuantityAvailable,
                     Decision: line.Decision,
@@ -250,12 +251,19 @@ export default function RecuesEncours() {
         if (!editedOrderLocal) return;
         setValidating(true);
         try {
-            // For each line, if invoiceQuantity (Quantité à livrer) differs from quantity,
+            const selectedLines = editedOrderLocal.plexuspurchaseOrderLines?.filter(line => line.selected !== false) || [];
+            if (selectedLines.length === 0) {
+                setError('Veuillez sélectionner au moins une ligne à valider.');
+                setValidating(false);
+                return;
+            }
+
+            // For each selected line, if invoiceQuantity (Quantité à livrer) differs from quantity,
             // copy it into receiveQuantity and QuantityAvailable so the backend uses the correct value.
             const orderToSubmit = {
                 ...editedOrderLocal,
                 ShippingAdvice: 'Confirmé',
-                plexuspurchaseOrderLines: editedOrderLocal.plexuspurchaseOrderLines?.map(line => {
+                plexuspurchaseOrderLines: selectedLines.map(line => {
                     const qty = Number(line.invoiceQuantity ?? line.quantity ?? 0);
                     return {
                         ...line,
@@ -576,7 +584,14 @@ export default function RecuesEncours() {
                                                                                 <TableBody>
                                                                                     {filteredLines.length > 0 ? (
                                                                                         filteredLines.map((line: ExtendedPurchaseOrderLine) => (
-                                                                                            <TableRow key={line.id}>
+                                                                                            <TableRow
+                                                                                                key={line.id}
+                                                                                                sx={{
+                                                                                                    bgcolor: line.Decision === 'NonDisponible'
+                                                                                                        ? (theme) => alpha(theme.palette.error.main, 0.12)
+                                                                                                        : 'inherit'
+                                                                                                }}
+                                                                                            >
                                                                                                 <TableCell>{line.lineObjectNumber}</TableCell>
                                                                                                 <TableCell>{line.description}</TableCell>
                                                                                                 <TableCell>{line.directUnitCost}</TableCell>
@@ -689,7 +704,14 @@ export default function RecuesEncours() {
                                     <TableBody>
                                         {filteredLines.map((line: ExtendedPurchaseOrderLine, idx: number) => {
                                             return (
-                                                <TableRow key={line.id || idx}>
+                                                <TableRow
+                                                    key={line.id || idx}
+                                                    sx={{
+                                                        bgcolor: line.Decision === 'NonDisponible'
+                                                            ? (theme) => alpha(theme.palette.error.main, 0.12)
+                                                            : 'inherit'
+                                                    }}
+                                                >
                                                     <TableCell>{line.lineObjectNumber}</TableCell>
                                                     <TableCell>{line.description || ''}</TableCell>
                                                     <TableCell>
@@ -782,7 +804,21 @@ export default function RecuesEncours() {
                                                     )}
                                                     <TableCell>
                                                         <Stack direction="row" alignItems="center" justifyContent="center">
-                                                            <Checkbox size="small" checked={true} />
+                                                            <Checkbox
+                                                                size="small"
+                                                                checked={line.selected !== false}
+                                                                onChange={(e) => {
+                                                                    const checked = e.target.checked;
+                                                                    setEditedOrderLocal(prev => {
+                                                                        if (!prev) return prev;
+                                                                        const copy = { ...prev };
+                                                                        copy.plexuspurchaseOrderLines = copy.plexuspurchaseOrderLines?.map((l: ExtendedPurchaseOrderLine) =>
+                                                                            l.id === line.id ? { ...l, selected: checked } : l
+                                                                        );
+                                                                        return copy;
+                                                                    });
+                                                                }}
+                                                            />
                                                         </Stack>
                                                     </TableCell>
                                                 </TableRow>
