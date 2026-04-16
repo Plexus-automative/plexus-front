@@ -6,12 +6,12 @@ import {
     Box,
     Typography,
     TextField,
+    Autocomplete,
     Select,
     MenuItem,
     Button,
     IconButton,
     CircularProgress,
-    Tooltip,
     Alert,
     Snackbar,
     Table,
@@ -20,12 +20,11 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Paper,
-    Divider,
     useTheme,
     alpha,
     Grid,
-    InputAdornment
+    InputAdornment,
+    SelectChangeEvent
 } from '@mui/material';
 
 // third-party
@@ -34,13 +33,8 @@ import {
     Add,
     Trash,
     TickCircle,
-    Shop,
     NoteAdd,
-    Global,
-    Flash,
-    Setting,
-    DocumentText,
-    ArrowRight
+    Global
 } from '@wandersonalwes/iconsax-react';
 
 // project-imports
@@ -195,25 +189,40 @@ export default function ReferenceTablePage() {
                         <Stack direction="row" spacing={2} alignItems="center" justifyContent={{ md: 'flex-end' }}>
                             <Box sx={{ width: '100%', maxWidth: 400 }}>
                                 <Typography variant="caption" fontWeight={800} color="error.main" sx={{ mb: 0.5, display: 'block' }}>FOURNISSEUR OBLIGATOIRE *</Typography>
-                                <Select
+                                <Autocomplete
                                     fullWidth
                                     size="small"
-                                    value={selectedVendor}
-                                    onChange={(e) => setSelectedVendor(e.target.value)}
-                                    displayEmpty
-                                    sx={{
-                                        borderRadius: 2,
-                                        fontWeight: 800,
-                                        bgcolor: alpha(theme.palette.grey[100], 0.3),
-                                        '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider }
-                                    }}
+                                    options={vendors}
+                                    getOptionLabel={(option) => option.displayName || ''}
+                                    value={vendors.find((v) => v.number === selectedVendor) || null}
+                                    onChange={(_, value) => setSelectedVendor(value?.number || '')}
+                                    loading={loadingVendors}
                                     disabled={loadingVendors}
-                                >
-                                    <MenuItem value=""><em>{loadingVendors ? 'Sincronisation...' : 'Sélectionner le fournisseur'}</em></MenuItem>
-                                    {vendors.map((v) => (
-                                        <MenuItem key={v.number} value={v.number}>{v.displayName}</MenuItem>
-                                    ))}
-                                </Select>
+                                    isOptionEqualToValue={(option, value) => option.number === value.number}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            placeholder={loadingVendors ? 'Sincronisation...' : 'Sélectionner le fournisseur'}
+                                            size="small"
+                                            variant="outlined"
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                sx: {
+                                                    borderRadius: 2,
+                                                    fontWeight: 800,
+                                                    bgcolor: alpha(theme.palette.grey[100], 0.3),
+                                                    '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.divider }
+                                                },
+                                                endAdornment: (
+                                                    <>
+                                                        {loadingVendors ? <CircularProgress color="inherit" size={20} /> : null}
+                                                        {params.InputProps.endAdornment}
+                                                    </>
+                                                )
+                                            }}
+                                        />
+                                    )}
+                                />
                             </Box>
                         </Stack>
                     </Grid>
@@ -270,7 +279,7 @@ export default function ReferenceTablePage() {
                                                 fullWidth
                                                 size="small"
                                                 value={row.marque}
-                                                onChange={(e) => updateRow(row.id, 'marque', e.target.value)}
+                                                onChange={(e: SelectChangeEvent) => updateRow(row.id, 'marque', e.target.value as string)}
                                                 displayEmpty
                                                 sx={{
                                                     borderRadius: 1.5,
