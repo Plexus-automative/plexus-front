@@ -1,6 +1,7 @@
 package com.plexus.backend.controller;
 
 import com.plexus.backend.service.BusinessCentralTokenService;
+import java.time.Duration;
 import com.plexus.backend.service.BLGeneratorService;
 import com.plexus.backend.service.DevisGeneratorService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/purchase-orders")
@@ -22,6 +26,7 @@ public class PurchaseOrderController {
         private final BusinessCentralTokenService tokenService;
         private final BLGeneratorService blGeneratorService;
         private final DevisGeneratorService devisGeneratorService;
+        private final Set<String> activeValidations = ConcurrentHashMap.newKeySet();
 
         @Value("${business-central.api.base-url}")
         private String baseUrl;
@@ -655,11 +660,13 @@ public class PurchaseOrderController {
 
                         String response = requestBuilder.retrieve()
                                         .bodyToMono(String.class)
+                                        .timeout(Duration.ofSeconds(20))
+                                        .defaultIfEmpty("")
                                         .block();
 
-                        log.info("Forwarded request [{} {}] - Response: {}", method, path, response);
+                        log.info("Forwarded request [{} {}] - Response size: {}", method, path, response != null ? response.length() : 0);
 
-                        return ResponseEntity.ok(response);
+                        return ResponseEntity.ok(response != null ? response : "");
                 } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
                         return ResponseEntity.status(e.getStatusCode())
                                         .body("Error communicating with Business Central: "
@@ -796,16 +803,24 @@ public class PurchaseOrderController {
         public ResponseEntity<byte[]> validateOrder(
                         @org.springframework.web.bind.annotation.RequestBody String body) {
                 String token = tokenService.getAccessToken();
+                String orderId = null;
 
                 try {
                         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                         com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(body);
 
-                        String orderId = rootNode.has("id") ? rootNode.get("id").asText() : null;
+                        orderId = rootNode.has("id") ? rootNode.get("id").asText() : null;
                         if (orderId == null || orderId.isEmpty()) {
                                 return ResponseEntity.status(400)
                                                 .header(HttpHeaders.CONTENT_TYPE, "text/plain")
                                                 .body("Order ID is required".getBytes());
+                        }
+
+                        // Guard against concurrent validations for the same Order ID
+                        if (!activeValidations.add(orderId)) {
+                                return ResponseEntity.status(409)
+                                                .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+                                                .body("Validation is already in progress for this order".getBytes());
                         }
 
                         // Step 1: GET the order to retrieve its @odata.etag
@@ -814,6 +829,7 @@ public class PurchaseOrderController {
                                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                                         .retrieve()
                                         .bodyToMono(String.class)
+                                        .timeout(Duration.ofSeconds(20))
                                         .block();
 
                         com.fasterxml.jackson.databind.JsonNode orderNode = mapper.readTree(orderResponse);
@@ -835,6 +851,7 @@ public class PurchaseOrderController {
                                         .bodyValue(patchPayload.toString())
                                         .retrieve()
                                         .bodyToMono(String.class)
+                                        .timeout(Duration.ofSeconds(20))
                                         .block();
 
                         // Step 2.1: Update Purchase Order Lines with vendor edits
@@ -843,76 +860,61 @@ public class PurchaseOrderController {
                                                         ? rootNode.get("plexuspurchaseOrderLines")
                                                         : null;
                         if (poLinesForPatch != null && poLinesForPatch.isArray()) {
-                                for (com.fasterxml.jackson.databind.JsonNode poLine : poLinesForPatch) {
-                                        String poLineId = poLine.has("id") ? poLine.get("id").asText() : null;
-                                        if (poLineId != null) {
-                                                com.fasterxml.jackson.databind.node.ObjectNode linePatch = mapper
-                                                                .createObjectNode();
-                                                if (poLine.has("QuantityAvailable"))
-                                                        linePatch.put("QuantityAvailable",
-                                                                        poLine.get("QuantityAvailable").asDouble());
-                                                if (poLine.has("quantity"))
-                                                        linePatch.put("quantity",
-                                                                        poLine.get("quantity").asDouble());
-                                                if (poLine.has("receiveQuantity"))
-                                                        linePatch.put("receiveQuantity",
-                                                                        poLine.get("receiveQuantity").asDouble());
-                                                if (poLine.has("directUnitCost"))
-                                                        linePatch.put("directUnitCost",
-                                                                        poLine.get("directUnitCost").asDouble());
-                                                boolean isDeleted = false;
-                                                if (poLine.has("Decision")) {
-                                                        String decision = poLine.get("Decision").asText();
-                                                        linePatch.put("Decision", decision);
-                                                        if ("NonDisponible".equalsIgnoreCase(decision)) {
-                                                                try {
-                                                                        webClient.delete()
-                                                                                        .uri(java.net.URI.create(baseUrl
-                                                                                                        + "/PlexuspurchaseOrderLines("
-                                                                                                        + poLineId + ")"))
-                                                                                        .header(HttpHeaders.AUTHORIZATION,
-                                                                                                        "Bearer " + token)
+                                java.util.List<com.fasterxml.jackson.databind.JsonNode> linesList = new java.util.ArrayList<>();
+                                poLinesForPatch.forEach(linesList::add);
+
+                                Flux.fromIterable(linesList)
+                                                .flatMap(poLine -> {
+                                                        String poLineId = poLine.has("id") ? poLine.get("id").asText() : null;
+                                                        if (poLineId == null)
+                                                                return reactor.core.publisher.Mono.empty();
+
+                                                        com.fasterxml.jackson.databind.node.ObjectNode linePatch = mapper.createObjectNode();
+                                                        if (poLine.has("QuantityAvailable"))
+                                                                linePatch.put("QuantityAvailable", poLine.get("QuantityAvailable").asDouble());
+                                                        if (poLine.has("quantity"))
+                                                                linePatch.put("quantity", poLine.get("quantity").asDouble());
+                                                        if (poLine.has("receiveQuantity"))
+                                                                linePatch.put("receiveQuantity", poLine.get("receiveQuantity").asDouble());
+                                                        if (poLine.has("directUnitCost"))
+                                                                linePatch.put("directUnitCost", poLine.get("directUnitCost").asDouble());
+
+                                                        if (poLine.has("Decision")) {
+                                                                String decision = poLine.get("Decision").asText();
+                                                                if ("NonDisponible".equalsIgnoreCase(decision)) {
+                                                                        return webClient.delete()
+                                                                                        .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrderLines(" + poLineId + ")"))
+                                                                                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                                                                                         .retrieve()
-                                                                                        .bodyToMono(Void.class)
-                                                                                        .block();
-                                                                        isDeleted = true;
-                                                                } catch (Exception e) {
-                                                                        System.err.println("Error deleting PO line "
-                                                                                        + poLineId + ": "
-                                                                                        + e.getMessage());
+                                                                                        .toBodilessEntity()
+                                                                                        .timeout(Duration.ofSeconds(20))
+                                                                                        .onErrorResume(e -> {
+                                                                                                System.err.println("Error deleting PO line " + poLineId + ": " + e.getMessage());
+                                                                                                return reactor.core.publisher.Mono.empty();
+                                                                                        });
                                                                 }
+                                                                linePatch.put("Decision", decision);
                                                         }
-                                                }
 
-                                                if (isDeleted)
-                                                        continue;
+                                                        if (poLine.has("OldRemplacementItemNo"))
+                                                                linePatch.put("OldRemplacementItemNo", poLine.get("OldRemplacementItemNo").asText());
 
-                                                if (poLine.has("OldRemplacementItemNo"))
-                                                        linePatch.put("OldRemplacementItemNo",
-                                                                        poLine.get("OldRemplacementItemNo").asText());
-
-                                                try {
-                                                        webClient.patch()
-                                                                        .uri(java.net.URI.create(baseUrl
-                                                                                        + "/PlexuspurchaseOrderLines("
-                                                                                        + poLineId + ")"))
-                                                                        .header(HttpHeaders.AUTHORIZATION,
-                                                                                        "Bearer " + token)
-                                                                        .header(HttpHeaders.CONTENT_TYPE,
-                                                                                        "application/json")
+                                                        return webClient.patch()
+                                                                        .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrderLines(" + poLineId + ")"))
+                                                                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                                                        .header(HttpHeaders.CONTENT_TYPE, "application/json")
                                                                         .header("If-Match", "*")
                                                                         .bodyValue(linePatch.toString())
                                                                         .retrieve()
-                                                                        .bodyToMono(String.class)
-                                                                        .block();
-                                                } catch (Exception e) {
-                                                        // Suppress errors for individual lines to allow batch to
-                                                        // continue
-                                                        System.err.println("Error patching PO line " + poLineId + ": "
-                                                                        + e.getMessage());
-                                                }
-                                        }
-                                }
+                                                                        .toBodilessEntity()
+                                                                        .timeout(Duration.ofSeconds(20))
+                                                                        .onErrorResume(e -> {
+                                                                                System.err.println("Error patching PO line " + poLineId + ": " + e.getMessage());
+                                                                                return reactor.core.publisher.Mono.empty();
+                                                                        });
+                                                })
+                                                .collectList()
+                                                .block();
                         }
 
                         // Step 2.5: Create Sales Order from Purchase Order data
@@ -961,6 +963,7 @@ public class PurchaseOrderController {
                                                         }
                                                         return response.bodyToMono(String.class);
                                                 })
+                                                .timeout(Duration.ofSeconds(20))
                                                 .block();
 
                                 com.fasterxml.jackson.databind.JsonNode createdSalesOrder = mapper
@@ -977,75 +980,67 @@ public class PurchaseOrderController {
                                                                 ? rootNode.get("plexuspurchaseOrderLines")
                                                                 : null;
                                 if (poLines != null && poLines.isArray()) {
-                                        int lineIndex = 0;
-                                        for (com.fasterxml.jackson.databind.JsonNode poLine : poLines) {
-                                                lineIndex++;
-                                                com.fasterxml.jackson.databind.node.ObjectNode salesLine = mapper
-                                                                .createObjectNode();
-                                                salesLine.put("lineType", "Item");
-                                                if (poLine.has("lineObjectNumber"))
-                                                        salesLine.put("lineObjectNumber",
-                                                                        poLine.get("lineObjectNumber").asText());
-                                                if (poLine.has("description"))
-                                                        salesLine.put("description",
-                                                                        poLine.get("description").asText());
-                                                double qty = poLine.has("quantity") ? poLine.get("quantity").asDouble()
-                                                                : 0;
-                                                salesLine.put("quantity", qty);
-                                                if (poLine.has("directUnitCost"))
-                                                        salesLine.put("unitPrice",
-                                                                        poLine.get("directUnitCost").asDouble());
+                                        java.util.List<com.fasterxml.jackson.databind.JsonNode> soLinesList = new java.util.ArrayList<>();
+                                        poLines.forEach(soLinesList::add);
 
-                                                try {
-                                                        String lineResponse = webClient.post()
-                                                                        .uri(java.net.URI.create(salesBaseUrl
-                                                                                        + "/PlexussalesOrders("
-                                                                                        + salesOrderId
-                                                                                        + ")/PlexussalesOrderLines"))
-                                                                        .header(HttpHeaders.AUTHORIZATION,
-                                                                                        "Bearer " + token)
-                                                                        .header(HttpHeaders.CONTENT_TYPE,
-                                                                                        "application/json")
-                                                                        .bodyValue(salesLine.toString())
-                                                                        .retrieve()
-                                                                        .bodyToMono(String.class)
-                                                                        .block();
+                                        final String finalSalesOrderId = salesOrderId;
+                                        final String finalSalesBaseUrl = salesBaseUrl;
 
-                                                        com.fasterxml.jackson.databind.JsonNode createdLine = mapper
-                                                                        .readTree(lineResponse);
-                                                        String sLineId = createdLine.get("id").asText();
-                                                        String sLineEtag = createdLine.has("@odata.etag")
-                                                                        ? createdLine.get("@odata.etag").asText()
-                                                                        : "*";
+                                        Flux.fromIterable(soLinesList)
+                                                        .flatMap(poLine -> {
+                                                                if (poLine.has("Decision") && "NonDisponible".equalsIgnoreCase(poLine.get("Decision").asText())) {
+                                                                        return reactor.core.publisher.Mono.empty();
+                                                                }
 
-                                                        // Set shipQuantity (Qty to Ship) from the user-edited
-                                                        // receiveQuantity
-                                                        double shipQty = poLine.has("receiveQuantity")
-                                                                        ? poLine.get("receiveQuantity").asDouble()
-                                                                        : qty;
-                                                        com.fasterxml.jackson.databind.node.ObjectNode patchShip = mapper
-                                                                        .createObjectNode();
-                                                        patchShip.put("shipQuantity", shipQty);
+                                                                com.fasterxml.jackson.databind.node.ObjectNode salesLine = mapper.createObjectNode();
+                                                                salesLine.put("lineType", "Item");
+                                                                if (poLine.has("lineObjectNumber"))
+                                                                        salesLine.put("lineObjectNumber", poLine.get("lineObjectNumber").asText());
+                                                                if (poLine.has("description"))
+                                                                        salesLine.put("description", poLine.get("description").asText());
+                                                                double qty = poLine.has("quantity") ? poLine.get("quantity").asDouble() : 0;
+                                                                salesLine.put("quantity", qty);
+                                                                if (poLine.has("directUnitCost"))
+                                                                        salesLine.put("unitPrice", poLine.get("directUnitCost").asDouble());
 
-                                                        webClient.patch()
-                                                                        .uri(java.net.URI.create(salesBaseUrl
-                                                                                        + "/PlexussalesOrders("
-                                                                                        + salesOrderId
-                                                                                        + ")/PlexussalesOrderLines("
-                                                                                        + sLineId + ")"))
-                                                                        .header(HttpHeaders.AUTHORIZATION,
-                                                                                        "Bearer " + token)
-                                                                        .header(HttpHeaders.CONTENT_TYPE,
-                                                                                        "application/json")
-                                                                        .header("If-Match", sLineEtag)
-                                                                        .bodyValue(patchShip.toString())
-                                                                        .retrieve()
-                                                                        .bodyToMono(String.class)
-                                                                        .block();
+                                                                return webClient.post()
+                                                                                .uri(java.net.URI.create(finalSalesBaseUrl + "/PlexussalesOrders(" + finalSalesOrderId + ")/PlexussalesOrderLines"))
+                                                                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                                                                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                                                                                .bodyValue(salesLine.toString())
+                                                                                .retrieve()
+                                                                                .bodyToMono(String.class)
+                                                                                .timeout(Duration.ofSeconds(20))
+                                                                                .flatMap(lineResponse -> {
+                                                                                        try {
+                                                                                                com.fasterxml.jackson.databind.JsonNode createdLine = mapper.readTree(lineResponse);
+                                                                                                String sLineId = createdLine.get("id").asText();
+                                                                                                String sLineEtag = createdLine.has("@odata.etag") ? createdLine.get("@odata.etag").asText() : "*";
 
-                                                } catch (Exception le) {
-                                                }
-                                        }
+                                                                                                double shipQty = poLine.has("receiveQuantity") ? poLine.get("receiveQuantity").asDouble() : qty;
+                                                                                                com.fasterxml.jackson.databind.node.ObjectNode patchShip = mapper.createObjectNode();
+                                                                                                patchShip.put("shipQuantity", shipQty);
+
+                                                                                                return webClient.patch()
+                                                                                                                .uri(java.net.URI.create(finalSalesBaseUrl + "/PlexussalesOrders(" + finalSalesOrderId + ")/PlexussalesOrderLines(" + sLineId + ")"))
+                                                                                                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                                                                                                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                                                                                                                .header("If-Match", sLineEtag)
+                                                                                                                .bodyValue(patchShip.toString())
+                                                                                                                .retrieve()
+                                                                                                                .toBodilessEntity()
+                                                                                                                .timeout(Duration.ofSeconds(20));
+                                                                                        } catch (Exception e) {
+                                                                                                return reactor.core.publisher.Mono.error(e);
+                                                                                        }
+                                                                                })
+                                                                                .onErrorResume(e -> {
+                                                                                        System.err.println("Error creating/patching SO line: " + e.getMessage());
+                                                                                        return reactor.core.publisher.Mono.empty();
+                                                                                });
+                                                        })
+                                                        .collectList()
+                                                        .block();
                                 }
 
                                 // Step 2.5c: Post the Sales Order (API 56105 -> Microsoft.NAV.ShipOnly)
@@ -1071,6 +1066,7 @@ public class PurchaseOrderController {
                                                                 }
                                                                 return response.bodyToMono(String.class);
                                                         })
+                                                        .timeout(Duration.ofSeconds(20))
                                                         .block();
                                 } catch (Exception pe) {
                                 }
@@ -1113,6 +1109,10 @@ public class PurchaseOrderController {
                         return ResponseEntity.status(500)
                                         .header(HttpHeaders.CONTENT_TYPE, "text/plain")
                                         .body(("Error: " + e.getMessage()).getBytes());
+                } finally {
+                        if (orderId != null) {
+                                activeValidations.remove(orderId);
+                        }
                 }
         }
 
