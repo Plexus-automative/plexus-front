@@ -251,34 +251,40 @@ export default function RecuesEncours() {
         if (!editedOrderLocal) return;
         setValidating(true);
         try {
-            const selectedLines = editedOrderLocal.plexuspurchaseOrderLines?.filter(line => line.selected !== false) || [];
-            if (selectedLines.length === 0) {
-                setError('Veuillez sélectionner au moins une ligne à valider.');
-                setValidating(false);
-                return;
-            }
+            const allLines = editedOrderLocal.plexuspurchaseOrderLines || [];
+            
+            // Prepare lines for submission: selected lines get updated, unselected ones are marked for deletion
+            const processedLines = allLines.map(line => {
+                if (line.selected === false) {
+                    return {
+                        ...line,
+                        Decision: 'NonDisponible' // Backend will delete lines with this Decision
+                    };
+                }
+                const qty = Number(line.invoiceQuantity ?? line.quantity ?? 0);
+                return {
+                    ...line,
+                    quantity: qty,
+                    receiveQuantity: qty,
+                    QuantityAvailable: qty,
+                    Decision: line.Decision || 'Disponible'
+                };
+            });
 
-            // For each selected line, if invoiceQuantity (Quantité à livrer) differs from quantity,
-            // copy it into receiveQuantity and QuantityAvailable so the backend uses the correct value.
             const orderToSubmit = {
                 ...editedOrderLocal,
                 ShippingAdvice: 'Confirmé',
-                plexuspurchaseOrderLines: selectedLines.map(line => {
-                    const qty = Number(line.invoiceQuantity ?? line.quantity ?? 0);
-                    return {
-                        ...line,
-                        quantity: qty,
-                        receiveQuantity: qty,
-                        QuantityAvailable: qty
-                    };
-                })
+                plexuspurchaseOrderLines: processedLines
             };
 
             // Send full order data including id for the PATCH
             const response = await axiosServices.post(
                 `/api/purchase-orders/validate-order`,
                 orderToSubmit,
-                { responseType: 'blob' }
+                { 
+                    responseType: 'blob',
+                    timeout: 120000 // 2 minutes to prevent automatic client-side retries
+                }
             );
 
             const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -296,7 +302,14 @@ export default function RecuesEncours() {
             setTotalCount(prev => prev - 1);
         } catch (err: any) {
             console.error('Error validating order:', err);
-            setError('Erreur lors de la validation: ' + (err.message || 'Erreur inconnue'));
+            let errorMessage = 'Erreur inconnue';
+            if (err.response?.data instanceof Blob) {
+                const text = await err.response.data.text();
+                errorMessage = text || err.message;
+            } else {
+                errorMessage = err.response?.data || err.message;
+            }
+            setError('Erreur lors de la validation: ' + errorMessage);
         } finally {
             setValidating(false);
         }
