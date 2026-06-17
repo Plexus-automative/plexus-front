@@ -225,10 +225,10 @@ export default function NavCollapse({
   const popperId = miniMenuOpened ? `collapse-pop-${menu.id}` : undefined;
   const FlexBox = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' };
   const inSidebarDropdownMenu = isSidebarDropdownMenu || menu.isDropdown;
-  const selectedTextColor = isSelected || anchorEl ? 'primary.main' : null;
-  const dropdownColor = '#48617d';
-  const lightTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : 'text.primary');
-  const darkTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : 'text.secondary');
+  const selectedTextColor = isSelected || anchorEl ? '#3B82F6' : null;
+  const dropdownColor = '#94A3B8';
+  const lightTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : '#F8FAFC');
+  const darkTextColor = selectedTextColor || (inSidebarDropdownMenu ? dropdownColor : '#94A3B8');
 
   const arrowStyle = { size: 12, style: { marginLeft: 1 } };
 
@@ -249,7 +249,7 @@ export default function NavCollapse({
                 mx: 1.25,
                 my: 0.5,
                 borderRadius: 1,
-                '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
               }),
               ...(!drawerOpen && {
                 px: 2.75,
@@ -281,10 +281,10 @@ export default function NavCollapse({
                     height: 46,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) },
+                    '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', ...theme.applyStyles('dark', { bgcolor: 'divider' }) },
                     ...((isSelected || anchorEl) && {
-                      bgcolor: 'primary.lighter',
-                      '&:hover': { bgcolor: 'primary.lighter' },
+                      bgcolor: 'rgba(255, 255, 255, 0.08)',
+                      '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' },
                       ...theme.applyStyles('dark', { bgcolor: 'divider', '&:hover': { bgcolor: 'divider' } })
                     })
                   })

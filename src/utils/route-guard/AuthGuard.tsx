@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // next
 import { useRouter } from 'next/navigation';
@@ -17,14 +17,30 @@ import { GuardProps } from 'types/auth';
 export default function AuthGuard({ children }: GuardProps) {
   const { status } = useSession();
   const router = useRouter();
+  // Track whether the session has finished its initial load (loading → authenticated/unauthenticated)
+  const hasInitialized = useRef(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
+    // Only act once the session has moved past the initial 'loading' state
+    if (status === 'loading') return;
+
+    // Mark that we have completed the first session check
+    hasInitialized.current = true;
+
+    if (status === 'authenticated') {
+      setIsReady(true);
+    } else if (status === 'unauthenticated') {
+      // Small delay to prevent redirect loops on production if session flickers during slow load
+      const timeout = setTimeout(() => {
+        router.push('/login');
+      }, 500);
+      return () => clearTimeout(timeout);
     }
   }, [status, router]);
 
-  if (status === 'loading') return <Loader />;
+  // Show loader while session is loading OR while we haven't confirmed auth yet
+  if (status === 'loading' || !isReady) return <Loader />;
 
   return <>{children}</>;
 }

@@ -43,9 +43,7 @@ export default function FullScreen() {
           size="large"
           sx={(theme) => ({
             p: 1,
-            color: 'secondary.main',
-            bgcolor: open ? 'secondary.200' : 'secondary.100',
-            ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
+            color: '#F8FAFC', bgcolor: open ? 'rgba(255, 255, 255, 0.08)' : 'transparent', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' }
           })}
         >
           <Maximize1 variant="Bulk" {...(open && { style: { transform: 'rotate(180deg)' } })} />

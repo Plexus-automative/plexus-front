@@ -17,7 +17,10 @@ const normalizeBaseURL = (url: string | undefined) => {
 
 const cleanBaseURL = normalizeBaseURL(baseURL);
 
-const axiosServices = axios.create({ baseURL: cleanBaseURL });
+const axiosServices = axios.create({
+  baseURL: cleanBaseURL,
+  timeout: 90000 // 90s default timeout for all requests
+});
 
 // ==============================|| AXIOS - FOR MOCK SERVICES ||============================== //
 
@@ -42,11 +45,7 @@ axiosServices.interceptors.request.use(
       }
     }
 
-    console.log("====== FRONTEND AXIOS INTERCEPTOR LOG ======");
-    console.log("User session data:", session?.user);
-    console.log("Headers being sent:", config.headers);
-    console.log("URL being requested:", config.url);
-    console.log("============================================");
+
 
     return config;
   },
@@ -55,14 +54,44 @@ axiosServices.interceptors.request.use(
   }
 );
 
+// Detect BC timeout errors (from reactive WebClient)
+const isBCTimeoutError = (error: any): boolean => {
+  const data = error?.response?.data;
+  const dataStr = typeof data === 'string' ? data : (data && data.toString ? data.toString() : '');
+  const msg = error?.message || '';
+  return (
+    /Timeout on blocking read/.test(dataStr) ||
+    /NANOSECONDS/.test(dataStr) ||
+    /timeout/i.test(msg) ||
+    error?.code === 'ECONNABORTED'
+  );
+};
+
 if (typeof window !== 'undefined') {
   axiosServices.interceptors.response.use(
     (response) => response,
     async (error) => {
-      if (error.response.status === 401 && !window.location.href.includes('/login')) {
+      const config = error.config as AxiosRequestConfig & { __retryCount?: number };
+
+      if (error.response?.status === 401 && !window.location.href.includes('/login')) {
         await signOut();
         window.location.pathname = '/login';
+        return Promise.reject((error.response && error.response.data) || 'Wrong Services');
       }
+
+      // Retry GET requests on BC timeouts (up to 2 retries with backoff)
+      const isGet = (config?.method || 'get').toLowerCase() === 'get';
+      const isRetryable = isGet && isBCTimeoutError(error);
+      if (config && isRetryable) {
+        config.__retryCount = config.__retryCount ?? 0;
+        if (config.__retryCount < 2) {
+          config.__retryCount += 1;
+          const delay = 1000 * config.__retryCount; // 1s, 2s
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return axiosServices.request(config);
+        }
+      }
+
       return Promise.reject((error.response && error.response.data) || 'Wrong Services');
     }
   );

@@ -40,7 +40,7 @@ import { useCart } from 'contexts/CartContext';
 export default function PanierPage() {
     const theme = useTheme();
     const { data: session } = useSession();
-    const { cartItems, totalPrice, removeFromCart, updateQuantity, toggleAdaptable, clearCart } = useCart();
+    const { cartItems, totalPrice, removeFromCart, updateQuantity, toggleAdaptable, updateChassisNo, clearCart, registrationNumber, setRegistrationNumber } = useCart();
 
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
@@ -55,14 +55,53 @@ export default function PanierPage() {
         RegistrationNumber: '',
         VIN: '',
         InsuranceCode: 0,
-        Insurancefile: true
+        Insurancefile: true,
+        InsuredName: ''
     });
+
+    // Sync global registrationNumber with dossierData
+    React.useEffect(() => {
+        setDossierData(prev => ({ ...prev, RegistrationNumber: registrationNumber }));
+    }, [registrationNumber]);
+
+    // Chassis modal states
+    const [isChassisModalOpen, setIsChassisModalOpen] = useState(false);
+    const [activeChassisItem, setActiveChassisItem] = useState<any>(null);
+    const [tempChassisNo, setTempChassisNo] = useState('');
+
+    const handleToggleAdaptable = (item: any, checked: boolean) => {
+        toggleAdaptable(item.id, checked);
+    };
+
+    const [pendingType, setPendingType] = useState<'demande' | 'devis' | null>(null);
+
+    const handleConfirmChassis = () => {
+        // Apply tempChassisNo to all adaptable items
+        cartItems.forEach(item => {
+            if (item.isAdaptable) {
+                updateChassisNo(item.id, tempChassisNo);
+            }
+        });
+        setIsChassisModalOpen(false);
+        if (pendingType) {
+            handleValidation(pendingType, true);
+            setPendingType(null);
+        }
+        setTempChassisNo('');
+    };
+
+    const isInsuranceDossierValid =
+        dossierData.InsuranceName &&
+        (dossierData.InsuranceName === 'MAWDY' || dossierData.SinitreNumber.trim() !== '') &&
+        dossierData.RegistrationNumber.trim() !== '' &&
+        (dossierData.InsuranceName !== 'MAWDY' || dossierData.InsuredName.trim() !== '') &&
+        dossierData.VIN.length === 17;
 
     // Action modals state
     const [infoItem, setInfoItem] = useState<any>(null);
     const [editItem, setEditItem] = useState<any>(null);
     const [deleteItem, setDeleteItem] = useState<any>(null);
-    const [editQuantity, setEditQuantity] = useState<number>(0);
+    const [editQuantity, setEditQuantity] = useState<number | string>(0);
 
     const handleDossierCheck = (e: React.ChangeEvent<HTMLInputElement>) => {
         const checked = e.target.checked;
@@ -70,10 +109,25 @@ export default function PanierPage() {
             setIsModalOpen(true);
         } else {
             setIsDossierChecked(false);
+            setRegistrationNumber('');
+            setDossierData({
+                InsuranceName: 'STAR ASSURANCE',
+                SinitreNumber: '',
+                RegistrationNumber: '',
+                VIN: '',
+                InsuranceCode: 0,
+                Insurancefile: true,
+                InsuredName: ''
+            });
         }
     };
 
     const handleConfirmDossier = () => {
+        if (dossierData.VIN.length !== 17) {
+            alert("Le numéro VIN doit comporter exactement 17 caractères.");
+            return;
+        }
+        setRegistrationNumber(dossierData.RegistrationNumber);
         setIsDossierChecked(true);
         setIsModalOpen(false);
     };
@@ -81,6 +135,16 @@ export default function PanierPage() {
     const handleCancelDossier = () => {
         setIsDossierChecked(false);
         setIsModalOpen(false);
+        setRegistrationNumber('');
+        setDossierData({
+            InsuranceName: 'STAR ASSURANCE',
+            SinitreNumber: '',
+            RegistrationNumber: '',
+            VIN: '',
+            InsuranceCode: 0,
+            Insurancefile: true,
+            InsuredName: ''
+        });
     };
 
     const handleOpenEdit = (item: any) => {
@@ -90,7 +154,8 @@ export default function PanierPage() {
 
     const handleConfirmEdit = () => {
         if (editItem) {
-            updateQuantity(editItem.id, editQuantity);
+            const finalQuantity = typeof editQuantity === 'string' ? parseInt(editQuantity) || 1 : editQuantity;
+            updateQuantity(editItem.id, finalQuantity);
             setEditItem(null);
         }
     };
@@ -102,8 +167,18 @@ export default function PanierPage() {
         }
     };
 
-    const handleValidation = async (type: 'demande' | 'devis') => {
+    const handleValidation = async (type: 'demande' | 'devis', chassisConfirmed = false) => {
         if (cartItems.length === 0) return;
+
+        // If Demander and has adaptable items without chassis confirmed yet
+        if (type === 'demande' && !chassisConfirmed) {
+            const hasAdaptable = cartItems.some(item => item.isAdaptable);
+            if (hasAdaptable) {
+                setPendingType(type);
+                setIsChassisModalOpen(true);
+                return;
+            }
+        }
 
         setLoading(true);
         setSuccess('');
@@ -124,7 +199,6 @@ export default function PanierPage() {
             const allLinesForDevis: any[] = [];
 
             for (const [vendorNumber, items] of Object.entries(itemsByVendor)) {
-                console.log("vendorNumber", session?.user);
                 // Incorporate the Dossier Assurance data if available and checked
                 const payload = {
                     vendorNumber: vendorNumber,
@@ -140,8 +214,10 @@ export default function PanierPage() {
                         directUnitCost: item.price,
                         quantity: item.quantity,
                         description: item.description,
-                        UncertainReference: item.isAdaptable || false
+                        UncertainReference: item.isAdaptable || false,
+                        ChassisNo: item.isAdaptable ? (item.chassisNo || tempChassisNo || '') : ''
                     })),
+                    RegistrationNumber: registrationNumber,
                     ...(isDossierChecked ? dossierData : {})
                 };
 
@@ -183,7 +259,8 @@ export default function PanierPage() {
 
             // Reset Dossier assurance
             setIsDossierChecked(false);
-            setDossierData({ InsuranceName: 'STAR ASSURANCE', SinitreNumber: '', RegistrationNumber: '', VIN: '', InsuranceCode: 0, Insurancefile: true });
+            setRegistrationNumber('');
+            setDossierData({ InsuranceName: 'STAR ASSURANCE', SinitreNumber: '', RegistrationNumber: '', VIN: '', InsuranceCode: 0, Insurancefile: true, InsuredName: '' });
         } catch (err: any) {
             setError('Erreur lors de la validation du panier: ' + (err.message || 'Erreur inconnue'));
             console.error(err);
@@ -224,17 +301,32 @@ export default function PanierPage() {
                             </TextField>
                             <Typography variant="body2" color="textSecondary">lignes</Typography>
                         </Stack>
-                        <TextField
-                            placeholder="Chercher"
-                            size="small"
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <SearchNormal1 size={14} />
-                                    </InputAdornment>
-                                )
-                            }}
-                        />
+                        <Stack direction="row" spacing={2} alignItems="center">
+                            <TextField
+                                placeholder="N° Immatriculation ..."
+                                size="small"
+                                value={registrationNumber}
+                                onChange={(e) => setRegistrationNumber(e.target.value.toUpperCase())}
+                                sx={{ 
+                                    width: 180,
+                                    '& .MuiOutlinedInput-root': {
+                                        borderRadius: 1.5,
+                                        bgcolor: theme.palette.background.paper
+                                    }
+                                }}
+                            />
+                            <TextField
+                                placeholder="Chercher"
+                                size="small"
+                                InputProps={{
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <SearchNormal1 size={14} />
+                                        </InputAdornment>
+                                    )
+                                }}
+                            />
+                        </Stack>
                     </Box>
 
                     {/* DATA TABLE */}
@@ -273,7 +365,7 @@ export default function PanierPage() {
                                                 <Checkbox
                                                     color="primary"
                                                     checked={item.isAdaptable || false}
-                                                    onChange={(e) => toggleAdaptable(item.id, e.target.checked)}
+                                                    onChange={(e) => handleToggleAdaptable(item, e.target.checked)}
                                                 />
                                             </TableCell>
                                             <TableCell>
@@ -305,20 +397,22 @@ export default function PanierPage() {
                                         Lignes 1 à {cartItems.length} sur {cartItems.length}
                                     </Typography>
 
-                                    <FormControlLabel
-                                        control={
-                                            <Checkbox
-                                                checked={isDossierChecked}
-                                                onChange={handleDossierCheck}
-                                                sx={{ '& .MuiSvgIcon-root': { fontSize: 24, borderRadius: 0 }, color: 'error.main', '&.Mui-checked': { color: 'error.main' } }}
-                                            />
-                                        }
-                                        label={
-                                            <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
-                                                Dossier assurance ?
-                                            </Typography>
-                                        }
-                                    />
+                                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ width: '100%' }}>
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    checked={isDossierChecked}
+                                                    onChange={handleDossierCheck}
+                                                    sx={{ '& .MuiSvgIcon-root': { fontSize: 24, borderRadius: 0 }, color: 'error.main', '&.Mui-checked': { color: 'error.main' } }}
+                                                />
+                                            }
+                                            label={
+                                                <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
+                                                    Dossier assurance ?
+                                                </Typography>
+                                            }
+                                        />
+                                    </Stack>
 
                                     <Stack direction="row" spacing={1}>
                                         <Button
@@ -357,6 +451,141 @@ export default function PanierPage() {
                 </MainCard>
             </Box>
 
+            {/* CHASSIS NUMBER MODAL - ENHANCED DESIGN */}
+            <Dialog
+                open={isChassisModalOpen}
+                onClose={() => {
+                    setIsChassisModalOpen(false);
+                    setTempChassisNo('');
+                }}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        boxShadow: theme.customShadows.z1,
+                        overflow: 'hidden'
+                    }
+                }}
+            >
+                <DialogTitle sx={{
+                    bgcolor: 'error.main',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    py: 3,
+                    textAlign: 'center',
+                    position: 'relative'
+                }}>
+                    Veuillez saisir le numéro de Chassis :
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            bottom: -20,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            bgcolor: 'white',
+                            borderRadius: '50%',
+                            p: 0.5,
+                            boxShadow: theme.customShadows.z1
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                bgcolor: 'error.lighter',
+                                color: 'error.main',
+                                borderRadius: '50%',
+                                width: 40,
+                                height: 40,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            <DocumentText size={24} variant="Bold" />
+                        </Box>
+                    </Box>
+                </DialogTitle>
+                <DialogContent sx={{ p: 5, pt: 0 }}>
+                    <Stack spacing={3} sx={{ mt: 6 }}>
+                        <Typography variant="body1" color="textSecondary" textAlign="center" sx={{ px: 2, mt: 2 }}>
+                            Certaines références de votre commande sont marquées comme "En doute".
+                            Veuillez renseigner le numéro de chassis du véhicule concerné pour validation.
+                        </Typography>
+                        <TextField
+                            fullWidth
+                            placeholder="Entrez le numéro de chassis (17 caractères)..."
+                            value={tempChassisNo}
+                            onChange={(e) => setTempChassisNo(e.target.value.toUpperCase())}
+                            variant="outlined"
+                            autoFocus
+                            inputProps={{ maxLength: 17 }}
+                            error={tempChassisNo.length > 0 && tempChassisNo.length !== 17}
+                            helperText={tempChassisNo.length > 0 && tempChassisNo.length !== 17 ? "Le numéro de chassis doit comporter exactement 17 caractères" : ""}
+                            InputProps={{
+                                sx: { borderRadius: 2, height: 56, fontSize: '1.1rem', letterSpacing: 1 },
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <InfoCircle size={20} color={theme.palette.error.main} />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ p: 4, pt: 0, justifyContent: 'center', gap: 3 }}>
+                    <Button
+                        variant="text"
+                        color="secondary"
+                        onClick={() => {
+                            setIsChassisModalOpen(false);
+                            setTempChassisNo('');
+                        }}
+                        sx={{ fontWeight: 'bold' }}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="contained"
+                        disabled={tempChassisNo.length !== 17}
+                        sx={{
+                            borderRadius: 10,
+                            px: 5,
+                            py: 1.5,
+                            bgcolor: 'success.main',
+                            boxShadow: '0 4px 14px 0 rgba(0,183,110,0.39)',
+                            '&:hover': { bgcolor: 'success.dark', boxShadow: '0 6px 20px rgba(0,183,110,0.23)' },
+                            '&.Mui-disabled': {
+                                bgcolor: 'grey.200',
+                                color: 'text.disabled',
+                                opacity: 0.8
+                            }
+                        }}
+                        onClick={handleConfirmChassis}
+                    >
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                            <Box
+                                component="span"
+                                sx={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: 24,
+                                    height: 24,
+                                    bgcolor: tempChassisNo.length === 17 ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)',
+                                    borderRadius: '50%',
+                                    color: tempChassisNo.length === 17 ? 'white' : 'text.disabled'
+                                }}
+                            >
+                                <ArrowRight2 size={16} />
+                            </Box>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: tempChassisNo.length === 17 ? 'white' : 'text.disabled' }}>
+                                Confirmer Votre Demande
+                            </Typography>
+                        </Stack>
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             {/* DOSSIER ASSURANCE MODAL */}
             <Dialog open={isModalOpen} onClose={handleCancelDossier} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold', borderBottom: `1px solid ${theme.palette.divider}` }}>
@@ -374,22 +603,31 @@ export default function PanierPage() {
                                         size="small"
                                         value={dossierData.InsuranceName}
                                         onChange={(e) => setDossierData({ ...dossierData, InsuranceName: e.target.value })}
+                                        error={!dossierData.InsuranceName}
+                                        helperText={!dossierData.InsuranceName ? "Veuillez sélectionner une assurance" : ""}
                                     >
                                         <MenuItem value="STAR ASSURANCE">STAR ASSURANCE</MenuItem>
+                                        <MenuItem value="MAE ASSURANCE">MAE ASSURANCE</MenuItem>
+                                        <MenuItem value="MAWDY">MAWDY</MenuItem>
                                     </TextField>
                                 </Stack>
                             </Box>
-                            <Box sx={{ width: '100%' }}>
-                                <Stack direction="row" alignItems="center" spacing={2}>
-                                    <Typography variant="body1" sx={{ width: 150, color: 'text.secondary' }}>N° Sinistre</Typography>
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        value={dossierData.SinitreNumber}
-                                        onChange={(e) => setDossierData({ ...dossierData, SinitreNumber: e.target.value })}
-                                    />
-                                </Stack>
-                            </Box>
+
+                            {dossierData.InsuranceName !== 'MAWDY' && (
+                                <Box sx={{ width: '100%' }}>
+                                    <Stack direction="row" alignItems="center" spacing={2}>
+                                        <Typography variant="body1" sx={{ width: 150, color: 'text.secondary' }}>N° Sinistre</Typography>
+                                        <TextField
+                                            fullWidth
+                                            size="small"
+                                            value={dossierData.SinitreNumber}
+                                            onChange={(e) => setDossierData({ ...dossierData, SinitreNumber: e.target.value })}
+                                            error={!dossierData.SinitreNumber.trim()}
+                                            helperText={!dossierData.SinitreNumber.trim() ? "Le numéro de sinistre est obligatoire" : ""}
+                                        />
+                                    </Stack>
+                                </Box>
+                            )}
                             <Box sx={{ width: '100%' }}>
                                 <Stack direction="row" alignItems="center" spacing={2}>
                                     <Typography variant="body1" sx={{ width: 150, color: 'text.secondary' }}>N° Immatriculation</Typography>
@@ -398,6 +636,8 @@ export default function PanierPage() {
                                         size="small"
                                         value={dossierData.RegistrationNumber}
                                         onChange={(e) => setDossierData({ ...dossierData, RegistrationNumber: e.target.value })}
+                                        error={!dossierData.RegistrationNumber.trim()}
+                                        helperText={!dossierData.RegistrationNumber.trim() ? "Le numéro d'immatriculation est obligatoire" : ""}
                                     />
                                 </Stack>
                             </Box>
@@ -408,15 +648,47 @@ export default function PanierPage() {
                                         fullWidth
                                         size="small"
                                         value={dossierData.VIN}
-                                        onChange={(e) => setDossierData({ ...dossierData, VIN: e.target.value })}
+                                        onChange={(e) => setDossierData({ ...dossierData, VIN: e.target.value.toUpperCase() })}
+                                        inputProps={{ maxLength: 17 }}
+                                        error={dossierData.VIN.length !== 17}
+                                        helperText={
+                                            dossierData.VIN.length === 0
+                                                ? "Le numéro VIN est obligatoire"
+                                                : dossierData.VIN.length !== 17
+                                                    ? "Le VIN doit comporter exactement 17 caractères"
+                                                    : ""
+                                        }
                                     />
                                 </Stack>
                             </Box>
+                            {dossierData.InsuranceName === 'MAWDY' && (
+                                <Box sx={{ width: '100%' }}>
+                                    <Stack direction="row" alignItems="center" spacing={2}>
+                                        <Typography variant="body1" sx={{ width: 150, color: 'text.secondary' }}>Assurée :</Typography>
+                                        <TextField
+                                            fullWidth
+                                            size="small"
+                                            placeholder="Assurée : ..."
+                                            value={dossierData.InsuredName}
+                                            onChange={(e) => setDossierData({ ...dossierData, InsuredName: e.target.value })}
+                                            error={!dossierData.InsuredName.trim()}
+                                            helperText={!dossierData.InsuredName.trim() ? "Le champ Assurée est obligatoire pour MAWDY" : ""}
+                                        />
+                                    </Stack>
+                                </Box>
+                            )}
                         </Stack>
                     </Box>
                 </DialogContent>
                 <DialogActions sx={{ p: 3, pt: 0, justifyContent: 'center', gap: 2 }}>
-                    <Button variant="contained" color="success" onClick={handleConfirmDossier} startIcon={<ArrowRight2 />} sx={{ borderRadius: 1, px: 4 }}>
+                    <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleConfirmDossier}
+                        disabled={!isInsuranceDossierValid}
+                        startIcon={<ArrowRight2 />}
+                        sx={{ borderRadius: 1, px: 4 }}
+                    >
                         Confirmer votre demande
                     </Button>
                     <Button variant="outlined" color="error" onClick={handleCancelDossier} startIcon={<CloseCircle />} sx={{ borderRadius: 1, px: 4 }}>
@@ -525,7 +797,15 @@ export default function PanierPage() {
                                         type="number"
                                         size="small"
                                         value={editQuantity}
-                                        onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === '') {
+                                                setEditQuantity('');
+                                            } else {
+                                                const parsed = parseInt(val);
+                                                setEditQuantity(isNaN(parsed) ? '' : parsed);
+                                            }
+                                        }}
                                     />
                                 </Stack>
                             </Box>

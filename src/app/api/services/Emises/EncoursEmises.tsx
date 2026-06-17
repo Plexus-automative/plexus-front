@@ -8,7 +8,9 @@ export const fetchEncours = async (
     pageSize: number,
     sortField?: string,
     sortDesc?: boolean,
-    filter?: string
+    filter?: string,
+    registration?: string,
+    subCategory?: string
 ): Promise<{ data: Encours[]; totalCount: number }> => {
 
     const skip = pageIndex * pageSize;
@@ -19,6 +21,12 @@ export const fetchEncours = async (
     }
     if (filter && filter.trim()) {
         url += `&search=${encodeURIComponent(filter.trim())}`;
+    }
+    if (registration && registration.trim()) {
+        url += `&registration=${encodeURIComponent(registration.trim())}`;
+    }
+    if (subCategory) {
+        url += `&subCategory=${encodeURIComponent(subCategory)}`;
     }
 
     const res = await emisesApi.get<{

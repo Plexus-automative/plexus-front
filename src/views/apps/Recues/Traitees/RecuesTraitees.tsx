@@ -64,6 +64,7 @@ export default function RecuesTraitees() {
     { id: "number", desc: true },
   ]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [registrationFilter, setRegistrationFilter] = useState("");
   const [rowSelection, setRowSelection] = useState({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [editOrder, setEditOrder] = useState<Traitee | null>(null);
@@ -84,7 +85,7 @@ export default function RecuesTraitees() {
   // Reset to page 0 when filter changes
   useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [globalFilter]);
+  }, [globalFilter, registrationFilter]);
 
   // Fetch data when pageIndex or pageSize changes
   useEffect(() => {
@@ -93,7 +94,7 @@ export default function RecuesTraitees() {
       setError(null);
       try {
         // Fetch with proper pagination
-        const result = await fetchTraitees(pageIndex, pageSize, globalFilter);
+        const result = await fetchTraitees(pageIndex, pageSize, globalFilter, registrationFilter);
         setData(
           result.data.map((o: Traitee, index: number) => ({
             id: o.id || String(pageIndex * pageSize + index + 1),
@@ -110,6 +111,7 @@ export default function RecuesTraitees() {
             lastModifiedDateTime:
               o.lastModifiedDateTime || new Date().toISOString(),
             plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [],
+            RegistrationNumber: o.RegistrationNumber || "",
           })),
         );
         setTotalCount(result.totalCount || 0);
@@ -122,7 +124,7 @@ export default function RecuesTraitees() {
     };
 
     loadData();
-  }, [pageIndex, pageSize, sorting, globalFilter]);
+  }, [pageIndex, pageSize, sorting, globalFilter, registrationFilter]);
 
   // Fetch customers lookup data
   useEffect(() => {
@@ -208,7 +210,11 @@ export default function RecuesTraitees() {
           );
         },
       },
-
+      {
+        header: "Immat",
+        accessorKey: "RegistrationNumber",
+        enableSorting: true,
+      },
       {
         header: "Statut",
         accessorKey: "ShippingAdvice",
@@ -236,12 +242,9 @@ export default function RecuesTraitees() {
                 color="primary"
                 onClick={(e: MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
-                  setExpandedRows((p) => {
-                    if (p[row.id] === "view") {
-                      return { ...p, [row.id]: null };
-                    }
-                    return { [row.id]: "view" };
-                  });
+                  setExpandedRows((p) =>
+                    p[row.id] === "view" ? {} : { [row.id]: "view" },
+                  );
                 }}
               >
                 <InfoCircle style={{ width: 36, height: 36 }} />
@@ -304,14 +307,21 @@ export default function RecuesTraitees() {
     <MainCard content={false}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
-        justifyContent="space-between"
+        justifyContent="flex-start"
+        alignItems="center"
         gap={2}
         p={3}
       >
         <DebouncedInput
           value={globalFilter}
           onFilterChange={(v) => setGlobalFilter(String(v))}
-          placeholder={`Chercher ${totalCount} commandes...`}
+          placeholder="Chercher commandes..."
+        />
+        <Box sx={{ flexGrow: 1 }} />
+        <DebouncedInput
+          value={registrationFilter}
+          onFilterChange={(v) => setRegistrationFilter(String(v))}
+          placeholder="Chercher par immatriculation..."
         />
       </Stack>
 
@@ -473,7 +483,33 @@ export default function RecuesTraitees() {
                                               (line: any, idx: number) => (
                                                 <TableRow key={line.id || idx}>
                                                   <TableCell>
-                                                    {line.lineObjectNumber}
+                                                    <Stack>
+                                                      {line.OldRemplacementItemNo && (
+                                                        <>
+                                                          <Typography
+                                                            variant="caption"
+                                                            sx={{
+                                                              color: "error.main",
+                                                              textDecoration: "line-through",
+                                                              fontWeight: "bold",
+                                                            }}
+                                                          >
+                                                            {line.lineObjectNumber}
+                                                          </Typography>
+                                                          <Typography
+                                                            variant="body2"
+                                                            sx={{ color: "text.secondary" }}
+                                                          >
+                                                            {line.OldRemplacementItemNo}
+                                                          </Typography>
+                                                        </>
+                                                      )}
+                                                      {!line.OldRemplacementItemNo && (
+                                                        <Typography variant="body2">
+                                                          {line.lineObjectNumber}
+                                                        </Typography>
+                                                      )}
+                                                    </Stack>
                                                   </TableCell>
                                                   <TableCell>
                                                     {line.description}
@@ -482,12 +518,18 @@ export default function RecuesTraitees() {
                                                     {line.quantity}
                                                   </TableCell>
                                                   <TableCell>
-                                                    {line.receivedQuantity ||
-                                                      "-"}
+                                                    {line.receivedQuantity && line.receivedQuantity > 0
+                                                      ? line.receivedQuantity
+                                                      : line.invoiceQuantity && line.invoiceQuantity > 0
+                                                        ? line.invoiceQuantity
+                                                        : 0}
                                                   </TableCell>
                                                   <TableCell>
-                                                    {line.receivedQuantity ||
-                                                      "-"}
+                                                    {line.receivedQuantity && line.receivedQuantity > 0
+                                                      ? line.receivedQuantity
+                                                      : line.invoiceQuantity && line.invoiceQuantity > 0
+                                                        ? line.invoiceQuantity
+                                                        : 0}
                                                   </TableCell>
                                                   <TableCell>
                                                     {line.Decision || "-"}

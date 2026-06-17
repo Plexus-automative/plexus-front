@@ -28,9 +28,19 @@ public class WebClientConfig {
 
                 HttpClient httpClient = HttpClient.create(provider)
                                 .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)
-                                .doOnConnected(conn -> conn
-                                                .addHandlerLast(new io.netty.handler.timeout.ReadTimeoutHandler(120))
-                                                .addHandlerLast(new io.netty.handler.timeout.WriteTimeoutHandler(120)))
+                                .secure()
+                                .doOnConnected(conn -> {
+                                        conn.addHandlerLast(new io.netty.handler.timeout.ReadTimeoutHandler(120))
+                                                        .addHandlerLast(new io.netty.handler.timeout.WriteTimeoutHandler(
+                                                                        120));
+
+                                        // Increase SSL handshake timeout to 30 seconds
+                                        io.netty.handler.ssl.SslHandler sslHandler = (io.netty.handler.ssl.SslHandler) conn
+                                                        .channel().pipeline().get("ssl");
+                                        if (sslHandler != null) {
+                                                sslHandler.setHandshakeTimeoutMillis(30000);
+                                        }
+                                })
                                 .responseTimeout(Duration.ofMinutes(2)); // Increased to 2 minutes for heavy BC tasks
 
                 return WebClient.builder()

@@ -7,7 +7,8 @@ export const fetchNonTraitees = async (
   pageSize: number,
   sortField?: string,
   sortDesc?: boolean,
-  filter?: string
+  filter?: string,
+  registration?: string
 ): Promise<{ data: NonTraitee[]; totalCount: number }> => {
 
   const skip = pageIndex * pageSize;
@@ -18,6 +19,9 @@ export const fetchNonTraitees = async (
   }
   if (filter && filter.trim()) {
     url += `&search=${encodeURIComponent(filter.trim())}`;
+  }
+  if (registration && registration.trim()) {
+    url += `&registration=${encodeURIComponent(registration.trim())}`;
   }
 
   const res = await recuesApi.get<{

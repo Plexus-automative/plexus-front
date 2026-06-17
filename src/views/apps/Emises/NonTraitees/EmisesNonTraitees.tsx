@@ -23,6 +23,7 @@ import {
   CircularProgress,
   Alert,
   TextField,
+  Typography,
 } from "@mui/material";
 
 import {
@@ -68,6 +69,7 @@ export default function EmisesNonTraitees() {
     { id: "number", desc: true },
   ]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [registrationFilter, setRegistrationFilter] = useState("");
   const [rowSelection, setRowSelection] = useState({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [editOrder, setEditOrder] = useState<NonTraitee | null>(null);
@@ -88,7 +90,7 @@ export default function EmisesNonTraitees() {
   // Reset to page 0 when filter changes
   useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [globalFilter]);
+  }, [globalFilter, registrationFilter]);
 
   // Fetch data when pageIndex or pageSize changes
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function EmisesNonTraitees() {
           sort?.id,
           sort?.desc,
           globalFilter,
+          registrationFilter,
         );
         setData(
           result.data.map((o: NonTraitee, index: number) => ({
@@ -125,6 +128,7 @@ export default function EmisesNonTraitees() {
             lastModifiedDateTime:
               o.lastModifiedDateTime || new Date().toISOString(),
             plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [], // ✅ ADD THIS
+            RegistrationNumber: o.RegistrationNumber || "",
           })),
         );
         setTotalCount(result.totalCount || 0);
@@ -137,7 +141,7 @@ export default function EmisesNonTraitees() {
     };
 
     loadData();
-  }, [pageIndex, pageSize, sorting, globalFilter]);
+  }, [pageIndex, pageSize, sorting, globalFilter, registrationFilter]);
 
   // Export headers
   const csvHeaders = [
@@ -191,6 +195,11 @@ export default function EmisesNonTraitees() {
         enableSorting: false,
       },
       {
+        header: "Immat",
+        accessorKey: "RegistrationNumber",
+        enableSorting: true,
+      },
+      {
         header: "Status",
         accessorKey: "ShippingAdvice",
         enableSorting: false,
@@ -240,12 +249,9 @@ export default function EmisesNonTraitees() {
                 color="secondary"
                 onClick={(e: MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
-                  setExpandedRows((p) => {
-                    if (p[row.id] === "view") {
-                      return { ...p, [row.id]: null };
-                    }
-                    return { [row.id]: "view" };
-                  });
+                  setExpandedRows((p) =>
+                    p[row.id] === "view" ? {} : { [row.id]: "view" },
+                  );
                 }}
               >
                 <Eye style={{ width: 36, height: 36 }} />
@@ -308,14 +314,21 @@ export default function EmisesNonTraitees() {
     <MainCard content={false}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
-        justifyContent="space-between"
+        justifyContent="flex-start"
+        alignItems="center"
         gap={2}
         p={3}
       >
         <DebouncedInput
           value={globalFilter}
           onFilterChange={(v) => setGlobalFilter(String(v))}
-          placeholder={`Chercher ${totalCount} commandes...`}
+          placeholder="Chercher commandes..."
+        />
+        <Box sx={{ flexGrow: 1 }} />
+        <DebouncedInput
+          value={registrationFilter}
+          onFilterChange={(v) => setRegistrationFilter(String(v))}
+          placeholder="Chercher par immatriculation..."
         />
       </Stack>
 
@@ -406,7 +419,7 @@ export default function EmisesNonTraitees() {
                                 </Stack>
 
                                 {row.original.plexuspurchaseOrderLines &&
-                                row.original.plexuspurchaseOrderLines.length >
+                                  row.original.plexuspurchaseOrderLines.length >
                                   0 ? (
                                   (() => {
                                     const lines =
@@ -416,16 +429,16 @@ export default function EmisesNonTraitees() {
                                       .trim();
                                     const filteredLines = term
                                       ? lines.filter((line) => {
-                                          const haystack = [
-                                            line.sequence,
-                                            line.lineObjectNumber,
-                                            line.description,
-                                          ]
-                                            .filter(Boolean)
-                                            .join(" ")
-                                            .toLowerCase();
-                                          return haystack.includes(term);
-                                        })
+                                        const haystack = [
+                                          line.sequence,
+                                          line.lineObjectNumber,
+                                          line.description,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" ")
+                                          .toLowerCase();
+                                        return haystack.includes(term);
+                                      })
                                       : lines;
 
                                     return (
@@ -450,7 +463,33 @@ export default function EmisesNonTraitees() {
                                             filteredLines.map((line) => (
                                               <TableRow key={line.id}>
                                                 <TableCell>
-                                                  {line.lineObjectNumber}
+                                                  <Stack>
+                                                    {line.OldRemplacementItemNo && (
+                                                      <>
+                                                        <Typography
+                                                          variant="caption"
+                                                          sx={{
+                                                            color: "error.main",
+                                                            textDecoration: "line-through",
+                                                            fontWeight: "bold",
+                                                          }}
+                                                        >
+                                                          {line.lineObjectNumber}
+                                                        </Typography>
+                                                        <Typography
+                                                          variant="body2"
+                                                          sx={{ color: "text.secondary" }}
+                                                        >
+                                                          {line.OldRemplacementItemNo}
+                                                        </Typography>
+                                                      </>
+                                                    )}
+                                                    {!line.OldRemplacementItemNo && (
+                                                      <Typography variant="body2">
+                                                        {line.lineObjectNumber}
+                                                      </Typography>
+                                                    )}
+                                                  </Stack>
                                                 </TableCell>
                                                 <TableCell>
                                                   {line.description}

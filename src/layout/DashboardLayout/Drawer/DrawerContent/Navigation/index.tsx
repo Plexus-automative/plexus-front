@@ -53,10 +53,14 @@ export default function Navigation() {
           if (userRole === 'Client and Fournisseur') return true;
 
           if (userRole === 'Fournisseur') {
-            return ['articles', 'commandes-recus', 'commandes-livrees', 'panier', 'add-reference'].includes(child.id!);
+            return ['commandes-recus', 'commandes-livrees', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')].includes(child.id!);
           }
           if (userRole === 'Client') {
-            return ['articles', 'commandes-emis', 'validation-reception', 'panier', 'add-reference'].includes(child.id!);
+            const allowed = ['articles', 'commandes-emis', 'validation-reception', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')];
+            if (user && user.customerNo === 'C0090') {
+              allowed.push('plexus-pec-commandes');
+            }
+            return allowed.includes(child.id!);
           }
           return true; // Fallback for other roles (admin, etc.) if any
         });
@@ -67,7 +71,7 @@ export default function Navigation() {
 
     setMenuItems({ items: filteredItems });
     // eslint-disable-next-line
-  }, [user ? user.role : '']);
+  }, [user ? user.role : '', user ? user.catalogType : '', user ? user.customerNo : '']);
 
   const isHorizontal = menuOrientation === MenuOrientation.HORIZONTAL && !downLG;
 

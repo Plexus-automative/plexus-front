@@ -12,6 +12,7 @@ export interface Encours {
   lastModifiedDateTime: string;
   plexuspurchaseOrderLines?: PurchaseOrderLine[];
   ShippingAdvice?: string;
+  RegistrationNumber?: string;
   invoiceQuantity?: number;
 
 }

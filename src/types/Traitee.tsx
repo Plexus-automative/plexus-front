@@ -25,6 +25,8 @@ export interface Traitee {
   QtyReceived?: string;
   postingDate: string;
   lastModifiedDateTime: string;
+  vendorShipmentNo?: string;
   plexuspurchaseOrderLines?: TraiteeLine[];
+  RegistrationNumber?: string;
   Reclamation?: string;
 }

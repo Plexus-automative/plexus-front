@@ -53,7 +53,8 @@ export default function MainDrawer({ window }: Props) {
                 boxSizing: 'border-box',
                 width: DRAWER_WIDTH,
                 borderRight: '1px solid',
-                borderColor: 'divider',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                bgcolor: '#111827',
                 backgroundImage: 'none',
                 boxShadow: 'inherit'
               }

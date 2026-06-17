@@ -25,24 +25,13 @@ const endpoints = {
 };
 
 export function useGetCustomer() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.key + endpoints.list, fetcher, {
-    revalidateIfStale: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false
-  });
-
-  const memoizedValue = useMemo(
-    () => ({
-      customers: data?.customers as CustomerList[],
-      customersLoading: isLoading,
-      customersError: error,
-      customersValidating: isValidating,
-      customersEmpty: !isLoading && !data?.customers?.length
-    }),
-    [data, error, isLoading, isValidating]
-  );
-
-  return memoizedValue;
+  return {
+    customers: [] as CustomerList[],
+    customersLoading: false,
+    customersError: null,
+    customersValidating: false,
+    customersEmpty: true
+  };
 }
 
 export async function insertCustomer(newCustomer: CustomerList) {

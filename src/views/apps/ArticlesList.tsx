@@ -184,7 +184,7 @@ export default function ArticlesListPage() {
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-  const [quantity, setQuantity] = useState<number>(1);
+  const [quantity, setQuantity] = useState<number | string>(1);
   const [isAdaptable, setIsAdaptable] = useState<boolean>(true);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
@@ -194,7 +194,7 @@ export default function ArticlesListPage() {
     }
   }, [search]);
 
-  const { addToCart } = useCart();
+  const { addToCart, cartItems } = useCart();
 
   const handleOpenModal = (item: Item) => {
     setSelectedItem(item);
@@ -225,17 +225,18 @@ export default function ArticlesListPage() {
   const selectedPrice = parsePriceValue(selectedItem?.price);
 
   const handleAddToCart = async () => {
-    if (!selectedItem || quantity <= 0) return;
+    const finalQuantity = typeof quantity === 'string' ? parseInt(quantity) || 1 : quantity;
+    if (!selectedItem || finalQuantity <= 0) return;
 
     try {
       addToCart({
-        id: uuidv4(),
+        id: `${selectedItem.number}-${selectedItem.vendorNumber || 'F0024'}-${isAdaptable}`,
         vendorNumber: selectedItem.vendorNumber || "F0024",
         vendorName: selectedItem.vendorName || "STE EURO-CAR SERVICES",
         number: selectedItem.number,
         description: selectedItem.description,
         price: selectedPrice,
-        quantity: quantity,
+        quantity: finalQuantity,
         isAdaptable: isAdaptable
       });
       setShowSuccessAlert(true);
@@ -256,20 +257,51 @@ export default function ArticlesListPage() {
         header: 'Actions',
         meta: { align: 'center' },
         disableSortBy: true,
-        cell: ({ row }) => (
-          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'center' }}>
-            <IconButton
-              color="primary"
-              onClick={() => handleOpenModal(row.original)}
-              size="small"
-            >
-              <ShoppingCart size={26} />
-            </IconButton>
-          </Stack>
-        )
+        cell: ({ row }) => {
+          const item = row.original;
+          const itemVendor = item.vendorNumber || "F0024";
+          const inCartItem = cartItems.find(
+            c => c.number === item.number && c.vendorNumber === itemVendor && c.isAdaptable === isAdaptable
+          );
+
+          return (
+            <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
+              {inCartItem && (
+                <Box
+                  sx={{
+                    bgcolor: 'success.lighter',
+                    color: 'success.main',
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: 1,
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    border: '1px solid',
+                    borderColor: 'success.light'
+                  }}
+                >
+                  Dans le panier ({inCartItem.quantity})
+                </Box>
+              )}
+              <IconButton
+                color={inCartItem ? "success" : "primary"}
+                onClick={() => handleOpenModal(item)}
+                size="small"
+                sx={{
+                  bgcolor: inCartItem ? 'success.lighter' : 'transparent',
+                  '&:hover': {
+                    bgcolor: inCartItem ? 'success.light' : 'primary.lighter'
+                  }
+                }}
+              >
+                <ShoppingCart size={26} />
+              </IconButton>
+            </Stack>
+          );
+        }
       }
     ],
-    []
+    [cartItems, isAdaptable]
   );
 
   useEffect(() => {
@@ -278,7 +310,8 @@ export default function ArticlesListPage() {
     const fetchItems = async () => {
       setLoading(true);
       try {
-        const url = `/api/purchase-orders/ItemVendors?$filter=itemNo eq '${searchTerm}'`;
+        const cleanSearch = searchTerm.replace(/[^a-zA-Z0-9]/g, '');
+        const url = `/api/purchase-orders/ItemVendors?$filter=itemNo eq '${cleanSearch}'`;
         const response = await axiosServices.get(url, {
           headers: {
             'Content-Type': 'application/json'
@@ -482,7 +515,15 @@ export default function ArticlesListPage() {
                 autoFocus
                 type="number"
                 value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setQuantity('');
+                  } else {
+                    const parsed = parseInt(val);
+                    setQuantity(isNaN(parsed) ? '' : parsed);
+                  }
+                }}
                 inputProps={{ min: 1 }}
                 fullWidth
                 placeholder={intl.formatMessage({ id: 'enter-quantity' })}
@@ -551,7 +592,7 @@ export default function ArticlesListPage() {
                     fontSize: '1.4rem'
                   }}
                 >
-                  {(selectedPrice * quantity).toFixed(2)}
+                  {(selectedPrice * (typeof quantity === 'string' ? parseInt(quantity) || 0 : quantity)).toFixed(2)}
                 </Typography>
               </Stack>
             </Paper>

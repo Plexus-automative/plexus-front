@@ -12,7 +12,10 @@ import java.time.format.DateTimeFormatter;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class BLGeneratorService {
 
     // --- Clean Light Modern Colors (From 1st iteration) ---
@@ -23,12 +26,12 @@ public class BLGeneratorService {
     private static final Color TEXT_LIGHT = new Color(100, 100, 100);
 
     // --- Fonts ---
-    private static final Font TITLE_FONT = new Font(Font.HELVETICA, 22, Font.BOLD, PRIMARY_COLOR);
-    private static final Font SUBTITLE_FONT = new Font(Font.HELVETICA, 12, Font.BOLD, TEXT_DARK);
-    private static final Font TH_FONT = new Font(Font.HELVETICA, 10, Font.BOLD, Color.WHITE);
-    private static final Font NORMAL_FONT = new Font(Font.HELVETICA, 9, Font.NORMAL, TEXT_DARK);
-    private static final Font BOLD_FONT = new Font(Font.HELVETICA, 9, Font.BOLD, TEXT_DARK);
-    private static final Font SMALL_FONT = new Font(Font.HELVETICA, 8, Font.NORMAL, TEXT_LIGHT);
+    private static final Font TITLE_FONT = new Font(Font.HELVETICA, 18, Font.BOLD, PRIMARY_COLOR);
+    private static final Font SUBTITLE_FONT = new Font(Font.HELVETICA, 11, Font.BOLD, TEXT_DARK);
+    private static final Font TH_FONT = new Font(Font.HELVETICA, 9, Font.BOLD, Color.BLACK);
+    private static final Font NORMAL_FONT = new Font(Font.HELVETICA, 8, Font.NORMAL, TEXT_DARK);
+    private static final Font BOLD_FONT = new Font(Font.HELVETICA, 8, Font.BOLD, TEXT_DARK);
+    private static final Font SMALL_FONT = new Font(Font.HELVETICA, 7, Font.NORMAL, TEXT_LIGHT);
 
     // Strict font for signatures
     private static final Font SIGNATURE_HEADER_FONT = new Font(Font.HELVETICA, 9, Font.BOLD, Color.BLACK);
@@ -38,10 +41,11 @@ public class BLGeneratorService {
             String orderDate,
             String vendorName,
             String vendorNumber,
-            com.fasterxml.jackson.databind.JsonNode lines) throws Exception {
+            com.fasterxml.jackson.databind.JsonNode lines,
+            com.fasterxml.jackson.databind.JsonNode fullOrder) throws Exception {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A4, 40, 40, 40, 60);
+        Document document = new Document(PageSize.A4, 40, 40, 20, 40);
         PdfWriter writer = PdfWriter.getInstance(document, baos);
 
         // --- Clean Modern Footer ---
@@ -55,7 +59,7 @@ public class BLGeneratorService {
                     footer.setTotalWidth(document.right() - document.left());
 
                     PdfPCell cell = new PdfPCell(new Phrase(
-                            "PLEXUS TEST  |  Golden Tower A10.4 Centre Urbain Nord Tunis  |  Tél/Fax : 70 29 70 45  |  MF : 1639504Y  |  RC : B12251996  |  Banque : BTK 052210052346527",
+                            "PLEXUS |  Golden Tower B.5.2 Centre Urbain Nord Tunis  |  Tél/Fax : 70 139 750  |  MF : 1639504Y  |  RC : B12251996  |  Banque : BTK 20005052210070153108",
                             SMALL_FONT));
                     cell.setBorder(Rectangle.TOP);
                     cell.setBorderColor(PRIMARY_COLOR);
@@ -64,7 +68,7 @@ public class BLGeneratorService {
                     cell.setPaddingTop(8);
 
                     footer.addCell(cell);
-                    footer.writeSelectedRows(0, -1, document.left(), document.bottom() + 15, cb);
+                    footer.writeSelectedRows(0, -1, document.left(), document.bottom() - 5, cb);
                 } catch (Exception e) {
                 }
             }
@@ -73,7 +77,34 @@ public class BLGeneratorService {
         document.open();
 
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-        String blNumber = generateBLNumber(orderNumber);
+        if (orderDate != null && !orderDate.trim().isEmpty()) {
+            try {
+                if (orderDate.contains("-")) {
+                    LocalDate parsedDate = LocalDate.parse(orderDate.trim());
+                    today = parsedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                } else if (orderDate.contains("/")) {
+                    LocalDate parsedDate = LocalDate.parse(orderDate.trim(), DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                    today = parsedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                }
+            } catch (Exception e) {
+                log.warn("Could not parse orderDate '{}': {}", orderDate, e.getMessage());
+            }
+        }
+        // Priority 1: Posted Sales Shipment number (exact BL number from BC, e.g.
+        // BL26/00548)
+        // Priority 2: Sales Order number (fallback, e.g. CV26/00527)
+        // Priority 3: Purchase Order number (fallback, e.g. CA26/1279)
+        String blSourceNumber = orderNumber;
+        if (fullOrder != null) {
+            if (fullOrder.has("postedSalesShipmentNumber")
+                    && !fullOrder.get("postedSalesShipmentNumber").asText().isEmpty()) {
+                blSourceNumber = fullOrder.get("postedSalesShipmentNumber").asText();
+            } else if (fullOrder.has("salesOrderNumber") && !fullOrder.get("salesOrderNumber").asText().isEmpty()) {
+                blSourceNumber = fullOrder.get("salesOrderNumber").asText();
+            }
+        }
+
+        String blNumber = generateBLNumber(blSourceNumber);
 
         // ==========================================
         // HEADER
@@ -90,7 +121,7 @@ public class BLGeneratorService {
                 try (InputStream is = res.getInputStream()) {
                     byte[] bytes = is.readAllBytes();
                     Image img = Image.getInstance(bytes);
-                    img.scaleToFit(160, 80);
+                    img.scaleToFit(140, 70);
                     logoCell.addElement(img);
                 }
             } else {
@@ -114,6 +145,38 @@ public class BLGeneratorService {
         num.setSpacingBefore(5);
         docDetailsCell.addElement(num);
 
+        if (fullOrder != null) {
+            // Robust VIN extraction
+            String vinVal = null;
+            if (fullOrder.has("VIN") && !fullOrder.get("VIN").asText().isEmpty())
+                vinVal = fullOrder.get("VIN").asText();
+            else if (fullOrder.has("vin") && !fullOrder.get("vin").asText().isEmpty())
+                vinVal = fullOrder.get("vin").asText();
+            else if (fullOrder.has("ChassisNo") && !fullOrder.get("ChassisNo").asText().isEmpty())
+                vinVal = fullOrder.get("ChassisNo").asText();
+
+            if (vinVal != null) {
+                Paragraph vinPara = new Paragraph("VIN : " + vinVal, BOLD_FONT);
+                vinPara.setAlignment(Element.ALIGN_RIGHT);
+                vinPara.setSpacingBefore(2);
+                docDetailsCell.addElement(vinPara);
+            }
+
+            // Robust Immatriculation extraction
+            String immatVal = null;
+            if (fullOrder.has("RegistrationNumber") && !fullOrder.get("RegistrationNumber").asText().isEmpty())
+                immatVal = fullOrder.get("RegistrationNumber").asText();
+            else if (fullOrder.has("registrationNumber") && !fullOrder.get("registrationNumber").asText().isEmpty())
+                immatVal = fullOrder.get("registrationNumber").asText();
+
+            if (immatVal != null) {
+                Paragraph immatPara = new Paragraph("Immatriculation : " + immatVal, BOLD_FONT);
+                immatPara.setAlignment(Element.ALIGN_RIGHT);
+                immatPara.setSpacingBefore(2);
+                docDetailsCell.addElement(immatPara);
+            }
+        }
+
         Paragraph dateStr = new Paragraph("Date : " + today, BOLD_FONT);
         dateStr.setAlignment(Element.ALIGN_RIGHT);
         dateStr.setSpacingBefore(2);
@@ -129,8 +192,8 @@ public class BLGeneratorService {
         // Divider
         PdfPTable divider = new PdfPTable(1);
         divider.setWidthPercentage(100);
-        divider.setSpacingBefore(15);
-        divider.setSpacingAfter(20);
+        divider.setSpacingBefore(5);
+        divider.setSpacingAfter(10);
         PdfPCell line = new PdfPCell(new Phrase(" "));
         line.setBorderColor(PRIMARY_COLOR);
         line.setBorderWidthBottom(2f);
@@ -156,20 +219,78 @@ public class BLGeneratorService {
         clientBox.setBackgroundColor(LIGHT_BG);
         clientBox.setPadding(10);
 
+        String clientCode = fullOrder.has("SellToCustomerNo") ? fullOrder.get("SellToCustomerNo").asText()
+                : (vendorNumber != null ? vendorNumber : "-");
+
+        // Robust TVA lookup (using VATRegistrationNo only)
+        String vat = (fullOrder.has("VATRegistrationNo") && !fullOrder.get("VATRegistrationNo").asText().isEmpty())
+                ? fullOrder.get("VATRegistrationNo").asText()
+                : "";
+
+        String addr1 = fullOrder.has("FullAddressLine1") ? fullOrder.get("FullAddressLine1").asText()
+                : (fullOrder.has("shipToAddressLine1") ? fullOrder.get("shipToAddressLine1").asText() : "");
+        String addr2 = fullOrder.has("FullAddressLine2") ? fullOrder.get("FullAddressLine2").asText()
+                : (fullOrder.has("shipToAddressLine2") ? fullOrder.get("shipToAddressLine2").asText() : "");
+        String city = fullOrder.has("FullCity") ? fullOrder.get("FullCity").asText()
+                : (fullOrder.has("shipToCity") ? fullOrder.get("shipToCity").asText() : "");
+
+        // Robust Phone lookup - shipToContact often contains names like "HADIA//SAMIA"
+        String phone = "-";
+        if (fullOrder.has("PhoneNo") && !fullOrder.get("PhoneNo").asText().isEmpty()) {
+            phone = fullOrder.get("PhoneNo").asText();
+        } else if (fullOrder.has("SellToPhoneNo") && !fullOrder.get("SellToPhoneNo").asText().isEmpty()) {
+            phone = fullOrder.get("SellToPhoneNo").asText();
+        } else if (fullOrder.has("shipToPhone") && !fullOrder.get("shipToPhone").asText().isEmpty()) {
+            phone = fullOrder.get("shipToPhone").asText();
+        } else if (fullOrder.has("shipToContact") && !fullOrder.get("shipToContact").asText().isEmpty()) {
+            String contact = fullOrder.get("shipToContact").asText();
+            // If it contains // or doesn't look like a number, it's likely a name
+            if (!contact.contains("//") && contact.matches(".*\\d.*")) {
+                phone = contact;
+            }
+        }
+
+        phone = phone.replace("//", "/");
+        String fullAddr = addr1 + (addr2.isEmpty() ? "" : ", " + addr2) + (city.isEmpty() ? "" : " - " + city);
+        fullAddr = fullAddr.replace("à ", "").replace("à", "");
+
+        String vin = (fullOrder != null && fullOrder.has("VIN")) ? fullOrder.get("VIN").asText() : "-";
+        String immat = (fullOrder != null && fullOrder.has("RegistrationNumber"))
+                ? fullOrder.get("RegistrationNumber").asText()
+                : "-";
+
+        log.info(">>> BL Metadata extracted - Client: {}, TVA: {}, Phone: {}, VIN: {}, Immat: {}",
+                clientCode, vat, phone, vin, immat);
+
         clientBox.addElement(
                 new Paragraph("CLIENT FACTURÉ / LIVRÉ", new Font(Font.HELVETICA, 8, Font.BOLD, PRIMARY_COLOR)));
-        clientBox.addElement(new Paragraph("Code: " + (vendorNumber != null ? vendorNumber : ""), BOLD_FONT));
+        clientBox.addElement(new Paragraph("Code: " + (clientCode != null ? clientCode : ""), BOLD_FONT));
 
-        Paragraph name = new Paragraph(vendorName != null ? vendorName : "", SUBTITLE_FONT);
+        String displayName = vendorName;
+        if (fullOrder.has("CustomerName") && !fullOrder.get("CustomerName").asText().isEmpty()) {
+            displayName = fullOrder.get("CustomerName").asText();
+        } else if (fullOrder.has("shipToName") && !fullOrder.get("shipToName").asText().isEmpty()) {
+            displayName = fullOrder.get("shipToName").asText();
+        }
+
+        Paragraph name = new Paragraph(displayName != null ? displayName : "", SUBTITLE_FONT);
         name.setSpacingBefore(4);
         clientBox.addElement(name);
 
-        clientBox.addElement(new Paragraph("Code TVA : -", NORMAL_FONT));
-        clientBox.addElement(new Paragraph("Adresse : -", NORMAL_FONT));
+        clientBox.addElement(new Paragraph("Code TVA : " + vat, NORMAL_FONT));
+        clientBox.addElement(new Paragraph("Adresse : " + (fullAddr.isEmpty() ? "-" : fullAddr), NORMAL_FONT));
+        clientBox.addElement(new Paragraph("Tél : " + phone, NORMAL_FONT));
+
+        // Insured Name (MAWDY)
+        String insured = (fullOrder.has("insuredName") && !fullOrder.get("insuredName").asText().isEmpty())
+                ? fullOrder.get("insuredName").asText()
+                : (fullOrder.has("PLX_InsuredName") ? fullOrder.get("PLX_InsuredName").asText() : "");
+        if (insured != null && !insured.isEmpty()) {
+            clientBox.addElement(new Paragraph("P/C : " + insured.toUpperCase(), BOLD_FONT));
+        }
 
         clientInfoWrapper.addCell(clientBox);
         document.add(clientInfoWrapper);
-        document.add(new Paragraph(" "));
         document.add(new Paragraph(" "));
 
         // ==========================================
@@ -177,23 +298,22 @@ public class BLGeneratorService {
         // ==========================================
         PdfPTable grid = new PdfPTable(6);
         grid.setWidthPercentage(100);
-        grid.setWidths(new float[] { 1.5f, 4.5f, 1f, 1.5f, 1f, 1.5f });
+        grid.setWidths(new float[] { 2.5f, 3.5f, 1f, 1.5f, 1f, 1.5f });
         grid.setSpacingBefore(10);
 
         String[] headers = { "Réf", "Désignation", "Qté", "PU HT", "T.V.A", "Montant HT" };
         for (String h : headers) {
             PdfPCell hCell = new PdfPCell(new Phrase(h, TH_FONT));
-            hCell.setBackgroundColor(PRIMARY_COLOR);
             hCell.setHorizontalAlignment(Element.ALIGN_CENTER);
             hCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             hCell.setPadding(8);
-            // using solid borders even here to avoid "invisible rows" look, just coloring
-            // them to match nicely
-            hCell.setBorderColor(Color.WHITE);
+            hCell.setBorderColor(Color.BLACK);
+            hCell.setBorderWidth(1f);
             grid.addCell(hCell);
         }
 
         double totalHT = 0;
+        double remise = 0;
         int tvaRate = 19;
         int rowsAdded = 0;
 
@@ -201,11 +321,36 @@ public class BLGeneratorService {
             for (com.fasterxml.jackson.databind.JsonNode lineData : lines) {
                 String itemNo = lineData.has("lineObjectNumber") ? lineData.get("lineObjectNumber").asText() : "";
                 String desc = lineData.has("description") ? lineData.get("description").asText() : "";
-                double qty = lineData.has("receiveQuantity") ? lineData.get("receiveQuantity").asDouble()
-                        : (lineData.has("quantity") ? lineData.get("quantity").asDouble() : 0);
+
+                double qty = 0;
+                if (lineData.has("receivedQuantity") && lineData.get("receivedQuantity").asDouble() > 0) {
+                    qty = lineData.get("receivedQuantity").asDouble();
+                } else if (lineData.has("receiveQuantity") && lineData.get("receiveQuantity").asDouble() > 0) {
+                    qty = lineData.get("receiveQuantity").asDouble();
+                } else if (lineData.has("quantity")) {
+                    qty = lineData.get("quantity").asDouble();
+                } else if (lineData.has("invoiceQuantity")) {
+                    qty = lineData.get("invoiceQuantity").asDouble();
+                }
                 double price = lineData.has("directUnitCost") ? lineData.get("directUnitCost").asDouble() : 0;
                 double lineTotal = qty * price;
                 totalHT += lineTotal;
+
+                double lineDiscount = 0;
+                if (lineData.has("salesDiscountAmount")) {
+                    lineDiscount = lineData.get("salesDiscountAmount").asDouble();
+                    log.info(">>> [BL] Line {}: using salesDiscountAmount = {}", itemNo, lineDiscount);
+                } else if (lineData.has("sales_discountAmount")) {
+                    // Use the CLIENT discount from Sales Order line (injected by
+                    // enrichWithSalesDiscount)
+                    lineDiscount = lineData.get("sales_discountAmount").asDouble();
+                    log.info(">>> [BL] Line {}: using sales_discountAmount = {}", itemNo, lineDiscount);
+                } else if (lineData.has("sales_lineDiscountAmount")) {
+                    lineDiscount = lineData.get("sales_lineDiscountAmount").asDouble();
+                    log.info(">>> [BL] Line {}: using sales_lineDiscountAmount = {}", itemNo, lineDiscount);
+                }
+
+                remise += lineDiscount;
 
                 Color rowColor = (rowsAdded % 2 == 0) ? Color.WHITE : LIGHT_BG;
 
@@ -221,16 +366,7 @@ public class BLGeneratorService {
             }
         }
 
-        int minRows = 8;
-        for (int i = rowsAdded; i < minRows; i++) {
-            Color rowColor = (i % 2 == 0) ? Color.WHITE : LIGHT_BG;
-            addStripedCell(grid, " ", Element.ALIGN_LEFT, rowColor);
-            addStripedCell(grid, " ", Element.ALIGN_LEFT, rowColor);
-            addStripedCell(grid, " ", Element.ALIGN_CENTER, rowColor);
-            addStripedCell(grid, " ", Element.ALIGN_RIGHT, rowColor);
-            addStripedCell(grid, " ", Element.ALIGN_CENTER, rowColor);
-            addStripedCell(grid, " ", Element.ALIGN_RIGHT, rowColor);
-        }
+        // Removed empty rows padding as requested by user
 
         document.add(grid);
         document.add(new Paragraph(" "));
@@ -238,11 +374,13 @@ public class BLGeneratorService {
         // ==========================================
         // TOTALS & WORDS
         // ==========================================
-        double remise = 0;
         double htApresRemise = totalHT - remise;
         double montantTva = htApresRemise * (tvaRate / 100.0);
-        double timbre = 0.600;
+        double timbre = 0.000;
         double totalTTC = htApresRemise + montantTva + timbre;
+
+        log.info(">>> BL Generation Totals - totalHT: {}, remise: {}, htApresRemise: {}, montantTva: {}, totalTTC: {}",
+                totalHT, remise, htApresRemise, montantTva, totalTTC);
 
         PdfPTable totalsSection = new PdfPTable(2);
         totalsSection.setWidthPercentage(100);
@@ -282,7 +420,6 @@ public class BLGeneratorService {
 
         document.add(totalsSection);
         document.add(new Paragraph(" "));
-        document.add(new Paragraph(" "));
 
         // ==========================================
         // STRICT 3-BOX SIGNATURE BLOCK
@@ -317,7 +454,7 @@ public class BLGeneratorService {
         PdfPCell plexusBox = new PdfPCell();
         plexusBox.setBorderWidth(1f);
         plexusBox.setBorderColor(Color.BLACK);
-        plexusBox.setMinimumHeight(110);
+        plexusBox.setMinimumHeight(120);
         plexusBox.setHorizontalAlignment(Element.ALIGN_CENTER);
         plexusBox.setVerticalAlignment(Element.ALIGN_MIDDLE);
         try {
@@ -326,7 +463,7 @@ public class BLGeneratorService {
                 try (InputStream is = res.getInputStream()) {
                     byte[] bytes = is.readAllBytes();
                     Image stamp = Image.getInstance(bytes);
-                    stamp.scaleToFit(140, 95);
+                    stamp.scaleToFit(160, 118);
                     stamp.setAlignment(Element.ALIGN_CENTER);
                     plexusBox.addElement(stamp);
                 }
@@ -340,12 +477,12 @@ public class BLGeneratorService {
 
         // Empty boxes
         PdfPCell emptyBox2 = new PdfPCell(new Phrase(" "));
-        emptyBox2.setMinimumHeight(110);
+        emptyBox2.setMinimumHeight(120);
         emptyBox2.setBorderWidth(1f);
         emptyBox2.setBorderColor(Color.BLACK);
 
         PdfPCell emptyBox3 = new PdfPCell(new Phrase(" "));
-        emptyBox3.setMinimumHeight(110);
+        emptyBox3.setMinimumHeight(120);
         emptyBox3.setBorderWidth(1f);
         emptyBox3.setBorderColor(Color.BLACK);
 
@@ -360,11 +497,18 @@ public class BLGeneratorService {
 
     private String generateBLNumber(String orderNumber) {
         String yearSuffix = String.valueOf(LocalDate.now().getYear()).substring(2);
-        String seq = orderNumber != null ? orderNumber.replaceAll("[^0-9]", "") : "0";
-        if (seq.isEmpty())
+        String seq = "0";
+        if (orderNumber != null) {
+            if (orderNumber.contains("/")) {
+                seq = orderNumber.substring(orderNumber.lastIndexOf('/') + 1).replaceAll("[^0-9]", "");
+            } else {
+                seq = orderNumber.replaceAll("[^0-9]", "");
+            }
+        }
+        if (seq.isEmpty()) {
             seq = "0";
-        int seqNum = Integer.parseInt(seq) % 100000;
-        return "BL" + yearSuffix + "/" + String.format("%05d", seqNum);
+        }
+        return "BL" + yearSuffix + "/" + seq;
     }
 
     private void addStripedCell(PdfPTable table, String text, int alignment, Color bgColor) {
@@ -372,7 +516,7 @@ public class BLGeneratorService {
         cell.setHorizontalAlignment(alignment);
         cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         cell.setPadding(6);
-        cell.setBorderColor(BORDER_GRAY); // Added visible border lines inside the grid as well
+        cell.setBorderColor(Color.BLACK); // Black border lines inside the grid
         cell.setBorderWidth(1f);
         cell.setBackgroundColor(bgColor);
         table.addCell(cell);

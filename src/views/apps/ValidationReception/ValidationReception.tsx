@@ -119,7 +119,9 @@ export default function ValidationReception() {
             setLoading(true);
             setError(null);
             try {
-                const result = await fetchReceptionOrders(pageIndex, pageSize);
+                const sortField = sorting[0]?.id;
+                const isDesc = sorting[0]?.desc;
+                const result = await fetchReceptionOrders(pageIndex, pageSize, sortField, isDesc);
                 setData(
                     result.data.map((o: Encours) => ({
                         id: o.id,
@@ -133,6 +135,8 @@ export default function ValidationReception() {
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
                         postingDate: o.postingDate || o.orderDate,
+                        RegistrationNumber: o.RegistrationNumber || '',
+                        VIN: (o as any).VIN || (o as any).vin || '',
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
@@ -232,17 +236,20 @@ export default function ValidationReception() {
             enableSorting: true
         },
         {
-            header: 'Client',
-            id: 'client',
+            header: 'Fournisseurs',
+            id: 'vendorName',
             enableSorting: false,
             cell: ({ row }) => {
-                const name = (row.original as any).shipToName;
-                const no = (row.original as any).SellToCustomerNo;
-                const clientName = customers[no] || name || no || '-';
+                const vendorName = row.original.vendorName || '-';
                 return (
-                    <Typography variant="body2" fontWeight={500}>{clientName}</Typography>
+                    <Typography variant="body2" fontWeight={500}>{vendorName}</Typography>
                 );
             }
+        },
+        {
+            header: 'Immatriculation',
+            accessorKey: 'RegistrationNumber',
+            enableSorting: true
         },
         {
             header: 'Statut',
@@ -312,7 +319,7 @@ export default function ValidationReception() {
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Chercher ${totalCount} commandes...`}
+                    placeholder="Chercher commandes..."
                 />
             </Stack>
 
@@ -408,6 +415,17 @@ export default function ValidationReception() {
                     Commande N°: {selectedOrder?.number}
                 </DialogTitle>
                 <DialogContent dividers>
+                    {/* Order Metadata */}
+                    <Stack direction="row" gap={3} mb={3}>
+                        <Typography variant="subtitle2">Fournisseur: <Box component="span" sx={{ fontWeight: 'normal' }}>{selectedOrder?.vendorName}</Box></Typography>
+                        <Typography variant="subtitle2">Date: <Box component="span" sx={{ fontWeight: 'normal' }}>{selectedOrder?.orderDate}</Box></Typography>
+                        {selectedOrder?.plexuspurchaseOrderLines?.some(l => l.ChassisNo) && (
+                            <Typography variant="subtitle2" sx={{ color: 'error.main' }}>
+                                Num Chassis: <Box component="span" sx={{ fontWeight: 'bold' }}>{selectedOrder.plexuspurchaseOrderLines.find(l => l.ChassisNo)?.ChassisNo}</Box>
+                            </Typography>
+                        )}
+                    </Stack>
+
                     {/* Search */}
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                         <TextField
@@ -442,8 +460,41 @@ export default function ValidationReception() {
                             <TableBody>
                                 {filteredLines.length > 0 ? (
                                     filteredLines.map((line, idx) => (
-                                        <TableRow key={line.id || idx}>
-                                            <TableCell>{line.lineObjectNumber}</TableCell>
+                                        <TableRow 
+                                            key={line.id || idx}
+                                            sx={{ 
+                                                backgroundColor: line.ChassisNo ? 'rgba(255, 255, 0, 0.15)' : 'inherit' 
+                                            }}
+                                        >
+                                            <TableCell>
+                                                <Stack>
+                                                    {line.OldRemplacementItemNo && (
+                                                        <>
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{
+                                                                    color: 'error.main',
+                                                                    textDecoration: 'line-through',
+                                                                    fontWeight: 'bold'
+                                                                }}
+                                                            >
+                                                                {line.lineObjectNumber}
+                                                            </Typography>
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{ color: 'text.secondary' }}
+                                                            >
+                                                                {line.OldRemplacementItemNo}
+                                                            </Typography>
+                                                        </>
+                                                    )}
+                                                    {!line.OldRemplacementItemNo && (
+                                                        <Typography variant="body2">
+                                                            {line.lineObjectNumber}
+                                                        </Typography>
+                                                    )}
+                                                </Stack>
+                                            </TableCell>
                                             <TableCell>{line.description}</TableCell>
                                             <TableCell>{line.quantity}</TableCell>
                                             <TableCell>{line.receiveQuantity ?? line.quantity}</TableCell>

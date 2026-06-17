@@ -1,12 +1,14 @@
 node_modules
-.next
+# .next allowed for local build strategy
 .git
 .DS_Store
 backend/target
 backend/.venv
 *.log
-# .env
-# .env.local
-# .env.production
+.env
+.env.local
+.env.production
 dist
 build
+out
+.swc

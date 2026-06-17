@@ -5,17 +5,16 @@ export interface NonTraitee {
   vendorName: string;
   payToVendorNumber: string;
   fullyReceived: boolean;
-  ShippingAdvice: string
+  ShippingAdvice: string;
   status: string;
   postingDate: string;
   lastModifiedDateTime: string;
   QtyReceived?: string;
   ReceivedPurchaseHeader?: string;
-  plexuspurchaseOrderLines?: PurchaseOrderLine[]; // 👈 ADD THIS
-
+  plexuspurchaseOrderLines?: PurchaseOrderLine[];
+  RegistrationNumber?: string;
 }
 
-// types/PurchaseOrderLine.ts
 export interface PurchaseOrderLine {
   id: string;
   sequence: number;
@@ -32,4 +31,5 @@ export interface PurchaseOrderLine {
   OldRemplacementItemNo?: string;
   DeliveryDate?: string;
   nature?: string;
+  ChassisNo?: string;
 }

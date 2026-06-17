@@ -32,6 +32,11 @@ public class NumberToWordsConverter {
         if (number == 0) {
             return "ZÉRO";
         }
+        String prefix = "";
+        if (number < 0) {
+            prefix = "MOINS ";
+            number = -number;
+        }
         String snumber = Long.toString(number);
         String mask = "000000000000".substring(snumber.length()) + snumber;
         int billions = Integer.parseInt(mask.substring(0, 3));
@@ -82,6 +87,6 @@ public class NumberToWordsConverter {
         tradThousand = convertLessThanOneThousand(thousands);
         result = result + tradThousand;
 
-        return result.replaceAll("^\\s+", "").replaceAll("\\b\\s{2,}\\b", " ").trim();
+        return prefix + result.replaceAll("^\\s+", "").replaceAll("\\b\\s{2,}\\b", " ").trim();
     }
 }

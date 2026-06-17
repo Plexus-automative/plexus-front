@@ -212,7 +212,7 @@ export default function OrderListPage_Emises() {
     return (
         <MainCard content={false}>
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
-                <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder={`Search ${orders.length} records...`} />
+                <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder="Chercher commandes..." />
             </Stack>
 
             <Stack>

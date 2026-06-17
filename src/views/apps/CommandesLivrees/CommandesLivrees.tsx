@@ -64,6 +64,7 @@ export default function CommandesLivrees() {
         { id: 'number', desc: true }
     ]);
     const [globalFilter, setGlobalFilter] = useState('');
+    const [registrationFilter, setRegistrationFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [loading, setLoading] = useState(false);
@@ -112,7 +113,9 @@ export default function CommandesLivrees() {
             setLoading(true);
             setError(null);
             try {
-                const result = await fetchLivreesOrders(pageIndex, pageSize);
+                const sortField = sorting[0]?.id;
+                const isDesc = sorting[0]?.desc;
+                const result = await fetchLivreesOrders(pageIndex * pageSize, pageSize, sortField, isDesc, globalFilter, registrationFilter);
                 setData(
                     result.data.map((o: Encours) => ({
                         id: o.id,
@@ -127,6 +130,8 @@ export default function CommandesLivrees() {
                         shipToName: (o as any).shipToName || '',
                         postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
+                        RegistrationNumber: o.RegistrationNumber || (o as any).RegistrationNumber || '',
+                        VIN: (o as any).VIN || (o as any).vin || '',
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
                     }))
                 );
@@ -138,7 +143,7 @@ export default function CommandesLivrees() {
             }
         };
         loadData();
-    }, [pageIndex, pageSize, sorting]);
+    }, [pageIndex, pageSize, sorting, globalFilter, registrationFilter]);
 
     // Open dialog
     const handleOpenDialog = (order: Encours) => {
@@ -215,6 +220,19 @@ export default function CommandesLivrees() {
             }
         },
         {
+            header: 'Immatriculation',
+            accessorKey: 'RegistrationNumber',
+            enableSorting: true,
+            cell: ({ getValue }) => {
+                const value = getValue<string>();
+                return (
+                    <Typography variant="body2" fontWeight={500}>
+                        {value || '-'}
+                    </Typography>
+                );
+            }
+        },
+        {
             header: 'Statut',
             accessorKey: 'ShippingAdvice',
             enableSorting: false,
@@ -277,12 +295,17 @@ export default function CommandesLivrees() {
 
     return (
         <MainCard content={false}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
-                <Typography variant="h5">Liste des commandes livrées non encore valider</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-start" alignItems="center" gap={2} p={3}>
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Chercher ${totalCount} commandes...`}
+                    placeholder="Chercher commandes..."
+                />
+                <Box sx={{ flexGrow: 1 }} />
+                <DebouncedInput
+                    value={registrationFilter}
+                    onFilterChange={v => setRegistrationFilter(String(v))}
+                    placeholder="Chercher par immatriculation..."
                 />
             </Stack>
 
@@ -413,7 +436,35 @@ export default function CommandesLivrees() {
                                 {filteredLines.length > 0 ? (
                                     filteredLines.map((line, idx) => (
                                         <TableRow key={line.id || idx}>
-                                            <TableCell>{line.lineObjectNumber}</TableCell>
+                                            <TableCell>
+                                                <Stack>
+                                                    {line.OldRemplacementItemNo && (
+                                                        <>
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{
+                                                                    color: 'error.main',
+                                                                    textDecoration: 'line-through',
+                                                                    fontWeight: 'bold'
+                                                                }}
+                                                            >
+                                                                {line.lineObjectNumber}
+                                                            </Typography>
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{ color: 'text.secondary' }}
+                                                            >
+                                                                {line.OldRemplacementItemNo}
+                                                            </Typography>
+                                                        </>
+                                                    )}
+                                                    {!line.OldRemplacementItemNo && (
+                                                        <Typography variant="body2">
+                                                            {line.lineObjectNumber}
+                                                        </Typography>
+                                                    )}
+                                                </Stack>
+                                            </TableCell>
                                             <TableCell>{line.description}</TableCell>
                                             <TableCell>{line.quantity}</TableCell>
                                             <TableCell>{line.receivedQuantity || 0}</TableCell>

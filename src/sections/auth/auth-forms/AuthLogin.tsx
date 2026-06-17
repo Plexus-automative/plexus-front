@@ -83,6 +83,7 @@ export default function AuthLogin({ providers, csrfToken }: any) {
               setStatus({ success: true });
               setSubmitting(false);
               preload('api/menu/dashboard', fetcher); // load menu on login success
+              window.location.href = APP_DEFAULT_PATH;
             }
           } catch (err: any) {
             setStatus({ success: false });

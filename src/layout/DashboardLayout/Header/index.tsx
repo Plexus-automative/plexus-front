@@ -44,10 +44,10 @@ export default function Header() {
           variant="light"
           size="large"
           sx={(theme) => ({
-            color: 'secondary.main',
+            color: '#F8FAFC',
             ...(drawerOpen
-              ? { bgcolor: 'background.default' }
-              : { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'background.paper' }) }),
+              ? { bgcolor: 'rgba(255, 255, 255, 0.08)' }
+              : { bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' } }),
             ml: { xs: 0, lg: -2 },
             p: 1
           })}
@@ -64,7 +64,7 @@ export default function Header() {
     position: 'fixed',
     elevation: 0,
     sx: (theme) => ({
-      bgcolor: alpha(theme.palette.background.default, 0.8),
+      bgcolor: alpha('#111827', 0.9),
       backdropFilter: 'blur(8px)',
       zIndex: 1200,
       width: isHorizontal

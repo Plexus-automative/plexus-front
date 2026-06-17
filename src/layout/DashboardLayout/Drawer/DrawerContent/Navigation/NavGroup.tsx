@@ -163,7 +163,7 @@ export default function NavGroup({
 
   const Icon = currentItem?.icon ? currentItem.icon : null;
   const itemIcon = Icon ? (
-    <Box component="span" sx={{ color: isSelected || anchorEl ? 'primary.main' : 'text.primary' }}>
+    <Box component="span" sx={{ color: isSelected || anchorEl ? '#3B82F6' : '#94A3B8' }}>
       <Icon variant="Bulk" size={22} />
     </Box>
   ) : null;
@@ -277,8 +277,8 @@ export default function NavGroup({
                       sx={(theme) => ({
                         textTransform: 'uppercase',
                         fontSize: '0.688rem',
-                        color: 'text.primary',
-                        ...theme.applyStyles('dark', { color: 'text.secondary' })
+                        color: '#94A3B8',
+                        ...theme.applyStyles('dark', { color: '#94A3B8' })
                       })}
                     >
                       <FormattedMessage id={item.title} />
@@ -323,9 +323,9 @@ export default function NavGroup({
                   variant="h6"
                   sx={(theme) => ({
                     fontWeight: isSelected || anchorEl ? 500 : 400,
-                    color: 'text.primary',
-                    ...theme.applyStyles('dark', { color: 'text.secondary' }),
-                    ...((isSelected || anchorEl) && { color: 'primary.main' })
+                    color: '#F8FAFC',
+                    ...theme.applyStyles('dark', { color: '#94A3B8' }),
+                    ...((isSelected || anchorEl) && { color: '#3B82F6' })
                   })}
                 >
                   <FormattedMessage id={currentItem.id === lastItemId ? 'more-items' : currentItem.title} />

@@ -92,6 +92,7 @@ export default function RecuesNonTraitees() {
     { id: "number", desc: true },
   ]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [registrationFilter, setRegistrationFilter] = useState("");
   const [rowSelection, setRowSelection] = useState({});
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [editOrder, setEditOrder] = useState<ExtendedNonTraitee | null>(null);
@@ -126,7 +127,7 @@ export default function RecuesNonTraitees() {
   // Reset to page 0 when filter changes
   useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [globalFilter]);
+  }, [globalFilter, registrationFilter]);
 
   useEffect(() => {
     const loadCustomers = async () => {
@@ -161,6 +162,7 @@ export default function RecuesNonTraitees() {
           sort?.id,
           sort?.desc,
           globalFilter,
+          registrationFilter,
         );
         setData(
           result.data.map((o: NonTraitee, index: number) => ({
@@ -178,6 +180,7 @@ export default function RecuesNonTraitees() {
             lastModifiedDateTime:
               o.lastModifiedDateTime || new Date().toISOString(),
             plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [],
+            RegistrationNumber: o.RegistrationNumber || "",
           })),
         );
         setTotalCount(result.totalCount || 0);
@@ -191,7 +194,7 @@ export default function RecuesNonTraitees() {
     };
 
     loadData();
-  }, [pageIndex, pageSize, sorting, globalFilter]);
+  }, [pageIndex, pageSize, sorting, globalFilter, registrationFilter]);
 
   // Export headers
   const csvHeaders = [
@@ -275,6 +278,11 @@ export default function RecuesNonTraitees() {
         },
       },
       {
+        header: "Immat",
+        accessorKey: "RegistrationNumber",
+        enableSorting: true,
+      },
+      {
         header: "Status",
         accessorKey: "ShippingAdvice",
         enableSorting: false,
@@ -324,12 +332,9 @@ export default function RecuesNonTraitees() {
                 color="secondary"
                 onClick={(e: MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
-                  setExpandedRows((p) => {
-                    if (p[row.id] === "view") {
-                      return { ...p, [row.id]: null };
-                    }
-                    return { [row.id]: "view" };
-                  });
+                  setExpandedRows((p) =>
+                    p[row.id] === "view" ? {} : { [row.id]: "view" },
+                  );
                 }}
               >
                 <Eye style={{ width: 36, height: 36 }} />
@@ -399,14 +404,21 @@ export default function RecuesNonTraitees() {
     <MainCard content={false}>
       <Stack
         direction={{ xs: "column", sm: "row" }}
-        justifyContent="space-between"
+        justifyContent="flex-start"
+        alignItems="center"
         gap={2}
         p={3}
       >
         <DebouncedInput
           value={globalFilter}
           onFilterChange={(v) => setGlobalFilter(String(v))}
-          placeholder={`Chercher ${totalCount} commandes...`}
+          placeholder="Chercher commandes..."
+        />
+        <Box sx={{ flexGrow: 1 }} />
+        <DebouncedInput
+          value={registrationFilter}
+          onFilterChange={(v) => setRegistrationFilter(String(v))}
+          placeholder="Chercher par immatriculation..."
         />
       </Stack>
 
@@ -509,7 +521,7 @@ export default function RecuesNonTraitees() {
                                 </Stack>
 
                                 {row.original.plexuspurchaseOrderLines &&
-                                row.original.plexuspurchaseOrderLines.length >
+                                  row.original.plexuspurchaseOrderLines.length >
                                   0 ? (
                                   (() => {
                                     const lines = row.original
@@ -521,17 +533,17 @@ export default function RecuesNonTraitees() {
                                       .trim();
                                     const filteredLines = term
                                       ? lines.filter((line) => {
-                                          const haystack = [
-                                            line.lineObjectNumber,
-                                            line.description,
-                                            line.Decision,
-                                            line.OldRemplacementItemNo,
-                                          ]
-                                            .filter(Boolean)
-                                            .join(" ")
-                                            .toLowerCase();
-                                          return haystack.includes(term);
-                                        })
+                                        const haystack = [
+                                          line.lineObjectNumber,
+                                          line.description,
+                                          line.Decision,
+                                          line.OldRemplacementItemNo,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" ")
+                                          .toLowerCase();
+                                        return haystack.includes(term);
+                                      })
                                       : lines;
 
                                     return (
@@ -560,7 +572,33 @@ export default function RecuesNonTraitees() {
                                               ) => (
                                                 <TableRow key={line.id}>
                                                   <TableCell>
-                                                    {line.lineObjectNumber}
+                                                    <Stack>
+                                                      {line.OldRemplacementItemNo && (
+                                                        <>
+                                                          <Typography
+                                                            variant="caption"
+                                                            sx={{
+                                                              color: "error.main",
+                                                              textDecoration: "line-through",
+                                                              fontWeight: "bold",
+                                                            }}
+                                                          >
+                                                            {line.lineObjectNumber}
+                                                          </Typography>
+                                                          <Typography
+                                                            variant="body2"
+                                                            sx={{ color: "text.secondary" }}
+                                                          >
+                                                            {line.OldRemplacementItemNo}
+                                                          </Typography>
+                                                        </>
+                                                      )}
+                                                      {!line.OldRemplacementItemNo && (
+                                                        <Typography variant="body2">
+                                                          {line.lineObjectNumber}
+                                                        </Typography>
+                                                      )}
+                                                    </Stack>
                                                   </TableCell>
                                                   <TableCell>
                                                     {line.description}
@@ -660,6 +698,14 @@ export default function RecuesNonTraitees() {
                 <Typography>{editedOrderLocal.orderDate}</Typography>
                 <Typography variant="subtitle2">Fournisseur:</Typography>
                 <Typography>{editedOrderLocal.vendorName}</Typography>
+                {editedOrderLocal.plexuspurchaseOrderLines?.some(l => l.ChassisNo) && (
+                  <>
+                    <Typography variant="subtitle2">Num Chassis:</Typography>
+                    <Typography sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                      {editedOrderLocal.plexuspurchaseOrderLines.find(l => l.ChassisNo)?.ChassisNo}
+                    </Typography>
+                  </>
+                )}
               </Stack>
 
               <Stack direction="row" justifyContent="flex-end" mb={2}>
@@ -672,24 +718,24 @@ export default function RecuesNonTraitees() {
               </Stack>
 
               {editedOrderLocal.plexuspurchaseOrderLines &&
-              editedOrderLocal.plexuspurchaseOrderLines.length > 0 ? (
+                editedOrderLocal.plexuspurchaseOrderLines.length > 0 ? (
                 (() => {
                   const lines =
                     editedOrderLocal.plexuspurchaseOrderLines as ExtendedPurchaseOrderLine[];
                   const term = editLinesSearch.toLowerCase().trim();
                   const filteredLines = term
                     ? lines.filter((line) => {
-                        const haystack = [
-                          line.lineObjectNumber,
-                          line.description,
-                          line.Decision,
-                          line.OldRemplacementItemNo,
-                        ]
-                          .filter(Boolean)
-                          .join(" ")
-                          .toLowerCase();
-                        return haystack.includes(term);
-                      })
+                      const haystack = [
+                        line.lineObjectNumber,
+                        line.description,
+                        line.Decision,
+                        line.OldRemplacementItemNo,
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase();
+                      return haystack.includes(term);
+                    })
                     : lines;
 
                   const showDateColumn = filteredLines.some(
@@ -720,8 +766,56 @@ export default function RecuesNonTraitees() {
                           filteredLines.map(
                             (line: ExtendedPurchaseOrderLine, idx: number) => {
                               return (
-                                <TableRow key={line.id || idx}>
-                                  <TableCell>{line.lineObjectNumber}</TableCell>
+                                <TableRow
+                                  key={line.id || idx}
+                                  sx={{
+                                    backgroundColor: line.ChassisNo ? "rgba(255, 255, 0, 0.15)" : "inherit"
+                                  }}
+                                >
+                                  <TableCell>
+                                    <Stack>
+
+                                      {line.OldRemplacementItemNo && (
+                                        <>
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              color: "error.main",
+                                              textDecoration: "line-through",
+                                              fontWeight: "bold",
+                                            }}
+                                          >
+                                            {line.lineObjectNumber}
+                                          </Typography>
+                                          <Typography
+                                            variant="body2"
+                                            sx={{ color: "text.secondary" }}
+                                          >
+                                            {line.OldRemplacementItemNo}
+                                          </Typography>
+                                        </>
+                                      )}
+                                      {!line.OldRemplacementItemNo && (
+                                        <Typography variant="body2">
+                                          {line.lineObjectNumber}
+                                        </Typography>
+                                      )}
+                                    </Stack>
+                                    {line.ChassisNo && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          color: "error.main",
+                                          fontWeight: "bold",
+                                          mt: 0.5,
+                                          display: 'block',
+                                          fontSize: 10,
+                                        }}
+                                      >
+                                        -Attention merci de vérifier la référence en doute avec le num châssis
+                                      </Typography>
+                                    )}
+                                  </TableCell>
                                   <TableCell>
                                     {line.description ?? ""}
                                   </TableCell>
@@ -754,10 +848,10 @@ export default function RecuesNonTraitees() {
                                               (l: ExtendedPurchaseOrderLine) =>
                                                 l.id === line.id
                                                   ? {
-                                                      ...l,
-                                                      directUnitCost:
-                                                        parsedValue,
-                                                    }
+                                                    ...l,
+                                                    directUnitCost:
+                                                      parsedValue,
+                                                  }
                                                   : l,
                                             );
                                           return copy;
@@ -830,7 +924,7 @@ export default function RecuesNonTraitees() {
                                       value={
                                         line.deliveryQuantity ??
                                         (line.confirmationStatus ===
-                                        "Non Disponible"
+                                          "Non Disponible"
                                           ? 0
                                           : (line.quantity ?? 0))
                                       }
@@ -857,10 +951,10 @@ export default function RecuesNonTraitees() {
                                               (l: ExtendedPurchaseOrderLine) =>
                                                 l.id === line.id
                                                   ? {
-                                                      ...l,
-                                                      deliveryQuantity:
-                                                        numValue,
-                                                    }
+                                                    ...l,
+                                                    deliveryQuantity:
+                                                      numValue,
+                                                  }
                                                   : l,
                                             );
                                           return copy;
@@ -873,34 +967,34 @@ export default function RecuesNonTraitees() {
                                     <TableCell>
                                       {line.confirmationStatus ===
                                         "Liv pevu a date" && (
-                                        <TextField
-                                          size="small"
-                                          type="date"
-                                          value={line.deliveryDate || ""}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setEditedOrderLocal((prev) => {
-                                              if (!prev) return prev;
-                                              const copy = { ...prev };
-                                              copy.plexuspurchaseOrderLines =
-                                                copy.plexuspurchaseOrderLines?.map(
-                                                  (
-                                                    l: ExtendedPurchaseOrderLine,
-                                                  ) =>
-                                                    l.id === line.id
-                                                      ? {
+                                          <TextField
+                                            size="small"
+                                            type="date"
+                                            value={line.deliveryDate || ""}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              setEditedOrderLocal((prev) => {
+                                                if (!prev) return prev;
+                                                const copy = { ...prev };
+                                                copy.plexuspurchaseOrderLines =
+                                                  copy.plexuspurchaseOrderLines?.map(
+                                                    (
+                                                      l: ExtendedPurchaseOrderLine,
+                                                    ) =>
+                                                      l.id === line.id
+                                                        ? {
                                                           ...l,
                                                           deliveryDate: v,
                                                         }
-                                                      : l,
-                                                );
-                                              return copy;
-                                            });
-                                          }}
-                                          sx={{ width: 130 }}
-                                          InputLabelProps={{ shrink: true }}
-                                        />
-                                      )}
+                                                        : l,
+                                                  );
+                                                return copy;
+                                              });
+                                            }}
+                                            sx={{ width: 130 }}
+                                            InputLabelProps={{ shrink: true }}
+                                          />
+                                        )}
                                     </TableCell>
                                   )}
                                   <TableCell>
@@ -917,9 +1011,9 @@ export default function RecuesNonTraitees() {
                                               (l: ExtendedPurchaseOrderLine) =>
                                                 l.id === line.id
                                                   ? {
-                                                      ...l,
-                                                      OldRemplacementItemNo: v,
-                                                    }
+                                                    ...l,
+                                                    OldRemplacementItemNo: v,
+                                                  }
                                                   : l,
                                             );
                                           return copy;

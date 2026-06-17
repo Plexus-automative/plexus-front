@@ -43,7 +43,7 @@ export default function Livraison() {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const response = await axiosServices.get('/api/purchase-orders/recues/en-cours?skip=0&top=5&sort=number&desc=true');
+        const response = await axiosServices.get('/api/purchase-orders/recues/notifications?skip=0&top=5&sort=number&desc=true');
 
         if (response.data && response.data['@odata.count'] !== undefined) {
           setDeliveryCount(response.data['@odata.count']);
@@ -93,9 +93,7 @@ export default function Livraison() {
         size="large"
         sx={(theme: any) => ({
           p: 1,
-          color: 'secondary.main',
-          bgcolor: open ? 'secondary.200' : 'secondary.100',
-          ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
+          color: '#F8FAFC', bgcolor: open ? 'rgba(255, 255, 255, 0.08)' : 'transparent', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' }
         })}
       >
         <Badge badgeContent={deliveryCount} color="success">

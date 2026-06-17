@@ -6,13 +6,13 @@ import Drawer from '@mui/material/Drawer';
 import { DRAWER_WIDTH, MINI_DRAWER_WIDTH } from 'config';
 
 const openedMixin = (theme: Theme): CSSObject => ({
-  backgroundColor: theme.palette.background.default,
+  backgroundColor: '#111827',
   width: DRAWER_WIDTH,
-  borderRight: '1px dashed',
-  borderRightColor: theme.palette.secondary[400],
+  borderRight: '1px solid',
+  borderRightColor: 'rgba(255, 255, 255, 0.1)',
   boxShadow: 'none',
   ...theme.applyStyles('dark', {
-    borderRightColor: theme.palette.secondary[200],
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
     boxShadow: theme.customShadows.z1
   }),
   overflowX: 'hidden',
@@ -25,7 +25,7 @@ const openedMixin = (theme: Theme): CSSObject => ({
 
 const closedMixin = (theme: Theme): CSSObject => ({
   overflow: 'hidden',
-  backgroundColor: theme.palette.background.default,
+  backgroundColor: '#111827',
 
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
@@ -34,7 +34,8 @@ const closedMixin = (theme: Theme): CSSObject => ({
 
   overflowX: 'hidden',
   width: MINI_DRAWER_WIDTH,
-  borderRight: 'none',
+  borderRight: '1px solid',
+  borderRightColor: 'rgba(255, 255, 255, 0.1)',
   boxShadow: theme.customShadows.z1
 });
 

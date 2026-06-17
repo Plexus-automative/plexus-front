@@ -27,6 +27,13 @@ export default function Search() {
       <FormControl sx={{ width: { xs: '100%', md: 224 } }}>
         <OutlinedInput
           id="header-search"
+          sx={{
+            color: '#F8FAFC',
+            bgcolor: 'rgba(255, 255, 255, 0.04)',
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.2)' },
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.3)' },
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#3B82F6' },
+          }}
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -37,7 +44,7 @@ export default function Search() {
           }
           aria-describedby="header-search-text"
           slotProps={{ input: { sx: { p: 1.5 }, 'aria-label': 'weight' } }}
-          placeholder="Ctrl + K"
+          placeholder="Rechercher article ..."
         />
       </FormControl>
     </Box>

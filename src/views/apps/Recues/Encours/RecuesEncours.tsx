@@ -28,7 +28,9 @@ import {
     Snackbar,
     Checkbox,
     Input,
-    Paper
+    Paper,
+    Tabs,
+    Tab
 } from '@mui/material';
 import { Typography } from '@mui/material';
 
@@ -72,12 +74,14 @@ interface ExtendedEncours extends Omit<Encours, 'plexuspurchaseOrderLines'> {
 }
 
 export default function RecuesEncours() {
+    const [activeTab, setActiveTab] = useState<'validation' | 'valide'>('validation');
     const [data, setData] = useState<Encours[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
         { id: 'number', desc: true }
     ]);
     const [globalFilter, setGlobalFilter] = useState('');
+    const [registrationFilter, setRegistrationFilter] = useState('');
     const [rowSelection, setRowSelection] = useState({});
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [editOrder, setEditOrder] = useState<ExtendedEncours | null>(null);
@@ -103,10 +107,10 @@ export default function RecuesEncours() {
 
     const [totalCount, setTotalCount] = useState(0);
 
-    // Reset to page 0 when filter changes
+    // Reset to page 0 when filter or tab changes
     useEffect(() => {
         setPagination(p => ({ ...p, pageIndex: 0 }));
-    }, [globalFilter]);
+    }, [globalFilter, registrationFilter, activeTab]);
 
     useEffect(() => {
         const loadCustomers = async () => {
@@ -139,7 +143,9 @@ export default function RecuesEncours() {
                     pageSize,
                     sort?.id,
                     sort?.desc,
-                    globalFilter
+                    globalFilter,
+                    registrationFilter,
+                    activeTab
                 );
                 setData(
                     result.data.map((o: Encours, index: number) => ({
@@ -153,6 +159,17 @@ export default function RecuesEncours() {
                         status: o.status,
                         SellToCustomerNo: (o as any).SellToCustomerNo || '',
                         shipToName: (o as any).shipToName || '',
+                        shipToAddressLine1: (o as any).shipToAddressLine1 || '',
+                        shipToAddressLine2: (o as any).shipToAddressLine2 || '',
+                        shipToCity: (o as any).shipToCity || '',
+                        shipToPostCode: (o as any).shipToPostCode || '',
+                        shipToContact: (o as any).shipToContact || '',
+                        RegistrationNumber: (o as any).RegistrationNumber || '',
+                        VIN: (o as any).VIN || (o as any).vin || '',
+                        MatriculeFiscale: (o as any).MatriculeFiscale || '',
+                        SellToPhoneNo: (o as any).SellToPhoneNo || '',
+                        PhoneNo: (o as any).PhoneNo || '',
+                        shipToPhone: (o as any).shipToPhone || '',
                         postingDate: o.postingDate || o.orderDate,
                         lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
                         plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || []
@@ -169,7 +186,7 @@ export default function RecuesEncours() {
         };
 
         loadData();
-    }, [pageIndex, pageSize, sorting, globalFilter]);
+    }, [pageIndex, pageSize, sorting, globalFilter, registrationFilter, activeTab]);
 
     // Export headers
     const csvHeaders = [
@@ -252,7 +269,7 @@ export default function RecuesEncours() {
         setValidating(true);
         try {
             const allLines = editedOrderLocal.plexuspurchaseOrderLines || [];
-            
+
             // Prepare lines for submission: selected lines get updated, unselected ones are marked for deletion
             const processedLines = allLines.map(line => {
                 if (line.selected === false) {
@@ -281,7 +298,7 @@ export default function RecuesEncours() {
             const response = await axiosServices.post(
                 `/api/purchase-orders/validate-order`,
                 orderToSubmit,
-                { 
+                {
                     responseType: 'blob',
                     timeout: 120000 // 2 minutes to prevent automatic client-side retries
                 }
@@ -361,6 +378,11 @@ export default function RecuesEncours() {
             }
         },
         {
+            header: 'Immat',
+            accessorKey: 'RegistrationNumber',
+            enableSorting: true
+        },
+        {
             header: 'Status',
             accessorKey: 'ShippingAdvice',
             enableSorting: false,
@@ -395,7 +417,7 @@ export default function RecuesEncours() {
                                 color="secondary"
                                 onClick={(e: MouseEvent<HTMLButtonElement>) => {
                                     e.stopPropagation();
-                                    setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
+                                    setExpandedRows(p => p[row.id] === 'view' ? {} : { [row.id]: 'view' });
                                 }}
                             >
                                 <Eye style={{ width: 36, height: 36 }} />
@@ -476,11 +498,86 @@ export default function RecuesEncours() {
 
     return (
         <MainCard content={false}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" gap={2} sx={{ px: 3, py: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <DebouncedInput
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Chercher ${totalCount} commandes...`}
+                    placeholder="Chercher commandes..."
+                />
+
+                <Box
+                    sx={{
+                        display: 'inline-flex',
+                        bgcolor: 'grey.100',
+                        p: 0.5,
+                        borderRadius: 3,
+                        border: '1px solid',
+                        borderColor: 'grey.200',
+                    }}
+                >
+                    <Tabs
+                        value={activeTab}
+                        onChange={(e, value) => setActiveTab(value)}
+                        sx={{
+                            minHeight: 'auto',
+                            '& .MuiTabs-indicator': {
+                                height: '100%',
+                                borderRadius: 2.5,
+                                bgcolor: 'common.white',
+                                boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+                                zIndex: 0,
+                            },
+                        }}
+                    >
+                        <Tab
+                            label="En cours de validation"
+                            value="validation"
+                            sx={{
+                                minHeight: 'auto',
+                                py: 1,
+                                px: 3,
+                                borderRadius: 2.5,
+                                fontWeight: 600,
+                                textTransform: 'none',
+                                transition: 'color 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                zIndex: 1,
+                                color: activeTab === 'validation' ? 'primary.main' : 'text.secondary',
+                                '&.Mui-selected': {
+                                    color: 'primary.main',
+                                },
+                                '&:hover': {
+                                    color: 'primary.main',
+                                },
+                            }}
+                        />
+                        <Tab
+                            label="Validées"
+                            value="valide"
+                            sx={{
+                                minHeight: 'auto',
+                                py: 1,
+                                px: 3,
+                                borderRadius: 2.5,
+                                fontWeight: 600,
+                                textTransform: 'none',
+                                transition: 'color 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                zIndex: 1,
+                                color: activeTab === 'valide' ? 'primary.main' : 'text.secondary',
+                                '&.Mui-selected': {
+                                    color: 'primary.main',
+                                },
+                                '&:hover': {
+                                    color: 'primary.main',
+                                },
+                            }}
+                        />
+                    </Tabs>
+                </Box>
+
+                <DebouncedInput
+                    value={registrationFilter}
+                    onFilterChange={(v) => setRegistrationFilter(String(v))}
+                    placeholder="Chercher par immatriculation..."
                 />
             </Stack>
 
@@ -524,7 +621,7 @@ export default function RecuesEncours() {
                                         const status = (row.original as any).ShippingAdvice;
                                         const rowBg = status === 'Totalité' ? 'rgba(76, 175, 80, 0.08)'
                                             : (status === 'LivraisonDispo' || status === 'Livrer Disponible') ? 'rgba(255, 193, 7, 0.08)'
-                                            : 'transparent';
+                                                : 'transparent';
                                         return (
                                             <Fragment key={row.id}>
                                                 <TableRow hover sx={{ bgcolor: rowBg }}>
@@ -583,7 +680,6 @@ export default function RecuesEncours() {
                                                                                         <TableCell>Num article</TableCell>
                                                                                         <TableCell>Description</TableCell>
                                                                                         <TableCell>Prix unitaire</TableCell>
-                                                                                        <TableCell>Ancienne prix</TableCell>
 
                                                                                         <TableCell>Quantité</TableCell>
                                                                                         <TableCell>Quantité disponible</TableCell>
@@ -605,10 +701,55 @@ export default function RecuesEncours() {
                                                                                                         : 'inherit'
                                                                                                 }}
                                                                                             >
-                                                                                                <TableCell>{line.lineObjectNumber}</TableCell>
+                                                                                                <TableCell>
+                                                                                                    <Stack>
+                                                                                                        {line.OldRemplacementItemNo && (
+                                                                                                            <>
+                                                                                                                <Typography
+                                                                                                                    variant="caption"
+                                                                                                                    sx={{
+                                                                                                                        color: 'error.main',
+                                                                                                                        textDecoration: 'line-through',
+                                                                                                                        fontWeight: 'bold'
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    {line.lineObjectNumber}
+                                                                                                                </Typography>
+                                                                                                                <Typography
+                                                                                                                    variant="body2"
+                                                                                                                    sx={{ color: 'text.secondary' }}
+                                                                                                                >
+                                                                                                                    {line.OldRemplacementItemNo}
+                                                                                                                </Typography>
+                                                                                                            </>
+                                                                                                        )}
+                                                                                                        {!line.OldRemplacementItemNo && (
+                                                                                                            <Typography variant="body2">
+                                                                                                                {line.lineObjectNumber}
+                                                                                                                </Typography>
+                                                                                                        )}
+                                                                                                    </Stack>
+                                                                                                </TableCell>
                                                                                                 <TableCell>{line.description}</TableCell>
-                                                                                                <TableCell>{line.directUnitCost}</TableCell>
-                                                                                                <TableCell>{line.OldUnitPrice || '-'}</TableCell>
+                                                                                                <TableCell>
+                                                                                                    <Stack spacing={0.5}>
+                                                                                                        {line.OldUnitPrice !== undefined && line.OldUnitPrice !== null && line.OldUnitPrice !== 0 ? (
+                                                                                                            <Typography
+                                                                                                                variant="caption"
+                                                                                                                sx={{
+                                                                                                                    color: "error.main",
+                                                                                                                    textDecoration: "line-through",
+                                                                                                                    fontWeight: "bold",
+                                                                                                                }}
+                                                                                                            >
+                                                                                                                {line.OldUnitPrice}
+                                                                                                            </Typography>
+                                                                                                        ) : null}
+                                                                                                        <Typography variant="body2" sx={{ fontWeight: "bold", color: "#2e7d32" }}>
+                                                                                                            {line.directUnitCost}
+                                                                                                        </Typography>
+                                                                                                    </Stack>
+                                                                                                </TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
                                                                                                 <TableCell sx={{ color: 'primary.main', fontWeight: 'bold' }}>
                                                                                                     {line.QuantityAvailable ?? 0}
@@ -725,7 +866,35 @@ export default function RecuesEncours() {
                                                             : 'inherit'
                                                     }}
                                                 >
-                                                    <TableCell>{line.lineObjectNumber}</TableCell>
+                                                    <TableCell>
+                                                        <Stack>
+                                                            {line.OldRemplacementItemNo && (
+                                                                <>
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        sx={{
+                                                                            color: 'error.main',
+                                                                            textDecoration: 'line-through',
+                                                                            fontWeight: 'bold'
+                                                                        }}
+                                                                    >
+                                                                        {line.lineObjectNumber}
+                                                                    </Typography>
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        sx={{ color: 'text.secondary' }}
+                                                                    >
+                                                                        {line.OldRemplacementItemNo}
+                                                                    </Typography>
+                                                                </>
+                                                            )}
+                                                            {!line.OldRemplacementItemNo && (
+                                                                <Typography variant="body2">
+                                                                    {line.lineObjectNumber}
+                                                                </Typography>
+                                                            )}
+                                                        </Stack>
+                                                    </TableCell>
                                                     <TableCell>{line.description || ''}</TableCell>
                                                     <TableCell>
                                                         <TextField

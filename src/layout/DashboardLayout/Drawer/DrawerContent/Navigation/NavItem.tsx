@@ -24,6 +24,8 @@ import { FormattedMessage } from 'react-intl';
 import { handlerHorizontalActiveItem, handlerActiveItem, handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 import { MenuOrientation, NavActionType } from 'config';
 import useConfig from 'hooks/useConfig';
+import { catalogueApi } from 'app/api/services/CatalogueService';
+import { openSnackbar } from 'api/snackbar';
 
 // types
 import { LinkTarget, NavItemType } from 'types/menu';
@@ -72,11 +74,11 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
     // eslint-disable-next-line
   }, [pathname]);
 
-  const iconSelectedColor = 'primary.main';
+  const iconSelectedColor = '#3B82F6';
   // Sidebar submenu (dropdown) text color
-  const dropdownColor = '#48617d';
-  const baseTextColor = isSidebarDropdownMenu ? dropdownColor : 'text.primary';
-  const baseDarkTextColor = isSidebarDropdownMenu ? dropdownColor : 'text.secondary';
+  const dropdownColor = '#94A3B8';
+  const baseTextColor = isSidebarDropdownMenu ? dropdownColor : '#F8FAFC';
+  const baseDarkTextColor = isSidebarDropdownMenu ? dropdownColor : '#94A3B8';
   const itemHandler = () => {
     if (downLG) handlerDrawerOpen(false);
 
@@ -85,14 +87,52 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
     }
   };
 
+  const handleCatalogueLogin = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (downLG) handlerDrawerOpen(false);
+
+    try {
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write('<html><body style="background: #111; color: #eee; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;"><div>Connexion au catalogue en cours...</div></body></html>');
+      }
+
+      const data = await catalogueApi.login();
+      
+      if (newWindow) {
+        newWindow.location.href = data.redirectUrl;
+      } else {
+        // Fallback if window.open was somehow null
+        window.open(data.redirectUrl, '_blank');
+      }
+      
+      openSnackbar({
+        open: true,
+        message: `Catalogue ouvert!`,
+        variant: 'alert',
+        alert: { color: 'success', variant: 'filled' },
+        close: true
+      });
+    } catch (err: any) {
+      if (newWindow) newWindow.close();
+      openSnackbar({
+        open: true,
+        message: err.message || 'Erreur de connexion au catalogue',
+        variant: 'alert',
+        alert: { color: 'error', variant: 'filled' },
+        close: true
+      });
+    }
+  };
+
   return (
     <>
       {menuOrientation === MenuOrientation.VERTICAL || downLG ? (
         <Box sx={{ position: 'relative' }}>
           <ListItemButton
-            component={Link}
-            href={item.url!}
-            target={itemTarget}
+            {...(item.id === 'connexion-catalogue' ? { component: 'div' } : { component: Link, href: item.url!, target: itemTarget })}
             disabled={item.disabled}
             selected={isSelected}
             sx={(theme) => ({
@@ -100,10 +140,10 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
               pl: level === 2 ? 3.25 : drawerOpen ? (level <= 3 ? (level * 20) / 8 : (level * 20 + (level - 3) * 10) / 8) : 1.5,
               py: !drawerOpen && level === 1 ? 1.25 : 1,
               ...(drawerOpen && {
-                '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) },
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', ...theme.applyStyles('dark', { bgcolor: 'divider' }) },
                 '&.Mui-selected': {
-                  '&:hover': { bgcolor: 'primary.lighter', ...theme.applyStyles('dark', { bgcolor: 'primary.800' }) },
-                  bgcolor: 'primary.lighter',
+                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)', ...theme.applyStyles('dark', { bgcolor: 'primary.800' }) },
+                  bgcolor: 'rgba(255, 255, 255, 0.08)',
                   ...theme.applyStyles('dark', { bgcolor: 'primary.800' })
                 }
               }),
@@ -112,20 +152,26 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
                 mx: 1.25,
                 my: 0.5,
                 borderRadius: 1,
-                '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
               }),
               ...(!drawerOpen && {
                 px: 2.75,
                 justifyContent: 'center',
                 '&:hover': { bgcolor: 'transparent' },
                 '&.Mui-selected': {
-                  '&:hover': { bgcolor: 'primary.lighter', ...theme.applyStyles('dark', { bgcolor: 'primary.800' }) },
-                  bgcolor: 'primary.lighter',
+                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)', ...theme.applyStyles('dark', { bgcolor: 'primary.800' }) },
+                  bgcolor: 'rgba(255, 255, 255, 0.08)',
                   ...theme.applyStyles('dark', { bgcolor: 'primary.800' })
                 }
               })
             })}
-            onClick={() => itemHandler()}
+            onClick={(e) => {
+              if (item.id === 'connexion-catalogue' || item.id?.toLowerCase().includes('catalogue')) {
+                handleCatalogueLogin(e);
+              } else {
+                itemHandler();
+              }
+            }}
           >
             {itemIcon && (
               <ListItemIcon
@@ -141,12 +187,12 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
                     height: 46,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    '&:hover': { bgcolor: 'secondary.200', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
+                    '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', ...theme.applyStyles('dark', { bgcolor: 'divider' }) }
                   }),
                   ...(!drawerOpen &&
                     isSelected && {
-                    bgcolor: 'primary.lighter',
-                    '&:hover': { bgcolor: 'primary.lighter' },
+                    bgcolor: 'rgba(255, 255, 255, 0.08)',
+                    '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' },
                     ...theme.applyStyles('dark', { bgcolor: 'divider', '&:hover': { bgcolor: 'divider' } })
                   })
                 })}
@@ -235,17 +281,10 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
         </Box>
       ) : (
         <ListItemButton
-          component={Link}
-          href={item.url!}
-          target={itemTarget}
+          {...(item.id === 'connexion-catalogue' ? { component: 'div' } : { component: Link, href: item.url!, target: itemTarget })}
           disabled={item.disabled}
           selected={isSelected}
           disableTouchRipple
-          {...(isParents && {
-            onClick: () => {
-              handlerHorizontalActiveItem(item.id!);
-            }
-          })}
           sx={(theme) => ({
             zIndex: 1201,
             borderRadius: !isParents && level >= 1 ? 0 : 1,
@@ -253,18 +292,27 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
             ...(isParents && { color: baseTextColor, ...theme.applyStyles('dark', { color: baseDarkTextColor }), p: 1, mr: 1 }),
             ...(!isParents && {
               '&.Mui-selected': {
-                bgcolor: 'primary.lighter',
+                bgcolor: 'rgba(255, 255, 255, 0.08)',
                 ...theme.applyStyles('dark', { bgcolor: 'primary.800' }),
                 color: iconSelectedColor,
                 '&:hover': {
                   color: iconSelectedColor,
-                  bgcolor: 'primary.lighter',
+                  bgcolor: 'rgba(255, 255, 255, 0.12)',
                   ...theme.applyStyles('dark', { bgcolor: 'primary.800' })
                 }
               }
             })
           })}
-          onClick={() => itemHandler()}
+          onClick={(e) => {
+            if (item.id === 'connexion-catalogue' || item.id?.toLowerCase().includes('catalogue')) {
+              handleCatalogueLogin(e);
+            } else {
+              if (isParents) {
+                handlerHorizontalActiveItem(item.id!);
+              }
+              itemHandler();
+            }
+          }}
         >
           {itemIcon && (
             <ListItemIcon

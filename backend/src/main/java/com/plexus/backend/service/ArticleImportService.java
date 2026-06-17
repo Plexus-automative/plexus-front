@@ -25,6 +25,18 @@ public class ArticleImportService {
     @Value("${business-central.api.system-url}")
     private String systemUrl;
 
+    @Value("${business-central.api.tarek-system-url}")
+    private String tarekSystemUrl;
+
+    @Value("${business-central.defaults.gen-prod-posting-group}")
+    private String defaultGenProdPostingGroup;
+
+    @Value("${business-central.defaults.vat-prod-posting-group}")
+    private String defaultVatProdPostingGroup;
+
+    @Value("${business-central.defaults.inventory-posting-group}")
+    private String defaultInventoryPostingGroup;
+
     public ArticleImportService(WebClient webClient, BusinessCentralTokenService tokenService) {
         this.webClient = webClient;
         this.tokenService = tokenService;
@@ -42,13 +54,14 @@ public class ArticleImportService {
             throw new Exception("Excel file is empty");
         }
 
-        int codeIdx = -1, descIdx = -1, prixIdx = -1, qteIdx = -1;
+        int codeIdx = -1, descIdx = -1, prixIdx = -1, qteIdx = -1, marqueIdx = -1;
         for (Cell cell : headerRow) {
             String val = cell.getStringCellValue().trim();
             if (val.equalsIgnoreCase("CodeArticle")) codeIdx = cell.getColumnIndex();
             else if (val.equalsIgnoreCase("Designation")) descIdx = cell.getColumnIndex();
             else if (val.equalsIgnoreCase("Prix")) prixIdx = cell.getColumnIndex();
             else if (val.equalsIgnoreCase("Qte")) qteIdx = cell.getColumnIndex();
+            else if (val.equalsIgnoreCase("Marque")) marqueIdx = cell.getColumnIndex();
         }
 
         if (codeIdx == -1) {
@@ -58,17 +71,20 @@ public class ArticleImportService {
 
         for (int i = 1; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
-            if (row == null) continue;
+            if (row == null)
+                continue;
 
             String code = getCellValue(row.getCell(codeIdx));
             String desc = getCellValue(row.getCell(descIdx));
             Double prix = getNumericValue(row.getCell(prixIdx));
             Double qte = getNumericValue(row.getCell(qteIdx));
+            String marque = (marqueIdx != -1) ? getCellValue(row.getCell(marqueIdx)) : null;
 
-            if (code == null || code.isEmpty()) continue;
+            if (code == null || code.isEmpty())
+                continue;
 
             try {
-                processArticle(token, vendorNo, code, desc, prix, qte, importAll);
+                processArticle(token, vendorNo, code, desc, prix, qte, marque, importAll);
             } catch (Exception e) {
                 System.err.println("Error processing row " + i + ": " + e.getMessage());
             }
@@ -76,11 +92,13 @@ public class ArticleImportService {
         workbook.close();
     }
 
-    private void processArticle(String token, String vendorNo, String code, String desc, Double prix, Double qte, boolean importAll) throws Exception {
+    private void processArticle(String token, String vendorNo, String code, String desc, Double prix, Double qte, String marque,
+            boolean importAll) throws Exception {
         // Use vendorItemNo filter as code might be the vendor's internal reference
-        String filter = "vendorNo eq '" + vendorNo + "' and (itemNo eq '" + code + "' or vendorItemNo eq '" + code + "')";
+        String filter = "vendorNo eq '" + vendorNo + "' and (itemNo eq '" + code + "' or vendorItemNo eq '" + code
+                + "')";
         String encodedFilter = URLEncoder.encode(filter, StandardCharsets.UTF_8).replace("+", "%20");
-        String url = systemUrl + "/plexusItemImports?$filter=" + encodedFilter;
+        String url = tarekSystemUrl + "/plexusItemImports?$filter=" + encodedFilter;
 
         String response = webClient.get()
                 .uri(URI.create(url))
@@ -97,16 +115,27 @@ public class ArticleImportService {
             JsonNode itemVendor = value.get(0);
             String itemNo = itemVendor.get("itemNo").asText();
             String etag = itemVendor.get("@odata.etag").asText();
-            
-            ObjectNode patchNode = mapper.createObjectNode();
-            if (prix != null) patchNode.put("ItemUnitPrice", prix);
-            if (qte != null) patchNode.put("ItemInventory", qte);
-            if (desc != null && !desc.isEmpty()) patchNode.put("ItemDescription", desc);
 
-            // Use SystemId (id) for the PATCH URL as it's the standard OData way for BC APIs
+            ObjectNode patchNode = mapper.createObjectNode();
+            if (prix != null)
+                patchNode.put("ItemUnitPrice", prix);
+            if (qte != null)
+                patchNode.put("ItemInventory", qte);
+            if (desc != null && !desc.isEmpty())
+                patchNode.put("ItemDescription", desc);
+            if (marque != null && !marque.isEmpty())
+                patchNode.put("marque", marque);
+
+            // Repair/Update posting groups if missing
+            patchNode.put("genProdPostingGroup", defaultGenProdPostingGroup);
+            patchNode.put("vatProdPostingGroup", defaultVatProdPostingGroup);
+            patchNode.put("inventoryPostingGroup", defaultInventoryPostingGroup);
+
+            // Use SystemId (id) for the PATCH URL as it's the standard OData way for BC
+            // APIs
             String id = itemVendor.get("id").asText();
-            String patchUrl = systemUrl + "/plexusItemImports(" + id + ")";
-            
+            String patchUrl = tarekSystemUrl + "/plexusItemImports(" + id + ")";
+
             webClient.patch()
                     .uri(URI.create(patchUrl))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -119,14 +148,23 @@ public class ArticleImportService {
         } else if (importAll) {
             // Create new
             ObjectNode postNode = mapper.createObjectNode();
-            postNode.put("vendorNo", vendorNo);
+            postNode.put("vendorNoForCreation", vendorNo);
             postNode.put("vendorItemNo", code);
             postNode.put("ItemDescription", (desc != null && !desc.isEmpty()) ? desc : code);
-            if (prix != null) postNode.put("ItemUnitPrice", prix);
-            if (qte != null) postNode.put("ItemInventory", qte);
+            if (prix != null)
+                postNode.put("ItemUnitPrice", prix);
+            if (qte != null)
+                postNode.put("ItemInventory", qte);
+            if (marque != null && !marque.isEmpty())
+                postNode.put("marque", marque);
+
+            // Mandatory posting groups for creation
+            postNode.put("genProdPostingGroup", defaultGenProdPostingGroup);
+            postNode.put("vatProdPostingGroup", defaultVatProdPostingGroup);
+            postNode.put("inventoryPostingGroup", defaultInventoryPostingGroup);
 
             webClient.post()
-                    .uri(URI.create(systemUrl + "/plexusItemImports"))
+                    .uri(URI.create(tarekSystemUrl + "/plexusItemImports"))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(postNode.toString())
@@ -137,19 +175,26 @@ public class ArticleImportService {
     }
 
     private String getCellValue(Cell cell) {
-        if (cell == null) return null;
-        if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue();
-        if (cell.getCellType() == CellType.NUMERIC) return String.valueOf((long) cell.getNumericCellValue());
+        if (cell == null)
+            return null;
+        if (cell.getCellType() == CellType.STRING)
+            return cell.getStringCellValue();
+        if (cell.getCellType() == CellType.NUMERIC)
+            return String.valueOf((long) cell.getNumericCellValue());
         return null;
     }
 
     private Double getNumericValue(Cell cell) {
-        if (cell == null) return null;
-        if (cell.getCellType() == CellType.NUMERIC) return cell.getNumericCellValue();
+        if (cell == null)
+            return null;
+        if (cell.getCellType() == CellType.NUMERIC)
+            return cell.getNumericCellValue();
         if (cell.getCellType() == CellType.STRING) {
             try {
                 return Double.parseDouble(cell.getStringCellValue().replace(",", "."));
-            } catch (Exception e) { return null; }
+            } catch (Exception e) {
+                return null;
+            }
         }
         return null;
     }

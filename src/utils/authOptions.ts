@@ -36,14 +36,18 @@ export const authOptions: NextAuthOptions = {
         const internalUrl = process.env.NEXT_APP_INTERNAL_BACKEND_URL;
         const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-        // Remove trailing /api from publicUrl if it exists to avoid double /api
-        const baseBackendUrl = internalUrl || (publicUrl?.endsWith('/api') ? publicUrl.slice(0, -4) : publicUrl);
-        const loginUrl = (baseBackendUrl || '') + '/api/account/login';
+        // FIX: Use publicUrl (localhost) for local dev, internalUrl (backend) is for Docker
+        let baseBackendUrl = publicUrl || internalUrl || '';
+        
+        // Remove trailing slashes and /api to avoid double slashes
+        if (baseBackendUrl.endsWith('/api')) {
+          baseBackendUrl = baseBackendUrl.slice(0, -4);
+        }
+        if (baseBackendUrl.endsWith('/')) {
+          baseBackendUrl = baseBackendUrl.slice(0, -1);
+        }
+        const loginUrl = baseBackendUrl + '/api/account/login';
 
-        console.log('--- AUTH ATTEMPT ---');
-        console.log('Internal URL Env:', internalUrl);
-        console.log('Public URL Env:', publicUrl);
-        console.log('Resolved Login URL:', loginUrl);
 
         try {
           const res = await fetch(loginUrl, {
@@ -55,23 +59,32 @@ export const authOptions: NextAuthOptions = {
             headers: { 'Content-Type': 'application/json' },
           });
 
+
           if (!res.ok) {
             const errorText = await res.text();
-            console.error('Backend Login Failed:', res.status, errorText);
+            console.error('!!! Backend Login Failed !!!');
+            console.error('Status:', res.status);
+            console.error('Error Text:', errorText);
             throw new Error(errorText || 'Authentication failed');
           }
 
           const responseData = await res.json();
-          console.log('Backend Login Success:', responseData.user?.email);
 
           if (res.ok && responseData.user) {
             responseData.user['accessToken'] = responseData.serviceToken;
             return responseData.user;
           } else {
+            console.error('=== No user in response ===');
           }
         } catch (e: any) {
-          const errorMessage = e?.message || e?.response?.data?.message || 'Something went wrong!';
-          throw new Error(errorMessage);
+          console.error('=== AUTH ERROR ===');
+          console.error('Error Type:', e.name);
+          console.error('Error Message:', e.message);
+          if (e.cause) {
+            console.error('Error Cause:', e.cause);
+          }
+          console.error('Stack:', e.stack);
+          throw new Error(e.message || 'Authentication failed');
         }
 
       }
@@ -109,7 +122,6 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     jwt: async ({ token, user, account }) => {
-      console.log(">>> [NEXTAUTH] JWT Callback - user:", user);
       if (user) {
         token.accessToken = user.accessToken;
         token.id = user.id;
@@ -117,40 +129,46 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.customerNo = (user as any).customerNo;
         token.vendorNo = (user as any).vendorNo;
+        token.password = (user as any).password;
+        token.catalogType = (user as any).catalogType;
       }
-      console.log(">>> [NEXTAUTH] JWT Callback - Output token:", token);
       return token;
     },
     session: ({ session, token }) => {
-      console.log(">>> [NEXTAUTH] SESSION Callback - Input token:", token);
       if (token) {
         session.id = token.id;
         session.provider = token.provider;
         session.token = token;
-        console.log(">>> [NEXTAUTH] SESSION Callback - session.user:", session.user);
         if (session.user) {
           (session.user as any).role = token.role;
           (session.user as any).customerNo = token.customerNo;
           (session.user as any).vendorNo = token.vendorNo;
+          (session.user as any).password = token.password;
+          (session.user as any).catalogType = token.catalogType;
         }
       }
-      console.log(">>> [NEXTAUTH] SESSION Callback - Final session:", session);
       return session;
     },
     async signIn(params) {
       // Prevent JWT token issuance on registration
       if (params.account?.provider === 'register') {
-        return `${process.env.NEXTAUTH_URL}login`;
+        const baseUrl = process.env.NEXTAUTH_URL?.endsWith('/') ? process.env.NEXTAUTH_URL : `${process.env.NEXTAUTH_URL}/`;
+        return `${baseUrl}login`;
+      }
+      // If user is not provided, sign-in failed
+      if (!params.user) {
+        return false;
       }
       return true;
     }
   },
+  trustHost: true,
   session: {
     strategy: 'jwt',
-    maxAge: Number(process.env.NEXT_APP_JWT_TIMEOUT!)
+    maxAge: Number(process.env.NEXT_APP_JWT_TIMEOUT) || 86400
   },
   jwt: {
-    secret: process.env.NEXT_APP_JWT_SECRET
+    secret: process.env.NEXT_APP_JWT_SECRET || process.env.NEXTAUTH_SECRET
   },
   pages: {
     signIn: '/login',

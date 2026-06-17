@@ -36,7 +36,7 @@ const ExpandMore = styled(IconButton, {
 })<ExpandMoreProps>(({ theme, expand, drawerOpen }) => ({
   transform: !expand ? 'rotate(0deg)' : 'rotate(-90deg)',
   marginLeft: 'auto',
-  color: theme.palette.secondary.dark,
+  color: '#94A3B8',
   transition: theme.transitions.create('transform', {
     duration: theme.transitions.duration.shortest
   }),
@@ -106,7 +106,13 @@ export default function UserList() {
           <ListItemAvatar>
             <Avatar alt="Avatar" src={avatar1} sx={{ ...(drawerOpen && { width: 46, height: 46 }) }} />
           </ListItemAvatar>
-          <ListItemText primary={user ? user?.name : ''} sx={{ ...(!drawerOpen && { display: 'none' }) }} secondary={user ? user.role : 'User'} />
+          <ListItemText 
+            primary={user ? user?.name : ''} 
+            sx={{ ...(!drawerOpen && { display: 'none' }) }} 
+            secondary={user ? user.role : 'User'} 
+            primaryTypographyProps={{ color: '#F8FAFC', fontWeight: 500 }}
+            secondaryTypographyProps={{ color: '#94A3B8' }}
+          />
         </ListItem>
       </List>
       <Menu

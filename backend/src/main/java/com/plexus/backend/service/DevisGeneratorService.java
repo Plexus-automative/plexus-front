@@ -43,7 +43,7 @@ public class DevisGeneratorService {
             String clientName,
             String clientNumber,
             String clientAddress,
-            String matriculeFiscale,
+            String vatRegistrationNo,
             com.fasterxml.jackson.databind.JsonNode lines) throws Exception {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -64,7 +64,7 @@ public class DevisGeneratorService {
                 // Footer
                 PdfPTable footer = new PdfPTable(1);
                 footer.setTotalWidth(document.right() - document.left());
-                String info = "PLEXUS AUTOMOTIVE  |  Golden Tower A10.4 Centre Urbain Nord Tunis  |  Tél/Fax : 70 29 70 45\nMF : 1639504Y  |  RC : B12251996  |  BTK 052210052346527";
+                String info = "PLEXUS AUTOMOTIVE  |  Golden Tower A10.4 Centre Urbain Nord Tunis  |  Tél/Fax : 70 29 70 45\nMF : 1639504Y  |  RC : B12251996  |  BTK 20005052210070153108";
                 PdfPCell cell = new PdfPCell(new Phrase(info, FONT_SMALL));
                 cell.setBorder(Rectangle.TOP);
                 cell.setBorderColor(ACCENT_BLUE);
@@ -153,7 +153,7 @@ public class DevisGeneratorService {
         if (clientAddress != null && !clientAddress.isEmpty()) {
             clientBox.addElement(new Paragraph(clientAddress, FONT_NORMAL));
         }
-        clientBox.addElement(new Paragraph("Matricule fiscale: " + (matriculeFiscale != null ? matriculeFiscale : "-"),
+        clientBox.addElement(new Paragraph("Code TVA : " + (vatRegistrationNo != null ? vatRegistrationNo : ""),
                 FONT_NORMAL));
 
         mainInfo.addCell(clientBox);
@@ -197,7 +197,14 @@ public class DevisGeneratorService {
             for (com.fasterxml.jackson.databind.JsonNode line : lines) {
                 String ref = line.has("lineObjectNumber") ? line.get("lineObjectNumber").asText() : "";
                 String desc = line.has("description") ? line.get("description").asText() : "";
-                double qty = line.has("quantity") ? line.get("quantity").asDouble() : 1;
+                double qty = 1;
+                if (line.has("quantity") && line.get("quantity").asDouble() > 0) {
+                    qty = line.get("quantity").asDouble();
+                } else if (line.has("receivedQuantity") && line.get("receivedQuantity").asDouble() > 0) {
+                    qty = line.get("receivedQuantity").asDouble();
+                } else if (line.has("receiveQuantity") && line.get("receiveQuantity").asDouble() > 0) {
+                    qty = line.get("receiveQuantity").asDouble();
+                }
                 double up = line.has("directUnitCost") ? line.get("directUnitCost").asDouble() : 0;
                 double sub = qty * up;
                 totalHT += sub;
@@ -215,12 +222,8 @@ public class DevisGeneratorService {
             }
         }
 
-        // Dummy rows for stability
-        for (int i = rows; i < 7; i++) {
-            Color bg = (i % 2 == 0) ? Color.WHITE : LIGHT_BG;
-            for (int j = 0; j < 8; j++)
-                addGridData(grid, " ", Element.ALIGN_CENTER, bg);
-        }
+        // Removed dummy rows for stability as requested by user
+
 
         document.add(grid);
 

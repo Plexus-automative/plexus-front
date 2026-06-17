@@ -213,7 +213,7 @@ export default function OrderListPage_Recues() {
     return (
         <MainCard content={false}>
             <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
-                <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder={`Search ${OrderRecues.length} records...`} />
+                <DebouncedInput value={globalFilter} onFilterChange={v => setGlobalFilter(String(v))} placeholder="Chercher commandes..." />
 
             </Stack>
 

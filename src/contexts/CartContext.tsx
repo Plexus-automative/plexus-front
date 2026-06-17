@@ -11,6 +11,7 @@ export interface CartItem {
     price: number;
     quantity: number;
     isAdaptable?: boolean;
+    chassisNo?: string;
 }
 
 
@@ -20,46 +21,43 @@ interface CartContextType {
     removeFromCart: (itemId: string) => void;
     updateQuantity: (itemId: string, quantity: number) => void;
     toggleAdaptable: (itemId: string, isAdaptable: boolean) => void;
+    updateChassisNo: (itemId: string, chassisNo: string) => void;
     clearCart: () => void;
     totalItems: number;
     totalPrice: number;
+    registrationNumber: string;
+    setRegistrationNumber: (value: string) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
+    const [registrationNumber, setRegistrationNumber] = React.useState('');
     const [isInitialized, setIsInitialized] = React.useState(false);
 
-    // Load cart from localStorage on mount
+    // Ensure no data is persisted or loaded from localStorage
     React.useEffect(() => {
-        const savedCart = localStorage.getItem('plexus_cart');
-        if (savedCart) {
+        if (typeof window !== 'undefined') {
             try {
-                setCartItems(JSON.parse(savedCart));
+                localStorage.removeItem('plexus_cart');
+                localStorage.removeItem('plexus_registration');
             } catch (err) {
-                console.error('Failed to parse cart from localStorage:', err);
+                console.error('Failed to clean up localStorage:', err);
             }
         }
         setIsInitialized(true);
     }, []);
 
-    // Save cart to localStorage whenever it changes
-    React.useEffect(() => {
-        if (isInitialized) {
-            localStorage.setItem('plexus_cart', JSON.stringify(cartItems));
-        }
-    }, [cartItems, isInitialized]);
-
     const addToCart = (newItem: CartItem) => {
         setCartItems((prevItems) => {
             // Check if item already exists in the cart
-            const existingItem = prevItems.find((item) => item.id === newItem.id && item.vendorNumber === newItem.vendorNumber && item.isAdaptable === newItem.isAdaptable);
+            const existingItem = prevItems.find((item) => item.number === newItem.number && item.vendorNumber === newItem.vendorNumber && item.isAdaptable === newItem.isAdaptable);
 
             if (existingItem) {
                 // Increment quantity
                 return prevItems.map((item) =>
-                    item.id === newItem.id && item.vendorNumber === newItem.vendorNumber && item.isAdaptable === newItem.isAdaptable
+                    item.number === newItem.number && item.vendorNumber === newItem.vendorNumber && item.isAdaptable === newItem.isAdaptable
                         ? { ...item, quantity: item.quantity + newItem.quantity }
                         : item
                 );
@@ -95,8 +93,17 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         );
     };
 
+    const updateChassisNo = (itemId: string, chassisNo: string) => {
+        setCartItems((prevItems) =>
+            prevItems.map((item) =>
+                item.id === itemId ? { ...item, chassisNo } : item
+            )
+        );
+    };
+
     const clearCart = () => {
         setCartItems([]);
+        setRegistrationNumber('');
     };
 
     const totalItems = cartItems.length;
@@ -115,9 +122,12 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 removeFromCart,
                 updateQuantity,
                 toggleAdaptable,
+                updateChassisNo,
                 clearCart,
                 totalItems,
                 totalPrice,
+                registrationNumber,
+                setRegistrationNumber,
             }}
         >
             {children}

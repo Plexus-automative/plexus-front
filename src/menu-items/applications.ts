@@ -18,7 +18,8 @@ import {
   BoxTick,
   TaskSquare,
   AddCircle,
-  Bag2
+  Bag2,
+  ExternalDrive
 } from "@wandersonalwes/iconsax-react";
 
 // types
@@ -42,7 +43,8 @@ const icons = {
   fileManager: DocumentFilter,
   mail: DirectInbox,
   reference: AddCircle,
-  validation: TaskSquare
+  validation: TaskSquare,
+  catalogue: ExternalDrive
 };
 
 // ==============================|| MENU ITEMS - APPLICATIONS ||============================== //
@@ -122,6 +124,14 @@ const applications: NavItemType = {
       ]
     },
     {
+      id: "plexus-pec-commandes",
+      title: "plexus-pec-commandes",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.add,
+      url: "/pages/plexus-pec-commandes",
+    },
+    {
       id: "commandes-livrees",
       title: "commandes-livrees",
       type: "item",
@@ -160,6 +170,14 @@ const applications: NavItemType = {
       breadcrumbs: false,
       icon: icons.ecommerce,
       url: "/panier",
+    },
+    {
+      id: "connexion-catalogue",
+      title: "connexion-catalogue",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.catalogue,
+      url: "#",
     }
   ],
 };

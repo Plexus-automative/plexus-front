@@ -9,12 +9,19 @@ business-central:
     client-id: ${BC_CLIENT_ID}
     client-secret: ${BC_CLIENT_SECRET}
     tenant-id: ${BC_TENANT_ID}
+  defaults:
+    gen-prod-posting-group: ${BC_DEFAULT_GEN_PROD:NEGOCE}
+    vat-prod-posting-group: ${BC_DEFAULT_VAT_PROD:TVA19}
+    inventory-posting-group: ${BC_DEFAULT_INV_PROD:REVENTE}
   api:
     base-url: ${BC_BASE_URL}
     system-url: ${BC_SYSTEM_API_URL}
     tarek-system-url: ${BC_TAREK_SYSTEM_API_URL}
     company-id: ${BC_COMPANY_ID}
- 
+
+guacamole:
+  url: ${GUACAMOLE_URL:http://64.225.109.181:8080}
+  
 management:
   endpoints:
     web:
@@ -28,6 +35,7 @@ logging:
   level:
     root: INFO
     com.plexus: DEBUG
+    org.springframework.security: DEBUG
 
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}

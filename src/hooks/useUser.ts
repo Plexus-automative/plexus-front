@@ -7,6 +7,8 @@ interface UserProps {
   avatar: string;
   thumb: string;
   role: string;
+  catalogType: string;
+  customerNo: string;
 }
 
 export default function useUser() {
@@ -30,7 +32,9 @@ export default function useUser() {
       email: user?.email || 'doe@codedthemes.com',
       avatar: user?.image || '/assets/images/users/avatar-1.png',
       thumb,
-      role: (user as any)?.role || (session as any)?.token?.role || 'User'
+      role: (user as any)?.role || (session as any)?.token?.role || 'User',
+      catalogType: (user as any)?.catalogType || '',
+      customerNo: (user as any)?.customerNo || ''
     };
 
     return newUser;

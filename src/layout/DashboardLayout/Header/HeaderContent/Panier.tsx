@@ -68,9 +68,7 @@ export default function Panier() {
         size="large"
         sx={(theme: any) => ({
           p: 1,
-          color: 'secondary.main',
-          bgcolor: open ? 'secondary.200' : 'secondary.100',
-          ...theme.applyStyles('dark', { bgcolor: open ? 'background.paper' : 'background.default' })
+          color: '#F8FAFC', bgcolor: open ? 'rgba(255, 255, 255, 0.08)' : 'transparent', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' }
         })}
       >
         <Badge
