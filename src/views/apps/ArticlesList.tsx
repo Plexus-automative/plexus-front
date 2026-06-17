@@ -203,12 +203,26 @@ export default function ArticlesListPage() {
     setOpenModal(true);
   };
 
-  const handleCloseModal = () => {
-    setOpenModal(false);
+  const resetModalState = () => {
     setSelectedItem(null);
     setQuantity(1);
     setIsAdaptable(false);
   };
+
+  const handleCloseModal = () => {
+    setOpenModal(false);
+  };
+
+  const parsePriceValue = (value: number | string | undefined) => {
+    const normalized = String(value ?? '0')
+      .trim()
+      .replace(',', '.')
+      .replace(/[^0-9.-]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const selectedPrice = parsePriceValue(selectedItem?.price);
 
   const handleAddToCart = async () => {
     if (!selectedItem || quantity <= 0) return;
@@ -218,14 +232,14 @@ export default function ArticlesListPage() {
         id: uuidv4(),
         vendorNumber: selectedItem.vendorNumber || "F0024",
         vendorName: selectedItem.vendorName || "STE EURO-CAR SERVICES",
-        number: selectedItem.number, // The actual Item No
-        description: selectedItem.description, //  Item description
-        price: selectedItem.price,
+        number: selectedItem.number,
+        description: selectedItem.description,
+        price: selectedPrice,
         quantity: quantity,
         isAdaptable: isAdaptable
       });
-      handleCloseModal();
       setShowSuccessAlert(true);
+      handleCloseModal();
     } catch (error) {
       console.error("Error adding to cart:", error);
     }
@@ -305,6 +319,7 @@ export default function ArticlesListPage() {
       <Dialog
         open={openModal}
         onClose={handleCloseModal}
+        TransitionProps={{ onExited: resetModalState }}
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -444,7 +459,7 @@ export default function ArticlesListPage() {
                       fontSize: '1.5rem'
                     }}
                   >
-                    {parseFloat(String(selectedItem?.price)).toFixed(2)}
+                    {selectedPrice.toFixed(2)}
                   </Typography>
                 </Box>
               </Stack>
@@ -536,7 +551,7 @@ export default function ArticlesListPage() {
                     fontSize: '1.4rem'
                   }}
                 >
-                  {(parseFloat(String(selectedItem?.price)) * quantity).toFixed(2)}
+                  {(selectedPrice * quantity).toFixed(2)}
                 </Typography>
               </Stack>
             </Paper>

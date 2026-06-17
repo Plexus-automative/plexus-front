@@ -1,439 +1,549 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState, Fragment, MouseEvent } from 'react';
-import { alpha } from '@mui/material/styles';
+import { useEffect, useMemo, useState, Fragment, MouseEvent } from "react";
+import { alpha } from "@mui/material/styles";
 import {
-    Button,
-    Chip,
-    Divider,
-    Stack,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Tooltip,
-    Box,
-    Collapse,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    CircularProgress,
-    Alert,
-    TextField
-} from '@mui/material';
+  Button,
+  Chip,
+  Divider,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+  Box,
+  Collapse,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
+  Alert,
+  TextField,
+} from "@mui/material";
 
 import {
-    ColumnDef,
-    flexRender,
-    getCoreRowModel,
-    getSortedRowModel,
-    getPaginationRowModel,
-    getFilteredRowModel,
-    useReactTable,
-    SortingState,
-    ColumnFiltersState,
-    PaginationState // Add this import
-} from '@tanstack/react-table';
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  getFilteredRowModel,
+  useReactTable,
+  SortingState,
+  ColumnFiltersState,
+  PaginationState, // Add this import
+} from "@tanstack/react-table";
 
-import MainCard from 'components/MainCard';
+import MainCard from "components/MainCard";
 import {
-    DebouncedInput,
-    HeaderSort,
-    IndeterminateCheckbox,
-    RowSelection,
-    TablePagination
-} from 'components/third-party/react-table';
+  DebouncedInput,
+  HeaderSort,
+  IndeterminateCheckbox,
+  RowSelection,
+  TablePagination,
+} from "components/third-party/react-table";
 
-import IconButton from 'components/@extended/IconButton';
-import { Eye, Edit, Trash, DocumentDownload } from '@wandersonalwes/iconsax-react';
+import IconButton from "components/@extended/IconButton";
+import {
+  Eye,
+  Edit,
+  Trash,
+  DocumentDownload,
+} from "@wandersonalwes/iconsax-react";
 import { CSVLink } from "react-csv";
 
-import { fetchNonTraitees } from 'app/api/services/Emises/NonTraiteeEmises';
-import { NonTraitee } from 'types/NonTraitee';
+import { fetchNonTraitees } from "app/api/services/Emises/NonTraiteeEmises";
+import { NonTraitee } from "types/NonTraitee";
 
 export default function EmisesNonTraitees() {
-    const [data, setData] = useState<NonTraitee[]>([]);
-    const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
-    const [sorting, setSorting] = useState<SortingState>([
-        { id: 'number', desc: true }
-    ]); const [globalFilter, setGlobalFilter] = useState('');
-    const [rowSelection, setRowSelection] = useState({});
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-    const [editOrder, setEditOrder] = useState<NonTraitee | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [detailSearch, setDetailSearch] = useState<{ [key: string]: string }>({});
+  const [data, setData] = useState<NonTraitee[]>([]);
+  const [expandedRows, setExpandedRows] = useState<{
+    [key: string]: "view" | "edit" | null;
+  }>({});
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "number", desc: true },
+  ]);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [rowSelection, setRowSelection] = useState({});
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [editOrder, setEditOrder] = useState<NonTraitee | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [detailSearch, setDetailSearch] = useState<{ [key: string]: string }>(
+    {},
+  );
 
-    // Use pagination state from TanStack Table
-    const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
-        pageIndex: 0,
-        pageSize: 10,
-    });
+  // Use pagination state from TanStack Table
+  const [{ pageIndex, pageSize }, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
-    const [totalCount, setTotalCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
-    // Reset to page 0 when filter changes
-    useEffect(() => {
-        setPagination(p => ({ ...p, pageIndex: 0 }));
-    }, [globalFilter]);
+  // Reset to page 0 when filter changes
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [globalFilter]);
 
-    // Fetch data when pageIndex or pageSize changes
-    useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                // Fetch with proper pagination
-                const sort = sorting[0];
+  // Fetch data when pageIndex or pageSize changes
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch with proper pagination
+        const sort = sorting[0];
 
-                const result = await fetchNonTraitees(
-                    pageIndex,
-                    pageSize,
-                    sort?.id,
-                    sort?.desc,
-                    globalFilter
-                );
-                setData(
-                    result.data.map((o: NonTraitee, index: number) => ({
-                        id: o.id || String(pageIndex * pageSize + index + 1),
-                        number: o.number,
-                        orderDate: o.orderDate,
-                        vendorName: o.vendorName || (o as any).payToName || (o as any).buyFromVendorName || o.payToVendorNumber || '-',
-                        payToVendorNumber: o.payToVendorNumber || '',
-                        fullyReceived: o.QtyReceived === 'Oui',
-                        ShippingAdvice: o.ShippingAdvice,
-                        status: o.status,
-                        postingDate: o.postingDate || o.orderDate,
-                        lastModifiedDateTime: o.lastModifiedDateTime || new Date().toISOString(),
-                        plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [] // ✅ ADD THIS
-
-                    }))
-                );
-                setTotalCount(result.totalCount || 0);
-
-            } catch (err: any) {
-                setError('Try Again Later');
-                console.error('Error loading data:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadData();
-    }, [pageIndex, pageSize, sorting, globalFilter]);
-
-    // Export headers
-    const csvHeaders = [
-        { label: "Nom", key: "description" },
-        { label: "Reference", key: "lineObjectNumber" },
-        { label: "Prix Unit HT", key: "directUnitCost" },
-        { label: "TVA", key: "taxPercent" },
-        { label: "Disponiblite", key: "QuantityAvailable" },
-        { label: "Nature", key: "nature" }
-    ];
-
-    const getExportDataForOrder = (order: NonTraitee) => {
-        const allLines: any[] = [];
-        if (order.plexuspurchaseOrderLines) {
-            order.plexuspurchaseOrderLines.forEach(l => {
-                allLines.push({
-                    ...l,
-                    description: l.description || '',
-                    lineObjectNumber: l.lineObjectNumber || '',
-                    directUnitCost: l.directUnitCost || 0,
-                    taxPercent: (l as any).taxPercent || 0,
-                    QuantityAvailable: (l as any).QuantityAvailable || (l as any).quantity || 0,
-                    nature: (l as any).nature?.toLowerCase() === 'adaptable' ? 2 : (l as any).nature?.toLowerCase() === 'casse' ? 3 : 1
-                });
-            });
-        }
-        return allLines;
+        const result = await fetchNonTraitees(
+          pageIndex,
+          pageSize,
+          sort?.id,
+          sort?.desc,
+          globalFilter,
+        );
+        setData(
+          result.data.map((o: NonTraitee, index: number) => ({
+            id: o.id || String(pageIndex * pageSize + index + 1),
+            number: o.number,
+            orderDate: o.orderDate,
+            vendorName:
+              o.vendorName ||
+              (o as any).payToName ||
+              (o as any).buyFromVendorName ||
+              o.payToVendorNumber ||
+              "-",
+            payToVendorNumber: o.payToVendorNumber || "",
+            fullyReceived: o.QtyReceived === "Oui",
+            ShippingAdvice: o.ShippingAdvice,
+            status: o.status,
+            postingDate: o.postingDate || o.orderDate,
+            lastModifiedDateTime:
+              o.lastModifiedDateTime || new Date().toISOString(),
+            plexuspurchaseOrderLines: o.plexuspurchaseOrderLines || [], // ✅ ADD THIS
+          })),
+        );
+        setTotalCount(result.totalCount || 0);
+      } catch (err: any) {
+        setError("Try Again Later");
+        console.error("Error loading data:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const columns = useMemo<ColumnDef<NonTraitee>[]>(() => [
+    loadData();
+  }, [pageIndex, pageSize, sorting, globalFilter]);
 
+  // Export headers
+  const csvHeaders = [
+    { label: "Nom", key: "description" },
+    { label: "Reference", key: "lineObjectNumber" },
+    { label: "Prix Unit HT", key: "directUnitCost" },
+    { label: "TVA", key: "taxPercent" },
+    { label: "Disponiblite", key: "QuantityAvailable" },
+    { label: "Nature", key: "nature" },
+  ];
 
-        {
-            header: 'Num Commande',
-            accessorKey: 'number',
-            enableSorting: true
-        },
-        {
-            header: 'Date',
-            accessorKey: 'orderDate',
-            enableSorting: true
-        },
-        {
-            header: 'Fournisseur',
-            accessorKey: 'vendorName',
-            enableSorting: false
-        },
-        {
-            header: 'Status',
-            accessorKey: 'ShippingAdvice',
-            enableSorting: false,
-            cell: ({ getValue }) => {
-                const status = getValue<string>();
-                switch (status) {
-                    case 'Released':
-                        return <Chip color="success" label="Released" size="small" variant="light" />;
-                    case 'Open':
-                        return <Chip color="info" label="Open" size="small" variant="light" />;
-                    case 'Attente':
-                        return <Chip color="warning" label="En Attente" size="small" variant="light" />;
-                    default:
-                        return <Chip color="default" label={status} size="small" />;
-                }
-            }
-        },
-        {
-            header: 'Actions',
-            meta: { align: 'center' },
-            enableSorting: false,
-            cell: ({ row }) => (
-                <Stack direction="row" gap={1} justifyContent="center" alignItems="center">
-                    <Tooltip title="View">
-                        <IconButton
-                            color="secondary"
-                            onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                                e.stopPropagation();
-                                setExpandedRows(p => ({ ...p, [row.id]: p[row.id] === 'view' ? null : 'view' }));
-                            }}
-                        >
-                            <Eye style={{ width: 36, height: 36 }} />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Exporter Excel">
-                        <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
-                            <CSVLink
-                                data={getExportDataForOrder(row.original)}
-                                headers={csvHeaders}
-                                filename={`Commandes_${row.original.number.replace(/\//g, '-')}_${new Date().toISOString().split('T')[0]}.csv`}
-                                style={{ textDecoration: 'none', display: 'flex' }}
-                            >
-                                <IconButton color="success">
-                                    <DocumentDownload style={{ width: 36, height: 36 }} />
-                                </IconButton>
-                            </CSVLink>
-                        </span>
-                    </Tooltip>
-                </Stack>
-            )
-        }
-    ], []);
+  const getExportDataForOrder = (order: NonTraitee) => {
+    const allLines: any[] = [];
+    if (order.plexuspurchaseOrderLines) {
+      order.plexuspurchaseOrderLines.forEach((l) => {
+        allLines.push({
+          ...l,
+          description: l.description || "",
+          lineObjectNumber: l.lineObjectNumber || "",
+          directUnitCost: l.directUnitCost || 0,
+          taxPercent: (l as any).taxPercent || 0,
+          QuantityAvailable:
+            (l as any).QuantityAvailable || (l as any).quantity || 0,
+          nature:
+            (l as any).nature?.toLowerCase() === "adaptable"
+              ? 2
+              : (l as any).nature?.toLowerCase() === "casse"
+                ? 3
+                : 1,
+        });
+      });
+    }
+    return allLines;
+  };
 
-    const table = useReactTable({
-        data,
-        columns,
-        pageCount: Math.ceil(totalCount / pageSize),
-
-        state: {
-            sorting,
-            globalFilter,
-            rowSelection,
-            columnFilters,
-            pagination: { pageIndex, pageSize }
-        },
-
-        manualPagination: true,
-        manualSorting: true, // 👈 ADD THIS
-
-        onPaginationChange: setPagination,
-        onSortingChange: setSorting,
-
-        enableRowSelection: true,
-        onRowSelectionChange: setRowSelection,
-        onGlobalFilterChange: setGlobalFilter,
-        onColumnFiltersChange: setColumnFilters,
-
-        getCoreRowModel: getCoreRowModel(),
-
-
-        getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-
-        autoResetPageIndex: false,
-    });
-
-    return (
-        <MainCard content={false}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} p={3}>
-                <DebouncedInput
-                    value={globalFilter}
-                    onFilterChange={v => setGlobalFilter(String(v))}
-                    placeholder={`Chercher ${totalCount} commandes...`}
+  const columns = useMemo<ColumnDef<NonTraitee>[]>(
+    () => [
+      {
+        header: "Num Commande",
+        accessorKey: "number",
+        enableSorting: true,
+      },
+      {
+        header: "Date",
+        accessorKey: "orderDate",
+        enableSorting: true,
+      },
+      {
+        header: "Fournisseur",
+        accessorKey: "vendorName",
+        enableSorting: false,
+      },
+      {
+        header: "Status",
+        accessorKey: "ShippingAdvice",
+        enableSorting: false,
+        cell: ({ getValue }) => {
+          const status = getValue<string>();
+          switch (status) {
+            case "Released":
+              return (
+                <Chip
+                  color="success"
+                  label="Released"
+                  size="small"
+                  variant="light"
                 />
-            </Stack>
+              );
+            case "Open":
+              return (
+                <Chip color="info" label="Open" size="small" variant="light" />
+              );
+            case "Attente":
+              return (
+                <Chip
+                  color="warning"
+                  label="En Attente"
+                  size="small"
+                  variant="light"
+                />
+              );
+            default:
+              return <Chip color="default" label={status} size="small" />;
+          }
+        },
+      },
+      {
+        header: "Actions",
+        meta: { align: "center" },
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Stack
+            direction="row"
+            gap={1}
+            justifyContent="center"
+            alignItems="center"
+          >
+            <Tooltip title="View">
+              <IconButton
+                color="secondary"
+                onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                  e.stopPropagation();
+                  setExpandedRows((p) => {
+                    if (p[row.id] === "view") {
+                      return { ...p, [row.id]: null };
+                    }
+                    return { [row.id]: "view" };
+                  });
+                }}
+              >
+                <Eye style={{ width: 36, height: 36 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Exporter Excel">
+              <span style={{ display: "inline-flex", verticalAlign: "middle" }}>
+                <CSVLink
+                  data={getExportDataForOrder(row.original)}
+                  headers={csvHeaders}
+                  filename={`Commandes_${row.original.number.replace(/\//g, "-")}_${new Date().toISOString().split("T")[0]}.csv`}
+                  style={{ textDecoration: "none", display: "flex" }}
+                >
+                  <IconButton color="success">
+                    <DocumentDownload style={{ width: 36, height: 36 }} />
+                  </IconButton>
+                </CSVLink>
+              </span>
+            </Tooltip>
+          </Stack>
+        ),
+      },
+    ],
+    [],
+  );
 
-            <RowSelection selected={Object.keys(rowSelection).length} />
+  const table = useReactTable({
+    data,
+    columns,
+    pageCount: Math.ceil(totalCount / pageSize),
 
-            {loading && (
-                <Box display="flex" justifyContent="center" p={4}>
-                    <CircularProgress />
-                </Box>
-            )}
+    state: {
+      sorting,
+      globalFilter,
+      rowSelection,
+      columnFilters,
+      pagination: { pageIndex, pageSize },
+    },
 
-            {error && (
-                <Box p={2}>
-                    <Alert severity="error">{error}</Alert>
-                </Box>
-            )}
+    manualPagination: true,
+    manualSorting: true, // 👈 ADD THIS
 
-            {!loading && !error && (
-                <>
-                    <TableContainer>
-                        <Table>
-                            <TableHead>
-                                {table.getHeaderGroups().map(hg => (
-                                    <TableRow key={hg.id}>
-                                        {hg.headers.map(h => (
-                                            <TableCell key={h.id} {...h.column.columnDef.meta}>
-                                                <Stack direction="row" gap={1} alignItems="center">
-                                                    {flexRender(h.column.columnDef.header, h.getContext())}
-                                                    {h.column.getCanSort() && <HeaderSort column={h.column} />}
-                                                </Stack>
+    onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
+
+    getCoreRowModel: getCoreRowModel(),
+
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+
+    autoResetPageIndex: false,
+  });
+
+  return (
+    <MainCard content={false}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        gap={2}
+        p={3}
+      >
+        <DebouncedInput
+          value={globalFilter}
+          onFilterChange={(v) => setGlobalFilter(String(v))}
+          placeholder={`Chercher ${totalCount} commandes...`}
+        />
+      </Stack>
+
+      <RowSelection selected={Object.keys(rowSelection).length} />
+
+      {loading && (
+        <Box display="flex" justifyContent="center" p={4}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {error && (
+        <Box p={2}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      )}
+
+      {!loading && !error && (
+        <>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                {table.getHeaderGroups().map((hg) => (
+                  <TableRow key={hg.id}>
+                    {hg.headers.map((h) => (
+                      <TableCell key={h.id} {...h.column.columnDef.meta}>
+                        <Stack direction="row" gap={1} alignItems="center">
+                          {flexRender(
+                            h.column.columnDef.header,
+                            h.getContext(),
+                          )}
+                          {h.column.getCanSort() && (
+                            <HeaderSort column={h.column} />
+                          )}
+                        </Stack>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHead>
+
+              <TableBody>
+                {table.getRowModel().rows.length > 0 ? (
+                  table.getRowModel().rows.map((row) => {
+                    const mode = expandedRows[row.id];
+                    return (
+                      <Fragment key={row.id}>
+                        <TableRow hover>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                        <TableRow>
+                          <TableCell
+                            colSpan={row.getVisibleCells().length}
+                            sx={{ p: 0 }}
+                          >
+                            <Collapse in={!!mode} timeout="auto" unmountOnExit>
+                              <Box
+                                sx={{
+                                  p: 2,
+                                  bgcolor: (t) =>
+                                    alpha(t.palette.primary.lighter, 0.1),
+                                }}
+                              >
+                                <Stack
+                                  direction="row"
+                                  justifyContent="flex-end"
+                                  alignItems="center"
+                                  mb={2}
+                                >
+                                  <TextField
+                                    size="small"
+                                    label="Chercher"
+                                    value={detailSearch[row.id] || ""}
+                                    onChange={(e) =>
+                                      setDetailSearch((prev) => ({
+                                        ...prev,
+                                        [row.id]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                </Stack>
+
+                                {row.original.plexuspurchaseOrderLines &&
+                                row.original.plexuspurchaseOrderLines.length >
+                                  0 ? (
+                                  (() => {
+                                    const lines =
+                                      row.original.plexuspurchaseOrderLines;
+                                    const term = (detailSearch[row.id] || "")
+                                      .toLowerCase()
+                                      .trim();
+                                    const filteredLines = term
+                                      ? lines.filter((line) => {
+                                          const haystack = [
+                                            line.sequence,
+                                            line.lineObjectNumber,
+                                            line.description,
+                                          ]
+                                            .filter(Boolean)
+                                            .join(" ")
+                                            .toLowerCase();
+                                          return haystack.includes(term);
+                                        })
+                                      : lines;
+
+                                    return (
+                                      <Table size="small" sx={{ mt: 2 }}>
+                                        <TableHead>
+                                          <TableRow>
+                                            <TableCell>Num article</TableCell>
+                                            <TableCell>Description</TableCell>
+                                            <TableCell>Quantité</TableCell>
+                                            <TableCell>
+                                              Quantité livree
                                             </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableHead>
+                                            <TableCell>Confirmation</TableCell>
+                                            <TableCell>
+                                              Date Livraison
+                                            </TableCell>
+                                          </TableRow>
+                                        </TableHead>
 
-                            <TableBody>
-                                {table.getRowModel().rows.length > 0 ? (
-                                    table.getRowModel().rows.map(row => {
-                                        const mode = expandedRows[row.id];
-                                        return (
-                                            <Fragment key={row.id}>
-                                                <TableRow hover>
-                                                    {row.getVisibleCells().map(cell => (
-                                                        <TableCell key={cell.id}>
-                                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                        </TableCell>
-                                                    ))}
-                                                </TableRow>
-                                                <TableRow>
-                                                    <TableCell colSpan={row.getVisibleCells().length} sx={{ p: 0 }}>
-                                                        <Collapse in={!!mode} timeout="auto" unmountOnExit>
-                                                            <Box
-                                                                sx={{
-                                                                    p: 2,
-                                                                    bgcolor: t => alpha(t.palette.primary.lighter, 0.1)
-                                                                }}
-                                                            >
-                                                                <Stack direction="row" justifyContent="flex-end" alignItems="center" mb={2}>
-                                                                    <TextField
-                                                                        size="small"
-                                                                        label="Chercher"
-                                                                        value={detailSearch[row.id] || ''}
-                                                                        onChange={(e) =>
-                                                                            setDetailSearch(prev => ({
-                                                                                ...prev,
-                                                                                [row.id]: e.target.value
-                                                                            }))
-                                                                        }
-                                                                    />
-                                                                </Stack>
-
-                                                                {row.original.plexuspurchaseOrderLines &&
-                                                                    row.original.plexuspurchaseOrderLines.length > 0 ? (() => {
-                                                                        const lines = row.original.plexuspurchaseOrderLines;
-                                                                        const term = (detailSearch[row.id] || '').toLowerCase().trim();
-                                                                        const filteredLines = term
-                                                                            ? lines.filter((line) => {
-                                                                                const haystack = [
-                                                                                    line.sequence,
-                                                                                    line.lineObjectNumber,
-                                                                                    line.description
-                                                                                ]
-                                                                                    .filter(Boolean)
-                                                                                    .join(' ')
-                                                                                    .toLowerCase();
-                                                                                return haystack.includes(term);
-                                                                            })
-                                                                            : lines;
-
-                                                                        return (
-                                                                            <Table size="small" sx={{ mt: 2 }}>
-                                                                                <TableHead>
-                                                                                    <TableRow>
-                                                                                        <TableCell>Num article</TableCell>
-                                                                                        <TableCell>Description</TableCell>
-                                                                                        <TableCell>Quantité</TableCell>
-                                                                                        <TableCell>Quantité livree</TableCell>
-                                                                                        <TableCell>Confirmation</TableCell>
-                                                                                        <TableCell>Date Livraison</TableCell>
-                                                                                    </TableRow>
-                                                                                </TableHead>
-
-                                                                                <TableBody>
-                                                                                    {filteredLines.length > 0 ? (
-                                                                                        filteredLines.map((line) => (
-                                                                                            <TableRow key={line.id}>
-                                                                                                <TableCell>{line.lineObjectNumber}</TableCell>
-                                                                                                <TableCell>{line.description}</TableCell>
-                                                                                                <TableCell>{line.quantity}</TableCell>
-                                                                                                <TableCell>{line.receivedQuantity}</TableCell>
-                                                                                                <TableCell>{line.Decision != "" ? line.Decision : '-'}</TableCell>
-                                                                                                <TableCell>{line.DeliveryDate != "" ? line.DeliveryDate : '-'}</TableCell>
-                                                                                            </TableRow>
-                                                                                        ))
-                                                                                    ) : (
-                                                                                        <TableRow>
-                                                                                            <TableCell colSpan={8} align="center">
-                                                                                                Aucun ligne trouvée                                                                                            </TableCell>
-                                                                                        </TableRow>
-                                                                                    )}
-                                                                                </TableBody>
-                                                                            </Table>
-                                                                        );
-                                                                    })() : (
-                                                                    <Box mt={2}>
-                                                                        <Alert severity="info">Aucune ligne d'achat disponible</Alert>
-                                                                    </Box>
-                                                                )}
-                                                            </Box>
-                                                        </Collapse>
-                                                    </TableCell>
-                                                </TableRow>
-                                            </Fragment>
-                                        );
-                                    })
+                                        <TableBody>
+                                          {filteredLines.length > 0 ? (
+                                            filteredLines.map((line) => (
+                                              <TableRow key={line.id}>
+                                                <TableCell>
+                                                  {line.lineObjectNumber}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {line.description}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {line.quantity}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {line.receivedQuantity}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {line.Decision != ""
+                                                    ? line.Decision
+                                                    : "-"}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {line.DeliveryDate != ""
+                                                    ? line.DeliveryDate
+                                                    : "-"}
+                                                </TableCell>
+                                              </TableRow>
+                                            ))
+                                          ) : (
+                                            <TableRow>
+                                              <TableCell
+                                                colSpan={8}
+                                                align="center"
+                                              >
+                                                Aucun ligne trouvée{" "}
+                                              </TableCell>
+                                            </TableRow>
+                                          )}
+                                        </TableBody>
+                                      </Table>
+                                    );
+                                  })()
                                 ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
-                                            No commandes trouvées
-                                        </TableCell>
-                                    </TableRow>
+                                  <Box mt={2}>
+                                    <Alert severity="info">
+                                      Aucune ligne d'achat disponible
+                                    </Alert>
+                                  </Box>
                                 )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      </Fragment>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      align="center"
+                      sx={{ py: 4 }}
+                    >
+                      No commandes trouvées
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-                    <Divider />
+          <Divider />
 
-                    <Box p={2}>
-                        <TablePagination
-                            {...{
-                                setPageIndex: table.setPageIndex,
-                                setPageSize: table.setPageSize,
-                                getPageCount: table.getPageCount,
-                                getState: table.getState,
-                            }}
-                        />
-                    </Box>
-                </>
-            )}
-            <Dialog open={!!editOrder} onClose={() => setEditOrder(null)} fullWidth maxWidth="md">
-                <DialogTitle>Valide Article</DialogTitle>
-                <DialogContent dividers>
-                </DialogContent>
-                <DialogActions>
-                    <Button variant="contained" onClick={() => setEditOrder(null)}>Close</Button>
-                </DialogActions>
-            </Dialog>
-        </MainCard>
-    );
+          <Box p={2}>
+            <TablePagination
+              {...{
+                setPageIndex: table.setPageIndex,
+                setPageSize: table.setPageSize,
+                getPageCount: table.getPageCount,
+                getState: table.getState,
+              }}
+            />
+          </Box>
+        </>
+      )}
+      <Dialog
+        open={!!editOrder}
+        onClose={() => setEditOrder(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Valide Article</DialogTitle>
+        <DialogContent dividers></DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setEditOrder(null)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </MainCard>
+  );
 }
