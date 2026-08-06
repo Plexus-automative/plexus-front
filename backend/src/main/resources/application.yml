@@ -19,6 +19,30 @@ business-central:
     tarek-system-url: ${BC_TAREK_SYSTEM_API_URL}
     company-id: ${BC_COMPANY_ID}
 
+bris-de-glace:
+  # Local dev default is a relative, writable path. In Docker, BRIS_UPLOADS_DIR is set to
+  # /data/uploads/bris-de-glace (mounted as the bris_uploads volume) and overrides this.
+  uploads-dir: ${BRIS_UPLOADS_DIR:uploads/bris-de-glace}
+  customer-no: ${BRIS_CUSTOMER_NO:C0090}
+  default-vendor-no: ${BRIS_DEFAULT_VENDOR_NO:}
+
+activity-log:
+  # Journal d'activité (traçabilité). Append-only JSONL, one file per month.
+  # In Docker, ACTIVITY_LOG_DIR points at the activity_logs volume; locally it falls
+  # back to ./logs/activity (see ActivityLogService#prepareLogsDir).
+  enabled: ${ACTIVITY_LOG_ENABLED:true}
+  dir: ${ACTIVITY_LOG_DIR:logs/activity}
+  retention-months: ${ACTIVITY_LOG_RETENTION_MONTHS:24}
+  zone: ${ACTIVITY_LOG_ZONE:Africa/Tunis}
+  # Only this client sees the journal — the account with the consolidated dashboard.
+  admin-customer-no: ${ACTIVITY_LOG_ADMIN_CUSTOMER_NO:C0082}
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 20MB
+
 guacamole:
   url: ${GUACAMOLE_URL:http://64.225.109.181:8080}
   
@@ -38,5 +62,24 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  # No default: a fallback signing key committed to the repo means anyone who can read
+  # the source can mint a valid token for any user. Unset => the app refuses to start.
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400}
+
+app:
+  cors:
+    # Browser origins allowed to call the portal API, comma-separated.
+    # nginx serves both plexus-tec.com and www.plexus-tec.com while the browser calls the
+    # backend at www — so a visitor on the bare domain is cross-origin and needs it listed.
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+
+partner:
+  # Shared secret for the machine-to-machine partner API (/api/partner/**), sent as
+  # X-API-Key. Unset => that surface rejects every request (it never opens up).
+  # Generate with: openssl rand -base64 32
+  api-key: ${PARTNER_API_KEY:}
+
+demande-devis:
+  # PLEXUSPEC — demandes from the commercial mobile app are booked against this customer.
+  customer-no: ${DEMANDE_DEVIS_CUSTOMER_NO:C0090}

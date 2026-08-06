@@ -35,6 +35,7 @@ public class BLGeneratorService {
 
     // Strict font for signatures
     private static final Font SIGNATURE_HEADER_FONT = new Font(Font.HELVETICA, 9, Font.BOLD, Color.BLACK);
+    private static final Font PC_FONT = new Font(Font.HELVETICA, 8.5f, Font.BOLD | Font.ITALIC, PRIMARY_COLOR);
 
     public byte[] generateBL(
             String orderNumber,
@@ -58,14 +59,17 @@ public class BLGeneratorService {
                 try {
                     footer.setTotalWidth(document.right() - document.left());
 
+                    // Smaller font so the whole line fits on one row (no wrap). NoWrap guards it too.
+                    Font footerFont = new Font(Font.HELVETICA, 6.5f, Font.NORMAL, TEXT_LIGHT);
                     PdfPCell cell = new PdfPCell(new Phrase(
-                            "PLEXUS |  Golden Tower B.5.2 Centre Urbain Nord Tunis  |  Tél/Fax : 70 139 750  |  MF : 1639504Y  |  RC : B12251996  |  Banque : BTK 20005052210070153108",
-                            SMALL_FONT));
+                            "PLEXUS |  Golden Tower B.5.2 Centre Urbain Nord Tunis  |  Tél/Fax : 70 139 750  |  MF : 1639504YBM000  |  RC : B12251996  |  Banque : BTK 20005052210070153108",
+                            footerFont));
                     cell.setBorder(Rectangle.TOP);
                     cell.setBorderColor(PRIMARY_COLOR);
                     cell.setBorderWidthTop(1.5f);
                     cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                    cell.setPaddingTop(8);
+                    cell.setNoWrap(true);
+                    cell.setPaddingTop(12);
 
                     footer.addCell(cell);
                     footer.writeSelectedRows(0, -1, document.left(), document.bottom() - 5, cb);
@@ -106,6 +110,11 @@ public class BLGeneratorService {
 
         String blNumber = generateBLNumber(blSourceNumber);
 
+        String clientCode = (fullOrder != null && fullOrder.has("SellToCustomerNo"))
+                ? fullOrder.get("SellToCustomerNo").asText()
+                : (vendorNumber != null ? vendorNumber : "-");
+        boolean isC0090 = "C0090".equalsIgnoreCase(clientCode);
+
         // ==========================================
         // HEADER
         // ==========================================
@@ -145,7 +154,7 @@ public class BLGeneratorService {
         num.setSpacingBefore(5);
         docDetailsCell.addElement(num);
 
-        if (fullOrder != null) {
+        if (fullOrder != null && !isC0090) {
             // Robust VIN extraction
             String vinVal = null;
             if (fullOrder.has("VIN") && !fullOrder.get("VIN").asText().isEmpty())
@@ -219,8 +228,7 @@ public class BLGeneratorService {
         clientBox.setBackgroundColor(LIGHT_BG);
         clientBox.setPadding(10);
 
-        String clientCode = fullOrder.has("SellToCustomerNo") ? fullOrder.get("SellToCustomerNo").asText()
-                : (vendorNumber != null ? vendorNumber : "-");
+        // clientCode is already defined at the start of the method
 
         // Robust TVA lookup (using VATRegistrationNo only)
         String vat = (fullOrder.has("VATRegistrationNo") && !fullOrder.get("VATRegistrationNo").asText().isEmpty())
@@ -262,9 +270,13 @@ public class BLGeneratorService {
         log.info(">>> BL Metadata extracted - Client: {}, TVA: {}, Phone: {}, VIN: {}, Immat: {}",
                 clientCode, vat, phone, vin, immat);
 
+        // isC0090 is already defined at the start of the method
+
         clientBox.addElement(
                 new Paragraph("CLIENT FACTURÉ / LIVRÉ", new Font(Font.HELVETICA, 8, Font.BOLD, PRIMARY_COLOR)));
-        clientBox.addElement(new Paragraph("Code: " + (clientCode != null ? clientCode : ""), BOLD_FONT));
+        if (!isC0090) {
+            clientBox.addElement(new Paragraph("Code: " + (clientCode != null ? clientCode : ""), BOLD_FONT));
+        }
 
         String displayName = vendorName;
         if (fullOrder.has("CustomerName") && !fullOrder.get("CustomerName").asText().isEmpty()) {
@@ -273,20 +285,78 @@ public class BLGeneratorService {
             displayName = fullOrder.get("shipToName").asText();
         }
 
-        Paragraph name = new Paragraph(displayName != null ? displayName : "", SUBTITLE_FONT);
+        String finalClientName = displayName;
+        if (isC0090) {
+            String insured = (fullOrder.has("insuredName") && !fullOrder.get("insuredName").asText().isEmpty())
+                    ? fullOrder.get("insuredName").asText()
+                    : (fullOrder.has("PLX_InsuredName") ? fullOrder.get("PLX_InsuredName").asText() : "");
+            if (insured != null && !insured.isEmpty()) {
+                if (insured.contains("/")) {
+                    String[] parts = insured.split("/");
+                    if (parts.length > 1) {
+                        finalClientName = parts[1].trim();
+                    } else {
+                        finalClientName = parts[0].trim();
+                    }
+                } else {
+                    finalClientName = insured.trim();
+                }
+            } else {
+                finalClientName = "CLIENT PLEXUS";
+            }
+        }
+
+        Paragraph name = new Paragraph(finalClientName != null ? finalClientName.toUpperCase() : "", SUBTITLE_FONT);
         name.setSpacingBefore(4);
         clientBox.addElement(name);
 
-        clientBox.addElement(new Paragraph("Code TVA : " + vat, NORMAL_FONT));
-        clientBox.addElement(new Paragraph("Adresse : " + (fullAddr.isEmpty() ? "-" : fullAddr), NORMAL_FONT));
-        clientBox.addElement(new Paragraph("Tél : " + phone, NORMAL_FONT));
+        if (!isC0090) {
+            clientBox.addElement(new Paragraph("Code TVA : " + vat, NORMAL_FONT));
+            clientBox.addElement(new Paragraph("Adresse : " + (fullAddr.isEmpty() ? "-" : fullAddr), NORMAL_FONT));
+            clientBox.addElement(new Paragraph("Tél : " + phone, NORMAL_FONT));
 
-        // Insured Name (MAWDY)
-        String insured = (fullOrder.has("insuredName") && !fullOrder.get("insuredName").asText().isEmpty())
-                ? fullOrder.get("insuredName").asText()
-                : (fullOrder.has("PLX_InsuredName") ? fullOrder.get("PLX_InsuredName").asText() : "");
-        if (insured != null && !insured.isEmpty()) {
-            clientBox.addElement(new Paragraph("P/C : " + insured.toUpperCase(), BOLD_FONT));
+            // Insured Name (MAWDY)
+            String insured = (fullOrder.has("insuredName") && !fullOrder.get("insuredName").asText().isEmpty())
+                    ? fullOrder.get("insuredName").asText()
+                    : (fullOrder.has("PLX_InsuredName") ? fullOrder.get("PLX_InsuredName").asText() : "");
+            if (insured != null && !insured.isEmpty()) {
+                Paragraph pcPara = new Paragraph("P/C : " + insured.toUpperCase(), PC_FONT);
+                pcPara.setSpacingBefore(3);
+                clientBox.addElement(pcPara);
+            }
+        } else {
+            // Also add VIN and Immatriculation inside the client box for C0090 (first)
+            if (fullOrder != null) {
+                // Robust VIN extraction
+                String vinVal = null;
+                if (fullOrder.has("VIN") && !fullOrder.get("VIN").asText().isEmpty())
+                    vinVal = fullOrder.get("VIN").asText();
+                else if (fullOrder.has("vin") && !fullOrder.get("vin").asText().isEmpty())
+                    vinVal = fullOrder.get("vin").asText();
+                else if (fullOrder.has("ChassisNo") && !fullOrder.get("ChassisNo").asText().isEmpty())
+                    vinVal = fullOrder.get("ChassisNo").asText();
+
+                // Robust Immatriculation extraction
+                String immatVal = null;
+                if (fullOrder.has("RegistrationNumber") && !fullOrder.get("RegistrationNumber").asText().isEmpty())
+                    immatVal = fullOrder.get("RegistrationNumber").asText();
+                else if (fullOrder.has("registrationNumber") && !fullOrder.get("registrationNumber").asText().isEmpty())
+                    immatVal = fullOrder.get("registrationNumber").asText();
+
+                if (vinVal != null && !vinVal.isEmpty()) {
+                    clientBox.addElement(new Paragraph("VIN : " + vinVal, NORMAL_FONT));
+                }
+                if (immatVal != null && !immatVal.isEmpty()) {
+                    clientBox.addElement(new Paragraph("Immatriculation : " + immatVal, NORMAL_FONT));
+                }
+            }
+
+            // For C0090, set P/C to the name of client C0090 (displayName, e.g. PLEXUS PEC)
+            // (last)
+            String pcName = (displayName != null && !displayName.isEmpty()) ? displayName : "PLEXUS PEC";
+            Paragraph pcPara = new Paragraph("P/C : " + pcName.toUpperCase(), PC_FONT);
+            pcPara.setSpacingBefore(3);
+            clientBox.addElement(pcPara);
         }
 
         clientInfoWrapper.addCell(clientBox);

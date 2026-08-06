@@ -33,7 +33,6 @@ import IconButton from 'components/@extended/IconButton';
 import AnimateButton from 'components/@extended/AnimateButton';
 import FirebaseSocial from './FirebaseSocial';
 import { fetcher } from 'utils/axios';
-import { APP_DEFAULT_PATH } from 'config';
 
 // assets
 import { Eye, EyeSlash } from '@wandersonalwes/iconsax-react';
@@ -83,7 +82,8 @@ export default function AuthLogin({ providers, csrfToken }: any) {
               setStatus({ success: true });
               setSubmitting(false);
               preload('api/menu/dashboard', fetcher); // load menu on login success
-              window.location.href = APP_DEFAULT_PATH;
+              // Redirect to auth-redirect page which checks customer and routes to dashboard or bienvenue
+              window.location.href = '/auth-redirect';
             }
           } catch (err: any) {
             setStatus({ success: false });

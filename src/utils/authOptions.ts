@@ -30,7 +30,7 @@ export const authOptions: NextAuthOptions = {
         email: { name: 'email', label: 'Email', type: 'email', placeholder: 'Enter Email' },
         password: { name: 'password', label: 'Password', type: 'password', placeholder: 'Enter Password' }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const internalUrl = process.env.NEXT_APP_INTERNAL_BACKEND_URL;
@@ -49,6 +49,14 @@ export const authOptions: NextAuthOptions = {
         const loginUrl = baseBackendUrl + '/api/account/login';
 
 
+        // This runs server-side, so the backend sees THIS server as the caller. Forward
+        // the browser's address and user agent, otherwise the journal d'activité records
+        // the frontend container (or the Docker gateway) for every connection instead of
+        // the machine the person actually logged in from.
+        const headers = req?.headers as Record<string, string | undefined> | undefined;
+        const clientIp = headers?.['x-forwarded-for']?.split(',')[0]?.trim() || headers?.['x-real-ip'];
+        const clientUserAgent = headers?.['user-agent'];
+
         try {
           const res = await fetch(loginUrl, {
             method: 'POST',
@@ -56,7 +64,11 @@ export const authOptions: NextAuthOptions = {
               email: credentials.email,
               password: credentials.password,
             }),
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(clientIp ? { 'X-Client-Ip': clientIp } : {}),
+              ...(clientUserAgent ? { 'X-Client-User-Agent': clientUserAgent } : {})
+            },
           });
 
 
@@ -131,6 +143,8 @@ export const authOptions: NextAuthOptions = {
         token.vendorNo = (user as any).vendorNo;
         token.password = (user as any).password;
         token.catalogType = (user as any).catalogType;
+        token.isPec = (user as any).isPec;
+        token.isBriseDeGlace = (user as any).isBriseDeGlace;
       }
       return token;
     },
@@ -145,6 +159,8 @@ export const authOptions: NextAuthOptions = {
           (session.user as any).vendorNo = token.vendorNo;
           (session.user as any).password = token.password;
           (session.user as any).catalogType = token.catalogType;
+          (session.user as any).isPec = token.isPec;
+          (session.user as any).isBriseDeGlace = token.isBriseDeGlace;
         }
       }
       return session;

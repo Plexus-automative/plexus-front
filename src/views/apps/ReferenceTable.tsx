@@ -117,20 +117,18 @@ export default function ReferenceTablePage() {
         const loadVendors = async () => {
             try {
                 const data = await fetchVendors();
-                console.log('API Response:', data);
 
                 // FIXED VENDOR MAPPING: Ensuring number/ID is correctly captured
                 const vendorList = (data.value || []).map((v: any) => {
                     // Correct fournisseur ID is v.no
                     const id = v.no || v.No || v.number || v.id;
-                    const name = v.name || v.displayName || v.Name || v.displayName2 || id;
+                    const name = v.displayName || v.displayName || v.Name || v.displayName2 || id;
                     return {
                         number: id,
                         displayName: name
                     };
                 });
 
-                console.log('Mapped Vendors:', vendorList);
                 setVendors(vendorList);
             } catch (err) {
                 console.error('Error fetching vendors:', err);
@@ -155,7 +153,6 @@ export default function ReferenceTablePage() {
     }, []);
 
     const handleSave = async () => {
-        console.log('Attempting to save with vendor:', selectedVendor);
 
         if (!selectedVendor) {
             setError('Veuillez sélectionner un fournisseur avant d’ajouter.');

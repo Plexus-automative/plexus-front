@@ -1,7 +1,10 @@
 package com.plexus.backend.controller;
 
+import com.plexus.backend.service.ActivityLogService;
+import com.plexus.backend.service.ActivityLogService.ActivityEntry;
 import com.plexus.backend.service.BusinessCentralTokenService;
 import com.plexus.backend.security.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,10 +30,14 @@ public class AuthController {
     private final WebClient webClient;
     private final BusinessCentralTokenService tokenService;
     private final JwtUtil jwtUtil;
+    private final ActivityLogService activityLog;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Value("${business-central.api.system-url}")
     private String systemUrl;
+
+    @Value("${business-central.api.tarek-system-url}")
+    private String tarekSystemUrl;
 
     @Value("${business-central.api.company-id}")
     private String companyId;
@@ -40,19 +47,64 @@ public class AuthController {
         if (systemUrl != null && !systemUrl.contains("/companies(")) {
             systemUrl += "/companies(" + companyId + ")";
         }
+        if (tarekSystemUrl != null && !tarekSystemUrl.contains("/companies(")) {
+            tarekSystemUrl += "/companies(" + companyId + ")";
+        }
     }
 
     @Value("${guacamole.url}")
     private String guacamoleUrl;
 
-    public AuthController(WebClient webClient, BusinessCentralTokenService tokenService, JwtUtil jwtUtil) {
+    public AuthController(WebClient webClient, BusinessCentralTokenService tokenService, JwtUtil jwtUtil,
+            ActivityLogService activityLog) {
         this.webClient = webClient;
         this.tokenService = tokenService;
         this.jwtUtil = jwtUtil;
+        this.activityLog = activityLog;
+    }
+
+    /**
+     * Journal d'activité entry for an authentication event. Login routes are permitAll,
+     * so the interceptor has no JWT to read here — the outcome is recorded explicitly.
+     */
+    private void logAuth(HttpServletRequest httpRequest, String login, String action, boolean success,
+            String detail, Map<String, Object> userData) {
+        try {
+            ActivityEntry entry = new ActivityEntry();
+            entry.user = login == null ? "anonyme" : login;
+            entry.category = "AUTH";
+            entry.action = action;
+            entry.success = success;
+            entry.detail = detail;
+            entry.method = httpRequest != null ? httpRequest.getMethod() : "POST";
+            entry.path = httpRequest != null ? httpRequest.getRequestURI() : "/api/account/login";
+            entry.status = success ? 200 : 401;
+            if (httpRequest != null) {
+                // NextAuth performs this call server-side, so the peer is the frontend
+                // itself: the user's machine only arrives via the headers it forwards.
+                entry.ip = com.plexus.backend.config.ClientIdentity.ip(httpRequest);
+                entry.userAgent = com.plexus.backend.config.ClientIdentity.userAgent(httpRequest);
+            }
+            if (userData != null) {
+                Object name = userData.get("name");
+                Object role = userData.get("role");
+                Object customerNo = userData.get("customerNo");
+                Object vendorNo = userData.get("vendorNo");
+                entry.userName = name != null ? name.toString() : null;
+                entry.role = role != null ? role.toString() : null;
+                entry.customerNo = customerNo != null ? customerNo.toString() : null;
+                entry.vendorNo = vendorNo != null ? vendorNo.toString() : null;
+            }
+            activityLog.record(entry);
+        } catch (Exception e) {
+            // never let the journal break a login
+            System.err.println("Journal d'activité (auth) ignoré: " + e.getMessage());
+        }
     }
 
     @PostMapping("/account/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> request,
+            HttpServletRequest httpRequest) {
         String email = request.get("email"); // Used as username/login
         String password = request.get("password");
 
@@ -83,11 +135,16 @@ public class AuthController {
 
             // Step 2: Verify the User
             if (valueNode == null || !valueNode.isArray() || valueNode.size() == 0) {
+                logAuth(httpRequest, email, "Échec de connexion", false, "Utilisateur introuvable", null);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("message", "Invalid credentials (User '" + email.toUpperCase() + "' not found)."));
             }
 
             JsonNode userNode = valueNode.get(0);
+
+            // Bris de glace glass-user flag (exposed on UserB2BLists API page)
+            boolean isBriseDeGlace = userNode.has("isBriseDeGlace") && !userNode.get("isBriseDeGlace").isNull()
+                    && userNode.get("isBriseDeGlace").asBoolean();
 
             String bcPassword = null;
             if (userNode.has("password") && !userNode.get("password").isNull()
@@ -99,6 +156,7 @@ public class AuthController {
             }
 
             if (bcPassword == null) {
+                logAuth(httpRequest, email, "Échec de connexion", false, "Aucun mot de passe configuré", null);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("message", "Invalid credentials (No password configured)."));
             }
@@ -106,6 +164,7 @@ public class AuthController {
             String trimmedBcPassword = bcPassword.trim();
 
             if (!password.equalsIgnoreCase(trimmedBcPassword)) {
+                logAuth(httpRequest, email, "Échec de connexion", false, "Mot de passe incorrect", null);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("message", "Invalid credentials (Password mismatch)."));
             }
@@ -125,11 +184,38 @@ public class AuthController {
                 role = "Fournisseur";
             }
 
+            boolean isPec = false;
+            if (isClient) {
+                String clientNo = userNode.get("customerNo").asText();
+                try {
+                    String customerUrl = tarekSystemUrl + "/plexusCustomers?$filter=number eq '" + clientNo.replace("'", "''") + "'";
+                    System.out.println("Fetching customer isPec status: GET " + customerUrl);
+                    String custResponse = webClient.get()
+                            .uri(customerUrl)
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .block(java.time.Duration.ofSeconds(15));
+                    JsonNode custRoot = mapper.readTree(custResponse);
+                    JsonNode custValue = custRoot.get("value");
+                    if (custValue != null && custValue.isArray() && custValue.size() > 0) {
+                        JsonNode customerNode = custValue.get(0);
+                        if (customerNode.has("isPec") && !customerNode.get("isPec").isNull()) {
+                            isPec = customerNode.get("isPec").asBoolean();
+                        }
+                    }
+                } catch (Exception ex) {
+                    System.err.println("Failed to fetch customer isPec status: " + ex.getMessage());
+                }
+            }
+
             Map<String, Object> userData = new HashMap<>();
             userData.put("id", userNode.has("systemId") ? userNode.get("systemId").asText() : email);
             userData.put("name", userNode.has("name") ? userNode.get("name").asText() : email);
             userData.put("email", email);
             userData.put("role", role);
+            userData.put("isPec", isPec);
+            userData.put("isBriseDeGlace", isBriseDeGlace);
             if (isClient) {
                 userData.put("customerNo", userNode.get("customerNo").asText());
             }
@@ -154,6 +240,8 @@ public class AuthController {
             // Generate REAL JWT Token using JwtUtil
             Map<String, Object> extraClaims = new HashMap<>();
             extraClaims.put("role", role);
+            extraClaims.put("isPec", isPec);
+            extraClaims.put("isBriseDeGlace", isBriseDeGlace);
             if (isClient)
                 extraClaims.put("customerNo", userNode.get("customerNo").asText());
             if (isFournisseur)
@@ -167,6 +255,8 @@ public class AuthController {
             Map<String, Object> responseBody = new HashMap<>();
             responseBody.put("user", userData);
             responseBody.put("serviceToken", generatedToken);
+
+            logAuth(httpRequest, email, "Connexion à l'application", true, null, userData);
 
             return ResponseEntity.ok(responseBody);
 
@@ -184,7 +274,8 @@ public class AuthController {
 
     @PostMapping("/catalogue/login")
     public ResponseEntity<Map<String, Object>> catalogueLogin(
-            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+            HttpServletRequest httpRequest) {
         try {
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -285,6 +376,7 @@ public class AuthController {
                 Map<String, Object> response = new HashMap<>();
                 response.put("authToken", guacToken);
                 response.put("redirectUrl", guacamoleUrl + "/guacamole/#/?token=" + guacToken);
+                logAuth(httpRequest, email, "Accès au catalogue", true, null, null);
                 return ResponseEntity.ok(response);
             } else if (guacNode.has("message")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

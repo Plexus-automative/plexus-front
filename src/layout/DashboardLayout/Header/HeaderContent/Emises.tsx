@@ -123,7 +123,9 @@ export default function Emises() {
                             key={order.id || index}
                             component={ListItemButton}
                             onClick={() => {
-                              router.push(`/pages/commandes-emis/en-cours?highlight=${order.id}`);
+                              const advice = order.ShippingAdvice || order.shippingAdvice;
+                              const targetTab = (advice === 'Totalité' || advice === 'LivraisonDispo') ? 'valide' : 'validation';
+                              router.push(`/pages/commandes-emis/en-cours?highlight=${order.id}&tab=${targetTab}`);
                               setOpen(false);
                             }}
                             sx={{ my: 1, border: '1px solid', borderColor: 'divider' }}

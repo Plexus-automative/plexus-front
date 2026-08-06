@@ -1,5 +1,10 @@
+'use client';
+
+// next
+import dynamic from 'next/dynamic';
+
 // project-imports
-import DashboardFinance from 'views/dashboard/DashboardFinance';
+const DashboardFinance = dynamic(() => import('views/dashboard/DashboardFinance'), { ssr: false });
 
 // ==============================|| DASHBOARD - DEFAULT ||============================== //
 

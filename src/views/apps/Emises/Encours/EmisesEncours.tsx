@@ -95,9 +95,20 @@ interface ExtendedEncours extends Omit<Encours, "plexuspurchaseOrderLines"> {
 function EmisesEncours() {
   const searchParams = useSearchParams();
   const highlightId = searchParams.get("highlight");
+  const urlTab = searchParams.get("tab");
   const { data: session } = useSession();
 
-  const [activeTab, setActiveTab] = useState<'validation' | 'valide'>('validation');
+  const [activeTab, setActiveTab] = useState<'validation' | 'valide'>(
+    (urlTab === 'valide' || urlTab === 'validation') ? urlTab : 'validation'
+  );
+
+  // Sync activeTab if urlTab query param changes
+  useEffect(() => {
+    if (urlTab === 'valide' || urlTab === 'validation') {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
   const [data, setData] = useState<Encours[]>([]);
   const [expandedRows, setExpandedRows] = useState<{
     [key: string]: "view" | "edit" | null;
@@ -277,10 +288,22 @@ function EmisesEncours() {
 
     setLoading(true);
     try {
+      const rawLines = customLines || editedOrderLocal.plexuspurchaseOrderLines || [];
+      const mappedLines = rawLines.map((l) => {
+        if (l.AdaptableItemNo) {
+          if (lineSelections[l.id] === 'adaptable') {
+            return { ...l, Decision: 'Adaptable' };
+          } else {
+            return { ...l, Decision: 'Disponible', AdaptableItemNo: null };
+          }
+        }
+        return l;
+      });
+
       const payload = {
         splitRequested,
         customerNo: (session?.user as any)?.customerNo || "",
-        lines: customLines || editedOrderLocal.plexuspurchaseOrderLines,
+        lines: mappedLines,
         originalOrder: editedOrderLocal,
       };
 
@@ -855,7 +878,7 @@ function EmisesEncours() {
                                                       {line.receivedQuantity || 0}
                                                     </TableCell>
                                                     <TableCell>
-                                                      {line.Decision || "-"}
+                                                      {line.Decision === "LivPrevuaDate" ? "LivraisonPrevuDate" : (line.Decision || "-")}
                                                     </TableCell>
                                                     <TableCell>
                                                       {line.DeliveryDate || "-"}
@@ -863,7 +886,7 @@ function EmisesEncours() {
                                                   </TableRow>
 
                                                   {/* Plexus Offer Data Row (Grouped, nested visually, no full-width separator) */}
-                                                  {line.AdaptableItemNo && (
+                                                  {line.AdaptableItemNo && line.Decision !== "Disponible" && line.Decision !== "NonDisponible" && line.Decision !== "LivPrevuaDate" && (
                                                     <TableRow
                                                       sx={{
                                                         bgcolor: (theme) =>
@@ -936,9 +959,9 @@ function EmisesEncours() {
                                                       <TableCell>
                                                         {line.receivedQuantity || 0}
                                                       </TableCell>
-                                                       <TableCell>
-                                                         {"Disponible"}
-                                                       </TableCell>
+                                                      <TableCell>
+                                                        {"Disponible"}
+                                                      </TableCell>
                                                       <TableCell>
                                                         {line.DeliveryDate || "-"}
                                                       </TableCell>
@@ -1209,7 +1232,6 @@ function EmisesEncours() {
                                                   }
                                                   : l,
                                             );
-                                          console.log({ copy });
                                           return copy;
                                         });
                                       }}
@@ -1242,7 +1264,7 @@ function EmisesEncours() {
                                   </TableCell>
                                   <TableCell>
                                     <Typography variant="body2">
-                                      {line.Decision || "-"}
+                                      {line.Decision === "LivPrevuaDate" ? "LivraisonPrevuDate" : (line.Decision || "-")}
                                     </Typography>
                                   </TableCell>
                                   <TableCell>
@@ -1251,17 +1273,28 @@ function EmisesEncours() {
                                     </Typography>
                                   </TableCell>
                                   {filteredLines.some((l: any) => l.AdaptableItemNo) && (
-                                     <TableCell sx={{ textAlign: 'center' }}>
-                                       {line.AdaptableItemNo && (
-                                         <Radio
-                                           checked={lineSelections[line.id] === 'original' || !lineSelections[line.id]}
-                                           onChange={() => setLineSelections(prev => ({ ...prev, [line.id]: 'original' }))}
-                                           size="small"
-                                           color="primary"
-                                         />
-                                       )}
-                                     </TableCell>
-                                   )}
+                                    <TableCell sx={{ textAlign: 'center' }}>
+                                      {line.AdaptableItemNo && (
+                                        <Radio
+                                          checked={lineSelections[line.id] === 'original' || !lineSelections[line.id]}
+                                          onChange={() => {
+                                            setLineSelections(prev => ({ ...prev, [line.id]: 'original' }));
+                                            setEditedOrderLocal(prev => {
+                                              if (!prev) return prev;
+                                              return {
+                                                ...prev,
+                                                plexuspurchaseOrderLines: prev.plexuspurchaseOrderLines?.map(l =>
+                                                  l.id === line.id ? { ...l, invoiceQuantity: l.Decision === 'NonDisponible' ? 0 : (l.QuantityAvailable ?? l.quantity) } : l
+                                                )
+                                              };
+                                            });
+                                          }}
+                                          size="small"
+                                          color="primary"
+                                        />
+                                      )}
+                                    </TableCell>
+                                  )}
                                 </TableRow>
 
                                 {/* Plexus Offer Data Row in Edit (Grouped, nested visually, active/faded selection styling) */}
@@ -1364,22 +1397,33 @@ function EmisesEncours() {
                                     <TableCell>
                                       <Typography variant="body2">{line.receivedQuantity ?? "-"}</Typography>
                                     </TableCell>
-                                     <TableCell>
-                                       <Typography variant="body2">{"Disponible"}</Typography>
-                                     </TableCell>
+                                    <TableCell>
+                                      <Typography variant="body2">{"Disponible"}</Typography>
+                                    </TableCell>
                                     <TableCell>
                                       <Typography variant="body2">{line.DeliveryDate || "-"}</Typography>
                                     </TableCell>
                                     {filteredLines.some((l: any) => l.AdaptableItemNo) && (
-                                       <TableCell sx={{ textAlign: 'center' }}>
-                                         <Radio
-                                           checked={lineSelections[line.id] === 'adaptable'}
-                                           onChange={() => setLineSelections(prev => ({ ...prev, [line.id]: 'adaptable' }))}
-                                           size="small"
-                                           color="success"
-                                         />
-                                       </TableCell>
-                                     )}
+                                      <TableCell sx={{ textAlign: 'center' }}>
+                                        <Radio
+                                          checked={lineSelections[line.id] === 'adaptable'}
+                                          onChange={() => {
+                                            setLineSelections(prev => ({ ...prev, [line.id]: 'adaptable' }));
+                                            setEditedOrderLocal(prev => {
+                                              if (!prev) return prev;
+                                              return {
+                                                ...prev,
+                                                plexuspurchaseOrderLines: prev.plexuspurchaseOrderLines?.map(l =>
+                                                  l.id === line.id ? { ...l, invoiceQuantity: l.quantity || 1 } : l
+                                                )
+                                              };
+                                            });
+                                          }}
+                                          size="small"
+                                          color="success"
+                                        />
+                                      </TableCell>
+                                    )}
                                   </TableRow>
                                 )}
                               </Fragment>
@@ -1477,7 +1521,20 @@ function EmisesEncours() {
                         if (!originalLine) continue;
 
                         if (line.Decision === "NonDisponible" || Number(line.invoiceQuantity) === 0) {
-                          await axiosServices.delete(`/api/purchase-orders/lines/${line.id}`);
+                          // The line disappears with the request, so the journal would only
+                          // ever see its id: tell it what is being removed, and why.
+                          const removed = [
+                            `Réf. ${line.lineObjectNumber || '-'}`,
+                            line.description,
+                            `qté ${line.quantity}`,
+                            `commande ${editedOrderLocal.number || orderId}`,
+                            line.Decision === "NonDisponible" ? "non disponible" : "quantité à facturer nulle"
+                          ]
+                            .filter(Boolean)
+                            .join(' · ');
+                          await axiosServices.delete(`/api/purchase-orders/lines/${line.id}`, {
+                            headers: { 'X-Activity-Context': encodeURIComponent(removed) }
+                          });
                           continue;
                         }
 

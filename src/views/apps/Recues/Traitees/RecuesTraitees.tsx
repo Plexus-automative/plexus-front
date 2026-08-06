@@ -211,11 +211,6 @@ export default function RecuesTraitees() {
         },
       },
       {
-        header: "Immat",
-        accessorKey: "RegistrationNumber",
-        enableSorting: true,
-      },
-      {
         header: "Statut",
         accessorKey: "ShippingAdvice",
         enableSorting: false,
@@ -316,12 +311,6 @@ export default function RecuesTraitees() {
           value={globalFilter}
           onFilterChange={(v) => setGlobalFilter(String(v))}
           placeholder="Chercher commandes..."
-        />
-        <Box sx={{ flexGrow: 1 }} />
-        <DebouncedInput
-          value={registrationFilter}
-          onFilterChange={(v) => setRegistrationFilter(String(v))}
-          placeholder="Chercher par immatriculation..."
         />
       </Stack>
 

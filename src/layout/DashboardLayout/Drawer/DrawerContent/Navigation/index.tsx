@@ -50,16 +50,54 @@ export default function Navigation() {
     const filteredItems = currentItems.map((group) => {
       if (group.id === 'group-applications' && group.children) {
         const filteredChildren = group.children.filter((child) => {
+          const isBrisItem = child.id === 'bris-de-glace-creation' || child.id === 'bris-de-glace-consultation';
+
+          // Bris de glace glass-users see ONLY the two dossier pages
+          if (user && user.isBriseDeGlace) {
+            return isBrisItem;
+          }
+          // Plexus (C0090) also gets the consultation page to review ALL dossiers
+          if (child.id === 'bris-de-glace-consultation') {
+            return !!(user && user.customerNo === 'C0090');
+          }
+          // The creation page is reserved for glass-users
+          if (child.id === 'bris-de-glace-creation') {
+            return false;
+          }
+
+          // Demandes de devis arrive from the commercial mobile app and are handled by
+          // Plexus (C0090) only. Checked again server-side off the signed JWT claim —
+          // hiding a menu entry is presentation, not access control.
+          if (child.id === 'demandes-devis') {
+            return !!(user && user.customerNo === 'C0090');
+          }
+
+          // Hide Rapport Assurances from all users
+          if (child.id === 'rapport-assurance') {
+            return false;
+          }
+
+          // Dashboard is restricted to client C0082 only
+          if (child.id === 'dashboard' && (!user || user.customerNo !== 'C0082')) {
+            return false;
+          }
+
           if (userRole === 'Client and Fournisseur') return true;
 
           if (userRole === 'Fournisseur') {
-            return ['commandes-recus', 'commandes-livrees', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')].includes(child.id!);
+            return ['dashboard', 'commandes-recus', 'commandes-livrees', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')].includes(child.id!);
           }
           if (userRole === 'Client') {
-            const allowed = ['articles', 'commandes-emis', 'validation-reception', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')];
-            if (user && user.customerNo === 'C0090') {
-              allowed.push('plexus-pec-commandes');
-            }
+            const allowed = [
+              'dashboard',
+              'articles',
+              'commandes-emis',
+              'validation-reception',
+              'panier',
+              'add-reference',
+              'plexus-pec-commandes',
+              (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')
+            ];
             return allowed.includes(child.id!);
           }
           return true; // Fallback for other roles (admin, etc.) if any
@@ -71,7 +109,7 @@ export default function Navigation() {
 
     setMenuItems({ items: filteredItems });
     // eslint-disable-next-line
-  }, [user ? user.role : '', user ? user.catalogType : '', user ? user.customerNo : '']);
+  }, [user ? user.role : '', user ? user.catalogType : '', user ? user.customerNo : '', user ? user.isBriseDeGlace : false]);
 
   const isHorizontal = menuOrientation === MenuOrientation.HORIZONTAL && !downLG;
 

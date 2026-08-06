@@ -220,19 +220,6 @@ export default function CommandesLivrees() {
             }
         },
         {
-            header: 'Immatriculation',
-            accessorKey: 'RegistrationNumber',
-            enableSorting: true,
-            cell: ({ getValue }) => {
-                const value = getValue<string>();
-                return (
-                    <Typography variant="body2" fontWeight={500}>
-                        {value || '-'}
-                    </Typography>
-                );
-            }
-        },
-        {
             header: 'Statut',
             accessorKey: 'ShippingAdvice',
             enableSorting: false,
@@ -300,12 +287,6 @@ export default function CommandesLivrees() {
                     value={globalFilter}
                     onFilterChange={v => setGlobalFilter(String(v))}
                     placeholder="Chercher commandes..."
-                />
-                <Box sx={{ flexGrow: 1 }} />
-                <DebouncedInput
-                    value={registrationFilter}
-                    onFilterChange={v => setRegistrationFilter(String(v))}
-                    placeholder="Chercher par immatriculation..."
                 />
             </Stack>
 

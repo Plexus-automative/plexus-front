@@ -1,0 +1,326 @@
+{
+  "info": {
+    "_postman_id": "b3f1c7a2-5d4e-4a91-9c2b-7e8f0a1d2c34",
+    "name": "Plexus Partner API (demandes de devis)",
+    "description": "Machine-to-machine API used by the commercial mobile app's backend.\n\nSetup:\n1. Import this collection.\n2. Open the collection's Variables tab and set `baseUrl` and `apiKey`.\n   - local:  http://localhost:8080\n   - prod:   https://www.plexus-tec.com\n3. Run the whole collection (Runner) or fire requests top to bottom.\n\nEach request carries assertions, so the Runner shows a clean pass/fail summary.\n\nNOTE: 'Create demande' writes a real row into Business Central. Its reference is\nauto-generated as TEST-PM-<timestamp>. Clean up afterwards with:\n    python3 verify-devis-in-bc.py --cleanup",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "apiKey", "value": "", "type": "string" },
+    { "key": "externalReference", "value": "", "type": "string" },
+    { "key": "createdNumber", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Ping - no API key (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/ping", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "ping"] },
+            "description": "The partner API must reject an unauthenticated call."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 without a key', () => pm.response.to.have.status(401));",
+                  "pm.test('body names the missing header', () =>",
+                  "    pm.expect(pm.response.json().error).to.eql('unauthorized'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ping - wrong API key (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-API-Key", "value": "definitely-not-the-right-key-000000" }],
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/ping", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "ping"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401 with a bad key', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ping - portal JWT is not enough (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.x" }],
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/ping", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "ping"] },
+            "description": "A portal user token must NOT open the partner surface — the two security chains are separate."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('portal JWT rejected', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ping - valid API key (expect 200)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/ping", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "ping"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with the right key', () => pm.response.to.have.status(200));",
+                  "pm.test('identifies the service', () =>",
+                  "    pm.expect(pm.response.json().service).to.eql('plexus-partner-api'));",
+                  "if (pm.response.code === 401) {",
+                  "    console.warn('Set the collection variable `apiKey` to PARTNER_API_KEY.');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Validation",
+      "item": [
+        {
+          "name": "Create - empty body (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-API-Key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/demandes-devis", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "demandes-devis"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 on an empty payload', () => pm.response.to.have.status(400));",
+                  "const b = pm.response.json();",
+                  "pm.test('reports the missing fields', () => {",
+                  "    pm.expect(b.error).to.eql('validation_failed');",
+                  "    const fields = b.violations.map(v => v.field);",
+                  "    pm.expect(fields).to.include('externalReference');",
+                  "    pm.expect(fields).to.include('garage');",
+                  "    pm.expect(fields).to.include('vehicle');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create - malformed JSON (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-API-Key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{not json" },
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/demandes-devis", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "demandes-devis"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 on unparseable JSON', () => pm.response.to.have.status(400));",
+                  "pm.test('flagged as malformed_json', () =>",
+                  "    pm.expect(pm.response.json().error).to.eql('malformed_json'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create - javascript: media URL (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-API-Key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalReference\": \"TEST-PM-SCHEME\",\n  \"garage\": { \"name\": \"Garage Test\" },\n  \"vehicle\": { \"immatriculation\": \"123TU4567\" },\n  \"media\": [\n    { \"type\": \"photo\", \"url\": \"javascript:alert(1)\" }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/demandes-devis", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "demandes-devis"] },
+            "description": "Media URLs are stored and later clicked by Plexus staff from the BC UI, so only http(s) is accepted."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 on a non-http scheme', () => pm.response.to.have.status(400));",
+                  "pm.test('points at media[0].url', () =>",
+                  "    pm.expect(pm.response.json().violations[0].field).to.eql('media[0].url'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Create and idempotency",
+      "item": [
+        {
+          "name": "Create demande (expect 201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// One reference per run, reused by the retry and lookup requests below.",
+                  "pm.collectionVariables.set('externalReference', 'TEST-PM-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('returns a number', () => pm.expect(b.number).to.be.a('string').and.not.empty);",
+                  "pm.test('status is RECEIVED', () => pm.expect(b.status).to.eql('RECEIVED'));",
+                  "pm.test('not flagged duplicate', () => pm.expect(b.duplicate).to.be.false);",
+                  "pm.collectionVariables.set('createdNumber', b.number || '');",
+                  "console.log('created ' + b.number + ' — clean up with: python3 verify-devis-in-bc.py --cleanup');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-API-Key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalReference\": \"{{externalReference}}\",\n  \"createdAt\": \"2026-08-04T08:12:00+01:00\",\n  \"garage\": {\n    \"name\": \"TEST Garage Ben Ali\",\n    \"customerNo\": \"C0123\"\n  },\n  \"commercial\": {\n    \"id\": \"COM-7\",\n    \"name\": \"Sami\"\n  },\n  \"vehicle\": {\n    \"immatriculation\": \"123TU4567\",\n    \"vin\": \"VF1AAAA00AA000001\",\n    \"make\": \"Renault\",\n    \"model\": \"Clio\"\n  },\n  \"items\": [\n    { \"description\": \"Plaquettes de frein avant\", \"quantity\": 4, \"addedAt\": \"2026-08-04T08:15:30+01:00\" },\n    { \"description\": \"Disques avant\", \"quantity\": 2 }\n  ],\n  \"notes\": \"Visite du garage - test Postman\",\n  \"media\": [\n    { \"type\": \"photo\", \"url\": \"https://cdn.example.com/photo1.jpg\", \"label\": \"avant\" },\n    { \"type\": \"photo\", \"url\": \"https://cdn.example.com/photo2.jpg\", \"label\": \"arriere\" },\n    { \"type\": \"audio\", \"url\": \"https://cdn.example.com/vocal1.m4a\", \"durationSec\": 42 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/demandes-devis", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "demandes-devis"] },
+            "description": "Writes a real row into Business Central under customer C0090 (PLEXUSPEC).\n\nPhotos and voice notes are referenced by URL only — files never enter Plexus."
+          }
+        },
+        {
+          "name": "Retry same reference (expect 200 duplicate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-API-Key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalReference\": \"{{externalReference}}\",\n  \"createdAt\": \"2026-08-04T08:12:00+01:00\",\n  \"garage\": { \"name\": \"TEST Garage Ben Ali\" },\n  \"vehicle\": { \"immatriculation\": \"123TU4567\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/partner/v1/demandes-devis", "host": ["{{baseUrl}}"], "path": ["api", "partner", "v1", "demandes-devis"] },
+            "description": "Simulates the mobile backend retrying after a timeout. Must NOT create a second demande."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, not 201', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('flagged as duplicate', () => pm.expect(b.duplicate).to.be.true);",
+                  "pm.test('same number as the original', () =>",
+                  "    pm.expect(b.number).to.eql(pm.collectionVariables.get('createdNumber')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Status lookup",
+      "item": [
+        {
+          "name": "Get by externalReference (expect 200)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/partner/v1/demandes-devis/{{externalReference}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "partner", "v1", "demandes-devis", "{{externalReference}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('matches the created demande', () =>",
+                  "    pm.expect(pm.response.json().number).to.eql(pm.collectionVariables.get('createdNumber')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get unknown reference (expect 404)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/partner/v1/demandes-devis/NOPE-DOES-NOT-EXIST",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "partner", "v1", "demandes-devis", "NOPE-DOES-NOT-EXIST"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 for an unknown reference', () => pm.response.to.have.status(404));",
+                  "pm.test('flagged not_found', () =>",
+                  "    pm.expect(pm.response.json().error).to.eql('not_found'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

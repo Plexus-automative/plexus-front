@@ -115,7 +115,6 @@ export default function TicketDetailsDrawer({ isOpen, handleDrawerOpen }: Ticket
   };
 
   const handleEdit = () => {
-    console.log('Edit clicked');
   };
 
   const handleDelete = () => {

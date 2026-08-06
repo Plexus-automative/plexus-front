@@ -18,14 +18,41 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    // A secure base64-encoded secret key (should be at least 256 bits/32 bytes for
-    // HS256)
-    // Default fallback if not provided in environment variables:
-    @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
+    /** HS256 needs at least 256 bits of key material. */
+    private static final int MIN_KEY_BYTES = 32;
+
+    /**
+     * Signing key for every portal token. No default value on purpose — a fallback key
+     * committed to the repository lets anyone who can read the source mint a valid token
+     * for any user, which is indistinguishable from a real login server-side.
+     */
+    @Value("${jwt.secret}")
     private String secretKey;
 
     @Value("${jwt.expiration:86400}") // Default 1 day in seconds
     private long jwtExpiration;
+
+    /**
+     * Refuses to start on a missing or too-short signing key.
+     *
+     * <p>Deliberately fatal rather than a warning: booting with a weak key produces
+     * tokens that look valid to every downstream check, so the failure would otherwise
+     * stay invisible until someone forged one. An unresolvable {@code JWT_SECRET} also
+     * fails placeholder resolution before this runs; this catches the empty-string case,
+     * which docker-compose produces when the variable is absent from .env.
+     */
+    @jakarta.annotation.PostConstruct
+    void validateSecret() {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT_SECRET is not set. Generate one with: openssl rand -base64 48");
+        }
+        if (getKeyBytes().length < MIN_KEY_BYTES) {
+            throw new IllegalStateException(
+                    "JWT_SECRET is too short for HS256 (needs >= " + MIN_KEY_BYTES
+                            + " bytes). Generate one with: openssl rand -base64 48");
+        }
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -78,12 +105,16 @@ public class JwtUtil {
     }
 
     private Key getSignInKey() {
+        return Keys.hmacShaKeyFor(getKeyBytes());
+    }
+
+    /** Decodes the configured secret as base64, falling back to its raw bytes. */
+    private byte[] getKeyBytes() {
         try {
-            byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-            return Keys.hmacShaKeyFor(keyBytes);
+            return Decoders.BASE64.decode(secretKey);
         } catch (Exception e) {
-            // Fallback to raw bytes if not a valid base64 string
-            return Keys.hmacShaKeyFor(secretKey.getBytes());
+            // Not valid base64 — treat the configured value as raw key material.
+            return secretKey.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 }

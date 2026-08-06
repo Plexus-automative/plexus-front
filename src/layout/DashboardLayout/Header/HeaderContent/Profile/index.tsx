@@ -32,8 +32,14 @@ import { Logout } from '@wandersonalwes/iconsax-react';
 export default function ProfilePage() {
   const user = useUser();
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/login' });
+  const handleLogout = async () => {
+    // signOut with redirect: false to have control over the redirect
+    // This prevents race conditions where axios interceptor still uses old token
+    await signOut({ redirect: false, callbackUrl: '/login' });
+    // Small delay to ensure session is fully cleared before redirect
+    await new Promise(resolve => setTimeout(resolve, 100));
+    // Now redirect to login
+    window.location.href = '/login';
   };
 
   const anchorRef = useRef<any>(null);

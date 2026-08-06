@@ -64,7 +64,7 @@ public class DevisGeneratorService {
                 // Footer
                 PdfPTable footer = new PdfPTable(1);
                 footer.setTotalWidth(document.right() - document.left());
-                String info = "PLEXUS AUTOMOTIVE  |  Golden Tower A10.4 Centre Urbain Nord Tunis  |  Tél/Fax : 70 29 70 45\nMF : 1639504Y  |  RC : B12251996  |  BTK 20005052210070153108";
+                String info = "PLEXUS AUTOMOTIVE  |  Golden Tower A10.4 Centre Urbain Nord Tunis  |  Tél/Fax : 70 29 70 45\nMF : 1639504YBM000  |  RC : B12251996  |  BTK 20005052210070153108";
                 PdfPCell cell = new PdfPCell(new Phrase(info, FONT_SMALL));
                 cell.setBorder(Rectangle.TOP);
                 cell.setBorderColor(ACCENT_BLUE);
@@ -223,7 +223,6 @@ public class DevisGeneratorService {
         }
 
         // Removed dummy rows for stability as requested by user
-
 
         document.add(grid);
 

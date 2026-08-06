@@ -62,6 +62,7 @@ import { CSVLink } from "react-csv";
 import { fetchEncours } from 'app/api/services/Recues/EncoursRecues';
 import { Encours, PurchaseOrderLine } from 'types/Encours';
 import { printOrder } from 'utils/printOrder';
+import { useSearchParams } from 'next/navigation';
 
 // Extend the PurchaseOrderLine type to include local UI properties
 interface ExtendedPurchaseOrderLine extends PurchaseOrderLine {
@@ -74,7 +75,21 @@ interface ExtendedEncours extends Omit<Encours, 'plexuspurchaseOrderLines'> {
 }
 
 export default function RecuesEncours() {
-    const [activeTab, setActiveTab] = useState<'validation' | 'valide'>('validation');
+    const searchParams = useSearchParams();
+    const highlightId = searchParams.get('highlight');
+    const urlTab = searchParams.get('tab');
+
+    const [activeTab, setActiveTab] = useState<'validation' | 'valide'>(
+        (urlTab === 'valide' || urlTab === 'validation') ? urlTab : 'validation'
+    );
+
+    // Sync activeTab if urlTab query param changes
+    useEffect(() => {
+        if (urlTab === 'valide' || urlTab === 'validation') {
+            setActiveTab(urlTab);
+        }
+    }, [urlTab]);
+
     const [data, setData] = useState<Encours[]>([]);
     const [expandedRows, setExpandedRows] = useState<{ [key: string]: 'view' | 'edit' | null }>({});
     const [sorting, setSorting] = useState<SortingState>([
@@ -176,7 +191,6 @@ export default function RecuesEncours() {
                     }))
                 );
                 setTotalCount(result.totalCount || 0);
-                console.log('Data loaded:', result.data);
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch data');
                 console.error('Error loading data:', err);
@@ -378,11 +392,6 @@ export default function RecuesEncours() {
             }
         },
         {
-            header: 'Immat',
-            accessorKey: 'RegistrationNumber',
-            enableSorting: true
-        },
-        {
             header: 'Status',
             accessorKey: 'ShippingAdvice',
             enableSorting: false,
@@ -573,12 +582,6 @@ export default function RecuesEncours() {
                         />
                     </Tabs>
                 </Box>
-
-                <DebouncedInput
-                    value={registrationFilter}
-                    onFilterChange={(v) => setRegistrationFilter(String(v))}
-                    placeholder="Chercher par immatriculation..."
-                />
             </Stack>
 
             <RowSelection selected={Object.keys(rowSelection).length} />
@@ -618,13 +621,25 @@ export default function RecuesEncours() {
                                 {table.getRowModel().rows.length > 0 ? (
                                     table.getRowModel().rows.map(row => {
                                         const mode = expandedRows[row.id];
+                                        const isHighlighted = highlightId === String((row.original as Encours).id);
                                         const status = (row.original as any).ShippingAdvice;
-                                        const rowBg = status === 'Totalité' ? 'rgba(76, 175, 80, 0.08)'
-                                            : (status === 'LivraisonDispo' || status === 'Livrer Disponible') ? 'rgba(255, 193, 7, 0.08)'
-                                                : 'transparent';
+                                        const rowBg = isHighlighted 
+                                            ? (theme) => alpha(theme.palette.primary.main, 0.1)
+                                            : (status === 'Totalité' ? 'rgba(76, 175, 80, 0.08)'
+                                                : (status === 'LivraisonDispo' || status === 'Livrer Disponible') ? 'rgba(255, 193, 7, 0.08)'
+                                                    : 'transparent');
                                         return (
                                             <Fragment key={row.id}>
-                                                <TableRow hover sx={{ bgcolor: rowBg }}>
+                                                <TableRow 
+                                                    hover 
+                                                    sx={{ 
+                                                        bgcolor: rowBg,
+                                                        ...(isHighlighted && {
+                                                            borderLeft: (theme) =>
+                                                                `4px solid ${theme.palette.primary.main}`
+                                                        })
+                                                    }}
+                                                >
                                                     {row.getVisibleCells().map(cell => (
                                                         <TableCell key={cell.id}>
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -757,8 +772,7 @@ export default function RecuesEncours() {
                                                                                                 <TableCell>{line.invoiceQuantity}</TableCell>
                                                                                                 <TableCell>0</TableCell>
                                                                                                 <TableCell>{line.Decision === "LivPrevuaDate" ? "LivraisonPrevuDate" : (line.Decision || "-")}</TableCell>
-
-                                                                                                <TableCell>{line.Decision === "LivPrevuaDate" ? (line.expectedReceiptDate || "-") : (line.DeliveryDate || "-")}</TableCell>
+                                                                                                <TableCell>{line.DeliveryDate || "-"}</TableCell>
                                                                                             </TableRow>
                                                                                         ))
                                                                                     ) : (

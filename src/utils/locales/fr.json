@@ -205,6 +205,7 @@
   "more-items": "Plus d’éléments",
   "articles": "Articles",
   "commandes-emis": "Commandes émises",
+  "rapport-assurance": "Rapport Assurances",
   "commandes-recus": "Commandes reçues",
   "commandes-livrees": "Commandes livrées",
   "non-traite": "Non traitées",
@@ -238,5 +239,8 @@
   "import-remark-3": "Pour chaque article vous devez mentionner la désignation",
   "import-remark-4": "Les prix et les quantités: avec des virgules exemple: (200,500)",
   "connexion-catalogue":"Connexion catalogue",
-  "plexus-pec-commandes": "Plexus Pec Commandes"
+  "plexus-pec-commandes": "Commandes prise en charge",
+  "bris-de-glace-creation": "Nouveau dossier",
+  "bris-de-glace-consultation": "Dossiers bris de glace",
+  "demandes-devis": "Demandes de devis"
 }

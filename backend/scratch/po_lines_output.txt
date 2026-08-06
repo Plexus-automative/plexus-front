@@ -1,0 +1,285 @@
+
+PO Number: CA20/0019
+SellToCustomerName: None or None
+Keys in PO: ['@odata.etag', 'id', 'number', 'orderDate', 'postingDate', 'SellToCustomerNo', 'vendorId', 'vendorNumber', 'vendorName', 'payToName', 'payToVendorId', 'payToVendorNumber', 'shipToName', 'shipToContact', 'buyFromAddressLine1', 'buyFromAddressLine2', 'buyFromCity', 'buyFromCountry', 'buyFromState', 'buyFromPostCode', 'payToAddressLine1', 'payToAddressLine2', 'payToCity', 'payToCountry', 'payToState', 'payToPostCode', 'shipToAddressLine1', 'shipToAddressLine2', 'shipToCity', 'shipToCountry', 'shipToState', 'shipToPostCode', 'shortcutDimension1Code', 'shortcutDimension2Code', 'currencyId', 'currencyCode', 'pricesIncludeTax', 'paymentTermsId', 'shipmentMethodId', 'purchaser', 'requestedReceiptDate', 'ShippingAdvice', 'Delivred', 'ReceivedPurchaseHeader', 'QtyReceived', 'Reclamation', 'CauseofCancellation', 'ChassisNo', 'UnconfirmedOrder', 'SinitreNumber', 'RegistrationNumber', 'VIN', 'Insurancefile', 'DateTimeConfirmation', 'DateTimePartialConfirmation', 'DateTimeCancellation', 'InsuranceCode', 'InsuranceName', 'OrderAwaitingConfirmation', 'SendingValidation', 'discountAmount', 'discountAppliedBeforeTax', 'totalAmountExcludingTax', 'totalTaxAmount', 'totalAmountIncludingTax', 'fullyReceived', 'status', 'lastModifiedDateTime', 'plexuspurchaseOrderLines']
+Found 3 lines
+  Line:
+    @odata.etag: W/"JzIwOzE4MzgyMjA1NTc2OTg5MjIzNDkyMTswMDsn"
+    id: 1fb0907f-6df7-f011-8405-7ced8d84f563
+    documentId: c82a7e17-6df7-f011-8405-7ced8d84f563
+    sequence: 10000
+    itemId: 4ea23161-abe0-f011-8542-6045bd1910a4
+    accountId: 00000000-0000-0000-0000-000000000000
+    lineType: Item
+    lineObjectNumber: 1608703480
+    description: PARE CHOCS AR
+    description2: 
+    unitOfMeasureId: 00000000-0000-0000-0000-000000000000
+    unitOfMeasureCode: 
+    quantity: 1
+    directUnitCost: 711.047
+    discountAmount: 0
+    discountPercent: 0
+    discountAppliedBeforeTax: False
+    amountExcludingTax: 711.047
+    taxCode: 19
+    taxPercent: 19
+    totalTaxAmount: 135.099
+    amountIncludingTax: 846.146
+    invoiceDiscountAllocation: 142.209
+    netAmount: 568.838
+    netTaxAmount: 108.079
+    netAmountIncludingTax: 676.917
+    expectedReceiptDate: 2020-11-21
+    receivedQuantity: 0
+    invoicedQuantity: 1
+    invoiceQuantity: 0
+    receiveQuantity: 1
+    itemVariantId: 00000000-0000-0000-0000-000000000000
+    locationId: 00000000-0000-0000-0000-000000000000
+    Decision: Disponible
+    DeliveryDate: -
+    QuantityAvailable: 1
+    InitialQuantity: 1
+    OldUnitPrice: 845.252100840336
+    OldRemplacementItemNo: 
+    UncertainReference: False
+    ChassisNo: 
+    AdaptableItemNo: 
+    AdaptablePrice: 0
+    AdaptableVendorNo: 
+  Line:
+    @odata.etag: W/"JzE5OzQ0MjA5MDE0NzYxMDY5NDA2NDAxOzAwOyc="
+    id: 20b0907f-6df7-f011-8405-7ced8d84f563
+    documentId: c82a7e17-6df7-f011-8405-7ced8d84f563
+    sequence: 20000
+    itemId: 7272eab8-73e2-f011-8542-6045bd1910a4
+    accountId: 00000000-0000-0000-0000-000000000000
+    lineType: Item
+    lineObjectNumber: 9676957880
+    description: GRILLE
+    description2: 
+    unitOfMeasureId: 00000000-0000-0000-0000-000000000000
+    unitOfMeasureCode: 
+    quantity: 1
+    directUnitCost: 186.739
+    discountAmount: 0
+    discountPercent: 0
+    discountAppliedBeforeTax: False
+    amountExcludingTax: 186.739
+    taxCode: 19
+    taxPercent: 19
+    totalTaxAmount: 35.48
+    amountIncludingTax: 222.219
+    invoiceDiscountAllocation: 37.348
+    netAmount: 149.391
+    netTaxAmount: 28.385
+    netAmountIncludingTax: 177.776
+    expectedReceiptDate: 2020-11-21
+    receivedQuantity: 0
+    invoicedQuantity: 1
+    invoiceQuantity: 0
+    receiveQuantity: 1
+    itemVariantId: 00000000-0000-0000-0000-000000000000
+    locationId: 00000000-0000-0000-0000-000000000000
+    Decision: Disponible
+    DeliveryDate: -
+    QuantityAvailable: 1
+    InitialQuantity: 1
+    OldUnitPrice: 186.739
+    OldRemplacementItemNo: 
+    UncertainReference: False
+    ChassisNo: 
+    AdaptableItemNo: 
+    AdaptablePrice: 0
+    AdaptableVendorNo: 
+
+PO Number: CA20/0024
+SellToCustomerName: None or None
+Keys in PO: ['@odata.etag', 'id', 'number', 'orderDate', 'postingDate', 'SellToCustomerNo', 'vendorId', 'vendorNumber', 'vendorName', 'payToName', 'payToVendorId', 'payToVendorNumber', 'shipToName', 'shipToContact', 'buyFromAddressLine1', 'buyFromAddressLine2', 'buyFromCity', 'buyFromCountry', 'buyFromState', 'buyFromPostCode', 'payToAddressLine1', 'payToAddressLine2', 'payToCity', 'payToCountry', 'payToState', 'payToPostCode', 'shipToAddressLine1', 'shipToAddressLine2', 'shipToCity', 'shipToCountry', 'shipToState', 'shipToPostCode', 'shortcutDimension1Code', 'shortcutDimension2Code', 'currencyId', 'currencyCode', 'pricesIncludeTax', 'paymentTermsId', 'shipmentMethodId', 'purchaser', 'requestedReceiptDate', 'ShippingAdvice', 'Delivred', 'ReceivedPurchaseHeader', 'QtyReceived', 'Reclamation', 'CauseofCancellation', 'ChassisNo', 'UnconfirmedOrder', 'SinitreNumber', 'RegistrationNumber', 'VIN', 'Insurancefile', 'DateTimeConfirmation', 'DateTimePartialConfirmation', 'DateTimeCancellation', 'InsuranceCode', 'InsuranceName', 'OrderAwaitingConfirmation', 'SendingValidation', 'discountAmount', 'discountAppliedBeforeTax', 'totalAmountExcludingTax', 'totalTaxAmount', 'totalAmountIncludingTax', 'fullyReceived', 'status', 'lastModifiedDateTime', 'plexuspurchaseOrderLines']
+Found 3 lines
+  Line:
+    @odata.etag: W/"JzE5Ozk2Nzc0MTExMTE0OTQyNDA1MzQxOzAwOyc="
+    id: 22b0907f-6df7-f011-8405-7ced8d84f563
+    documentId: cb2a7e17-6df7-f011-8405-7ced8d84f563
+    sequence: 10000
+    itemId: 9ec7126b-dde0-f011-8542-6045bd1910a4
+    accountId: 00000000-0000-0000-0000-000000000000
+    lineType: Item
+    lineObjectNumber: 210101832R
+    description: POMPE EAU E
+    description2: 
+    unitOfMeasureId: 00000000-0000-0000-0000-000000000000
+    unitOfMeasureCode: 
+    quantity: 1
+    directUnitCost: 166.54
+    discountAmount: 0
+    discountPercent: 0
+    discountAppliedBeforeTax: False
+    amountExcludingTax: 166.54
+    taxCode: 19
+    taxPercent: 19
+    totalTaxAmount: 31.643
+    amountIncludingTax: 198.183
+    invoiceDiscountAllocation: 37.472
+    netAmount: 129.068
+    netTaxAmount: 24.523
+    netAmountIncludingTax: 153.591
+    expectedReceiptDate: 2020-11-24
+    receivedQuantity: 0
+    invoicedQuantity: 0
+    invoiceQuantity: 1
+    receiveQuantity: 1
+    itemVariantId: 00000000-0000-0000-0000-000000000000
+    locationId: 00000000-0000-0000-0000-000000000000
+    Decision: Disponible
+    DeliveryDate: -
+    QuantityAvailable: 1
+    InitialQuantity: 1
+    OldUnitPrice: 166.5396
+    OldRemplacementItemNo: 
+    UncertainReference: False
+    ChassisNo: 
+    AdaptableItemNo: 
+    AdaptablePrice: 0
+    AdaptableVendorNo: 
+  Line:
+    @odata.etag: W/"JzIwOzE2NjYwMTk2NDQ2ODE2NjUwMTQ4MTswMDsn"
+    id: 23b0907f-6df7-f011-8405-7ced8d84f563
+    documentId: cb2a7e17-6df7-f011-8405-7ced8d84f563
+    sequence: 20000
+    itemId: 7fb5e12d-40e2-f011-8542-6045bd1910a4
+    accountId: 00000000-0000-0000-0000-000000000000
+    lineType: Item
+    lineObjectNumber: 7701476745
+    description: COLLECTION DISTRIBUT
+    description2: 
+    unitOfMeasureId: 00000000-0000-0000-0000-000000000000
+    unitOfMeasureCode: 
+    quantity: 1
+    directUnitCost: 167.88
+    discountAmount: 0
+    discountPercent: 0
+    discountAppliedBeforeTax: False
+    amountExcludingTax: 167.88
+    taxCode: 19
+    taxPercent: 19
+    totalTaxAmount: 31.897
+    amountIncludingTax: 199.777
+    invoiceDiscountAllocation: 37.773
+    netAmount: 130.107
+    netTaxAmount: 24.72
+    netAmountIncludingTax: 154.827
+    expectedReceiptDate: 2020-11-24
+    receivedQuantity: 0
+    invoicedQuantity: 0
+    invoiceQuantity: 1
+    receiveQuantity: 1
+    itemVariantId: 00000000-0000-0000-0000-000000000000
+    locationId: 00000000-0000-0000-0000-000000000000
+    Decision: Disponible
+    DeliveryDate: -
+    QuantityAvailable: 1
+    InitialQuantity: 1
+    OldUnitPrice: 167.88
+    OldRemplacementItemNo: 
+    UncertainReference: False
+    ChassisNo: 
+    AdaptableItemNo: 
+    AdaptablePrice: 0
+    AdaptableVendorNo: 
+
+PO Number: CA20/0029
+SellToCustomerName: None or None
+Keys in PO: ['@odata.etag', 'id', 'number', 'orderDate', 'postingDate', 'SellToCustomerNo', 'vendorId', 'vendorNumber', 'vendorName', 'payToName', 'payToVendorId', 'payToVendorNumber', 'shipToName', 'shipToContact', 'buyFromAddressLine1', 'buyFromAddressLine2', 'buyFromCity', 'buyFromCountry', 'buyFromState', 'buyFromPostCode', 'payToAddressLine1', 'payToAddressLine2', 'payToCity', 'payToCountry', 'payToState', 'payToPostCode', 'shipToAddressLine1', 'shipToAddressLine2', 'shipToCity', 'shipToCountry', 'shipToState', 'shipToPostCode', 'shortcutDimension1Code', 'shortcutDimension2Code', 'currencyId', 'currencyCode', 'pricesIncludeTax', 'paymentTermsId', 'shipmentMethodId', 'purchaser', 'requestedReceiptDate', 'ShippingAdvice', 'Delivred', 'ReceivedPurchaseHeader', 'QtyReceived', 'Reclamation', 'CauseofCancellation', 'ChassisNo', 'UnconfirmedOrder', 'SinitreNumber', 'RegistrationNumber', 'VIN', 'Insurancefile', 'DateTimeConfirmation', 'DateTimePartialConfirmation', 'DateTimeCancellation', 'InsuranceCode', 'InsuranceName', 'OrderAwaitingConfirmation', 'SendingValidation', 'discountAmount', 'discountAppliedBeforeTax', 'totalAmountExcludingTax', 'totalTaxAmount', 'totalAmountIncludingTax', 'fullyReceived', 'status', 'lastModifiedDateTime', 'plexuspurchaseOrderLines']
+Found 3 lines
+  Line:
+    @odata.etag: W/"JzIwOzE3Njk2MDQ4MTU3OTIwNjA5MjE1MTswMDsn"
+    id: 25b0907f-6df7-f011-8405-7ced8d84f563
+    documentId: cd2a7e17-6df7-f011-8405-7ced8d84f563
+    sequence: 10000
+    itemId: 5362198d-aee1-f011-8542-6045bd1910a4
+    accountId: 00000000-0000-0000-0000-000000000000
+    lineType: Item
+    lineObjectNumber: 622229677R
+    description: SUPPORT AVD BOUCLIER
+    description2: 
+    unitOfMeasureId: 00000000-0000-0000-0000-000000000000
+    unitOfMeasureCode: 
+    quantity: 1
+    directUnitCost: 39.991
+    discountAmount: 0
+    discountPercent: 0
+    discountAppliedBeforeTax: False
+    amountExcludingTax: 39.991
+    taxCode: 19
+    taxPercent: 19
+    totalTaxAmount: 7.598
+    amountIncludingTax: 47.589
+    invoiceDiscountAllocation: 8.998
+    netAmount: 30.993
+    netTaxAmount: 5.889
+    netAmountIncludingTax: 36.882
+    expectedReceiptDate: 2020-11-24
+    receivedQuantity: 0
+    invoicedQuantity: 1
+    invoiceQuantity: 0
+    receiveQuantity: 1
+    itemVariantId: 00000000-0000-0000-0000-000000000000
+    locationId: 00000000-0000-0000-0000-000000000000
+    Decision: LivraisonPrevuDate
+    DeliveryDate: 2020-11-28
+    QuantityAvailable: 1
+    InitialQuantity: 1
+    OldUnitPrice: 39.9912
+    OldRemplacementItemNo: 
+    UncertainReference: False
+    ChassisNo: 
+    AdaptableItemNo: 
+    AdaptablePrice: 0
+    AdaptableVendorNo: 
+  Line:
+    @odata.etag: W/"JzE5OzQwNzEzODU5NjU2NjcwNzkzNTcxOzAwOyc="
+    id: 26b0907f-6df7-f011-8405-7ced8d84f563
+    documentId: cd2a7e17-6df7-f011-8405-7ced8d84f563
+    sequence: 20000
+    itemId: 76f5cc7d-dee0-f011-8542-6045bd1910a4
+    accountId: 00000000-0000-0000-0000-000000000000
+    lineType: Item
+    lineObjectNumber: 261A32873R
+    description: ENJOLIVEUR
+    description2: 
+    unitOfMeasureId: 00000000-0000-0000-0000-000000000000
+    unitOfMeasureCode: 
+    quantity: 1
+    directUnitCost: 141.908
+    discountAmount: 0
+    discountPercent: 0
+    discountAppliedBeforeTax: False
+    amountExcludingTax: 141.908
+    taxCode: 19
+    taxPercent: 19
+    totalTaxAmount: 26.963
+    amountIncludingTax: 168.871
+    invoiceDiscountAllocation: 31.929
+    netAmount: 109.979
+    netTaxAmount: 20.896
+    netAmountIncludingTax: 130.875
+    expectedReceiptDate: 2020-11-24
+    receivedQuantity: 0
+    invoicedQuantity: 0
+    invoiceQuantity: 1
+    receiveQuantity: 1
+    itemVariantId: 00000000-0000-0000-0000-000000000000
+    locationId: 00000000-0000-0000-0000-000000000000
+    Decision: LivraisonPrevuDate
+    DeliveryDate: 2020-11-28
+    QuantityAvailable: 1
+    InitialQuantity: 1
+    OldUnitPrice: 141.9084
+    OldRemplacementItemNo: 
+    UncertainReference: False
+    ChassisNo: 
+    AdaptableItemNo: 
+    AdaptablePrice: 0
+    AdaptableVendorNo: 

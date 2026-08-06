@@ -201,7 +201,15 @@ export default function ValidationReception() {
                     : 'Commande validée avec succès!'
             );
         } catch (err: any) {
-            setErrorMsg('Erreur: ' + (err.message || 'Erreur inconnue'));
+            // The axios interceptor rejects with the response BODY, not an Error, so
+            // err.message is undefined and every failure used to read "Erreur inconnue".
+            const serverMessage =
+                (typeof err === 'string' ? err : null) ||
+                err?.error ||
+                err?.response?.data?.error ||
+                err?.message ||
+                'Erreur inconnue';
+            setErrorMsg('Erreur: ' + serverMessage);
         } finally {
             setValidating(false);
         }

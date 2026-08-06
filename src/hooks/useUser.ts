@@ -9,6 +9,8 @@ interface UserProps {
   role: string;
   catalogType: string;
   customerNo: string;
+  isPec: boolean;
+  isBriseDeGlace: boolean;
 }
 
 export default function useUser() {
@@ -34,7 +36,9 @@ export default function useUser() {
       thumb,
       role: (user as any)?.role || (session as any)?.token?.role || 'User',
       catalogType: (user as any)?.catalogType || '',
-      customerNo: (user as any)?.customerNo || ''
+      customerNo: (user as any)?.customerNo || '',
+      isPec: !!(user as any)?.isPec,
+      isBriseDeGlace: !!(user as any)?.isBriseDeGlace
     };
 
     return newUser;

@@ -1,5 +1,10 @@
+'use client';
+
+// next
+import dynamic from 'next/dynamic';
+
 // project-imports
-import DashboardAnalytics from 'views/dashboard/DashboardAnalytics';
+const DashboardAnalytics = dynamic(() => import('views/dashboard/DashboardAnalytics'), { ssr: false });
 
 // ==============================|| DASHBOARD - ANALYTICS ||============================== //
 

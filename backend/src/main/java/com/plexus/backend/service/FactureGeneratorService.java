@@ -42,6 +42,7 @@ public class FactureGeneratorService {
     private static final Font F_TOTAL_VAL = new Font(Font.HELVETICA, 11, Font.BOLD, Color.WHITE);
     private static final Font F_GOLD_LABEL = new Font(Font.HELVETICA, 8, Font.BOLD, ACCENT_GOLD);
     private static final Font F_SIG_HEADER = new Font(Font.HELVETICA, 9, Font.BOLD, Color.BLACK);
+    private static final Font F_PC = new Font(Font.HELVETICA, 8.5f, Font.BOLD | Font.ITALIC, PLEXUS_BLUE);
 
     public byte[] generateFacture(
             String invoiceNumber,
@@ -70,16 +71,13 @@ public class FactureGeneratorService {
                 cb.rectangle(doc.left(), doc.bottom() - 8, doc.right() - doc.left(), 2);
                 cb.fill();
 
-                PdfPTable footer = new PdfPTable(1);
                 try {
-                    footer.setTotalWidth(doc.right() - doc.left());
-                    String info = "PLEXUS  |  Golden Tower B.5.2 Centre Urbain Nord Tunis  |  Tél/Fax : 70 139 750  |  MF : 1639504Y  |  RC : B12251996  |  Banque : BTK 20005052210070153108";
-                    PdfPCell cell = new PdfPCell(new Phrase(info, F_SMALL));
-                    cell.setBorder(Rectangle.NO_BORDER);
-                    cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                    cell.setPaddingTop(4);
-                    footer.addCell(cell);
-                    footer.writeSelectedRows(0, -1, doc.left(), doc.bottom() - 12, cb);
+                    // Single centered line — showTextAligned never wraps; small font keeps it on one line.
+                    Font footerFont = new Font(Font.HELVETICA, 6.5f, Font.NORMAL, TEXT_MUTED);
+                    String info = "PLEXUS  |  Golden Tower B.5.2 Centre Urbain Nord Tunis  |  Tél/Fax : 70 139 750  |  MF : 1639504YBM000  |  RC : B12251996  |  Banque : BTK 20005052210070153108";
+                    // Sit well below the gold accent line (at bottom()-8) so text doesn't touch it.
+                    ColumnText.showTextAligned(cb, Element.ALIGN_CENTER, new Phrase(info, footerFont),
+                            (doc.left() + doc.right()) / 2, doc.bottom() - 17, 0);
                 } catch (Exception e) {
                 }
             }
@@ -120,7 +118,7 @@ public class FactureGeneratorService {
         compAddr.setSpacingBefore(4);
         logoCell.addElement(compAddr);
         logoCell.addElement(new Paragraph("Tél : 70 139 750  |  Fax : 70 139 750", F_SMALL));
-        logoCell.addElement(new Paragraph("Identifiant unique : 1639504Y", F_SMALL));
+        logoCell.addElement(new Paragraph("Identifiant unique : 1639504YBM000", F_SMALL));
         header.addCell(logoCell);
 
         // Right: Title + Invoice meta
@@ -185,14 +183,16 @@ public class FactureGeneratorService {
             refCell.addElement(new Paragraph(" ", F_SMALL));
         }
 
+        boolean isC0090 = "C0090".equalsIgnoreCase(clientCode);
+
         // VIN / Immatriculation if available
-        if (fullOrder != null) {
+        if (fullOrder != null && !isC0090) {
             String vin = extractField(fullOrder, "VIN", "vin", "ChassisNo");
             String immat = extractField(fullOrder, "RegistrationNumber", "registrationNumber");
-            if (vin != null) {
+            if (vin != null && !vin.isEmpty()) {
                 refCell.addElement(new Paragraph("VIN : " + vin, F_BOLD));
             }
-            if (immat != null) {
+            if (immat != null && !immat.isEmpty()) {
                 refCell.addElement(new Paragraph("Immatriculation : " + immat, F_BOLD));
             }
         }
@@ -206,7 +206,9 @@ public class FactureGeneratorService {
         clientBox.setPadding(12);
 
         clientBox.addElement(new Paragraph("CLIENT", F_LABEL));
-        clientBox.addElement(new Paragraph("Code : " + (clientCode != null ? clientCode : "-"), F_BOLD));
+        if (!isC0090) {
+            clientBox.addElement(new Paragraph("Code : " + (clientCode != null ? clientCode : "-"), F_BOLD));
+        }
 
         // Robust name from fullOrder
         String displayName = clientName;
@@ -215,38 +217,82 @@ public class FactureGeneratorService {
                 displayName = fullOrder.get("CustomerName").asText();
             }
         }
-        Paragraph namePara = new Paragraph(displayName != null ? displayName.toUpperCase() : "-", F_CLIENT_NAME);
+
+        String finalClientName = displayName;
+        if (isC0090) {
+            String insured = extractField(fullOrder, "insuredName", "PLX_InsuredName", "InsuredName");
+            if (insured != null && !insured.isEmpty()) {
+                if (insured.contains("/")) {
+                    String[] parts = insured.split("/");
+                    if (parts.length > 1) {
+                        finalClientName = parts[1].trim();
+                    } else {
+                        finalClientName = parts[0].trim();
+                    }
+                } else {
+                    finalClientName = insured.trim();
+                }
+            } else {
+                finalClientName = "CLIENT PLEXUS";
+            }
+        }
+
+        Paragraph namePara = new Paragraph(finalClientName != null ? finalClientName.toUpperCase() : "-",
+                F_CLIENT_NAME);
         namePara.setSpacingBefore(4);
         clientBox.addElement(namePara);
 
-        // Address
-        String fullAddr = buildAddress(clientAddress, clientCity, fullOrder);
-        clientBox.addElement(new Paragraph("Adresse : " + fullAddr, F_NORMAL));
+        if (!isC0090) {
+            // Address
+            String fullAddr = buildAddress(clientAddress, clientCity, fullOrder);
+            clientBox.addElement(new Paragraph("Adresse : " + fullAddr, F_NORMAL));
 
-        // VAT
-        String vat = vatRegistrationNo;
-        if ((vat == null || vat.isEmpty()) && fullOrder != null && fullOrder.has("VATRegistrationNo")) {
-            vat = fullOrder.get("VATRegistrationNo").asText();
-        }
-        clientBox.addElement(new Paragraph("Code TVA : " + (vat != null ? vat : "-"), F_NORMAL));
+            // VAT
+            String vat = vatRegistrationNo;
+            if ((vat == null || vat.isEmpty()) && fullOrder != null && fullOrder.has("VATRegistrationNo")) {
+                vat = fullOrder.get("VATRegistrationNo").asText();
+            }
+            clientBox.addElement(new Paragraph("Code TVA : " + (vat != null ? vat : "-"), F_NORMAL));
 
-        // Phone
-        String phone = buildPhone(clientPhone, fullOrder);
-        clientBox.addElement(new Paragraph("Tél : " + phone, F_NORMAL));
+            // Phone
+            String phone = buildPhone(clientPhone, fullOrder);
+            clientBox.addElement(new Paragraph("Tél : " + phone, F_NORMAL));
 
-        // City
-        String city = clientCity;
-        if ((city == null || city.isEmpty()) && fullOrder != null) {
-            city = extractField(fullOrder, "FullCity", "shipToCity", "SellToCity");
-        }
-        if (city != null && !city.isEmpty()) {
-            clientBox.addElement(new Paragraph("Ville : " + city, F_NORMAL));
-        }
+            // City
+            String city = clientCity;
+            if ((city == null || city.isEmpty()) && fullOrder != null) {
+                city = extractField(fullOrder, "FullCity", "shipToCity", "SellToCity");
+            }
+            if (city != null && !city.isEmpty()) {
+                clientBox.addElement(new Paragraph("Ville : " + city, F_NORMAL));
+            }
 
-        // Insured Name (MAWDY)
-        String insured = extractField(fullOrder, "insuredName", "PLX_InsuredName", "InsuredName");
-        if (insured != null && !insured.isEmpty()) {
-            clientBox.addElement(new Paragraph("P/C : " + insured.toUpperCase(), F_BOLD));
+            // Insured Name (MAWDY)
+            String insured = extractField(fullOrder, "insuredName", "PLX_InsuredName", "InsuredName");
+            if (insured != null && !insured.isEmpty()) {
+                Paragraph pcPara = new Paragraph("P/C : " + insured.toUpperCase(), F_PC);
+                pcPara.setSpacingBefore(3);
+                clientBox.addElement(pcPara);
+            }
+        } else {
+            // Also add VIN and Immatriculation inside the client box for C0090 (first)
+            if (fullOrder != null) {
+                String vin = extractField(fullOrder, "VIN", "vin", "ChassisNo");
+                String immat = extractField(fullOrder, "RegistrationNumber", "registrationNumber");
+                if (vin != null && !vin.isEmpty()) {
+                    clientBox.addElement(new Paragraph("VIN : " + vin, F_NORMAL));
+                }
+                if (immat != null && !immat.isEmpty()) {
+                    clientBox.addElement(new Paragraph("Immatriculation : " + immat, F_NORMAL));
+                }
+            }
+
+            // For C0090, set P/C to the name of client C0090 (displayName, e.g. PLEXUS PEC)
+            // (last)
+            String pcName = (displayName != null && !displayName.isEmpty()) ? displayName : "PLEXUS PEC";
+            Paragraph pcPara = new Paragraph("P/C : " + pcName.toUpperCase(), F_PC);
+            pcPara.setSpacingBefore(3);
+            clientBox.addElement(pcPara);
         }
 
         clientSection.addCell(clientBox);

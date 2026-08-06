@@ -19,7 +19,8 @@ import {
   TaskSquare,
   AddCircle,
   Bag2,
-  ExternalDrive
+  ExternalDrive,
+  HomeTrendUp
 } from "@wandersonalwes/iconsax-react";
 
 // types
@@ -44,7 +45,8 @@ const icons = {
   mail: DirectInbox,
   reference: AddCircle,
   validation: TaskSquare,
-  catalogue: ExternalDrive
+  catalogue: ExternalDrive,
+  dashboard: HomeTrendUp
 };
 
 // ==============================|| MENU ITEMS - APPLICATIONS ||============================== //
@@ -55,6 +57,14 @@ const applications: NavItemType = {
   icon: icons.applications,
   type: "group",
   children: [
+    {
+      id: "dashboard",
+      title: "dashboard",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.dashboard,
+      url: "/dashboard/default",
+    },
     {
       id: "articles",
       title: "articles-rechercher",
@@ -146,6 +156,38 @@ const applications: NavItemType = {
       breadcrumbs: false,
       icon: icons.validation,
       url: "/pages/validation-reception",
+    },
+    {
+      id: "rapport-assurance",
+      title: "rapport-assurance",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.fileManager,
+      url: "/pages/rapport-assurance",
+    },
+    {
+      id: "bris-de-glace-creation",
+      title: "bris-de-glace-creation",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.add,
+      url: "/pages/bris-de-glace/creation",
+    },
+    {
+      id: "bris-de-glace-consultation",
+      title: "bris-de-glace-consultation",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.fileManager,
+      url: "/pages/bris-de-glace/consultation",
+    },
+    {
+      id: "demandes-devis",
+      title: "demandes-devis",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.validation,
+      url: "/pages/demandes-devis",
     },
     {
       id: "add-reference",

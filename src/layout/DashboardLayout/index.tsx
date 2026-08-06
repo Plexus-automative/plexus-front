@@ -24,6 +24,7 @@ import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 import { DRAWER_WIDTH, MenuOrientation } from 'config';
 import useConfig from 'hooks/useConfig';
 import { Toolbar } from '@mui/material';
+import useUser from 'hooks/useUser';
 
 // ==============================|| MAIN LAYOUT ||============================== //
 
@@ -44,7 +45,32 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [downXL]);
 
+  const user = useUser();
+  const userObj = user && typeof user !== 'boolean' ? user : null;
+  const isC0082 = userObj?.customerNo === 'C0082';
+  const isBrisUser = !!userObj?.isBriseDeGlace;
+
   if (menuMasterLoading) return <Loader />;
+
+  if (isC0082) {
+    return (
+      <Box sx={{ display: 'flex', width: '100%' }}>
+        <Box component="main" sx={{ width: '100%', flexGrow: 1, p: { xs: 1, sm: 3 } }}>
+          <Container
+            maxWidth={false}
+            sx={{
+              position: 'relative',
+              minHeight: '100vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {children}
+          </Container>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', width: '100%' }}>
@@ -64,6 +90,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           }}
         >
           <Breadcrumbs />
+          {!isBrisUser && (
           <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 1, mb: 2 }}>
             <Button
               component={Link}
@@ -110,6 +137,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               Etat de livraison
             </Button>
           </Box>
+          )}
           {children}
         </Container>
 

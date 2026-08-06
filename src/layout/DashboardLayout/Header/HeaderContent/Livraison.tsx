@@ -127,7 +127,9 @@ export default function Livraison() {
                             key={item.id || index}
                             component={ListItemButton}
                             onClick={() => {
-                              router.push(`/pages/commandes-recus/en-cours?highlight=${item.id}`);
+                              const advice = item.ShippingAdvice || item.shippingAdvice;
+                              const targetTab = (advice === 'Totalité' || advice === 'LivraisonDispo') ? 'valide' : 'validation';
+                              router.push(`/pages/commandes-recus/en-cours?highlight=${item.id}&tab=${targetTab}`);
                               setOpen(false);
                             }}
                             sx={{ my: 1, border: '1px solid', borderColor: 'divider' }}

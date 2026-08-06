@@ -1,0 +1,560 @@
+��package com.plexus.backend.controller;
+
+import com.plexus.backend.service.BusinessCentralTokenService;
+import com.plexus.backend.service.BLGeneratorService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.client.WebClient;
+
+@RestController
+@RequestMapping("/api/purchase-orders")
+public class PurchaseOrderController {
+
+    private final WebClient webClient;
+    private final BusinessCentralTokenService tokenService;
+    private final BLGeneratorService blGeneratorService;
+
+    @Value("${business-central.api.base-url}")
+    private String baseUrl;
+
+    public PurchaseOrderController(WebClient webClient, BusinessCentralTokenService tokenService,
+            BLGeneratorService blGeneratorService) {
+        this.webClient = webClient;
+        this.tokenService = tokenService;
+        this.blGeneratorService = blGeneratorService;
+    }
+
+    @GetMapping
+    public ResponseEntity<String> getPurchaseOrders(HttpServletRequest request) {
+        return forwardRequest(request, org.springframework.http.HttpMethod.GET, null, "/PlexuspurchaseOrders");
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping
+    public ResponseEntity<String> createPurchaseOrder(HttpServletRequest request,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        return forwardRequest(request, org.springframework.http.HttpMethod.POST, body, "/PlexuspurchaseOrders");
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/{orderId}/PlexuspurchaseOrderLines")
+    public ResponseEntity<String> createPurchaseOrderLine(HttpServletRequest request,
+            @org.springframework.web.bind.annotation.PathVariable("orderId") String orderId,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        return forwardRequest(request, org.springframework.http.HttpMethod.POST, body,
+                "/PlexuspurchaseOrders(" + orderId + ")/PlexuspurchaseOrderLines");
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/{orderId}")
+    public ResponseEntity<String> updatePurchaseOrder(HttpServletRequest request,
+            @org.springframework.web.bind.annotation.PathVariable("orderId") String orderId,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        return forwardRequest(request, org.springframework.http.HttpMethod.PATCH, body,
+                "/PlexuspurchaseOrders(" + orderId + ")");
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/lines/{lineId}")
+    public ResponseEntity<String> updatePurchaseOrderLine(HttpServletRequest request,
+            @org.springframework.web.bind.annotation.PathVariable("lineId") String lineId,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        return forwardRequest(request, org.springframework.http.HttpMethod.PATCH, body,
+                "/PlexuspurchaseOrderLines(" + lineId + ")");
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/bulk")
+    public ResponseEntity<String> createBulkPurchaseOrder(HttpServletRequest request,
+            @org.springframework.web.bind.annotation.RequestBody String body) {
+        String token = tokenService.getAccessToken();
+
+        try {
+            // 1. Parse the incoming bulk body
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(body);
+
+            System.out.println("[BULK] Received body: " + body);
+
+            // Build header payload (everything except lines)
+            com.fasterxml.jackson.databind.node.ObjectNode headerPayload = mapper.createObjectNode();
+            java.util.Iterator<java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> fields = rootNode
+                    .fields();
+            while (fields.hasNext()) {
+                java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode> field = fields.next();
+                if (!field.getKey().equals("lines")) {
+                    headerPayload.set(field.getKey(), field.getValue());
+                }
+            }
+
+            System.out.println("[BULK] Header payload: " + headerPayload.toString());
+
+            // 2. Create Header
+            String headerResponseStr = webClient.post()
+                    .uri(uriBuilder -> org.springframework.web.util.UriComponentsBuilder
+                            .fromHttpUrl(baseUrl + "/PlexuspurchaseOrders").build(true).toUri())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                    .bodyValue(headerPayload.toString())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            com.fasterxml.jackson.databind.JsonNode headerNode = mapper.readTree(headerResponseStr);
+            String orderId = headerNode.get("id").asText();
+
+            System.out.println("[BULK] Created header with orderId: " + orderId);
+
+            // 3. Create Lines
+            if (rootNode.has("lines") && rootNode.get("lines").isArray()) {
+                int lineCount = rootNode.get("lines").size();
+                System.out.println("[BULK] Found " + lineCount + " lines to create");
+
+                int lineIndex = 0;
+                for (com.fasterxml.jackson.databind.JsonNode lineNode : rootNode.get("lines")) {
+                    lineIndex++;
+                    System.out.println(
+                            "[BULK] Creating line " + lineIndex + "/" + lineCount + ": " + lineNode.toString());
+
+                    String lineResponse = webClient.post()
+                            .uri(uriBuilder -> org.springframework.web.util.UriComponentsBuilder
+                                    .fromHttpUrl(
+                                            baseUrl + "/PlexuspurchaseOrders(" + orderId + ")/PlexuspurchaseOrderLines")
+                                    .build(true).toUri())
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                            .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                            .bodyValue(lineNode.toString())
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .block();
+
+                    System.out.println("[BULK] Line " + lineIndex + " created successfully");
+                }
+            } else {
+                System.out.println("[BULK] WARNING: No lines array found in payload!");
+            }
+
+            return ResponseEntity.ok(headerResponseStr);
+
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body("Error communicating with Business Central: " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error communicating with Business Central: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/ItemVendors")
+    public ResponseEntity<String> getItemVendors(HttpServletRequest request) {
+        String token = tokenService.getAccessToken();
+        try {
+            // Note: ItemVendors belongs to a DIFFERENT company ID in the frontend code:
+            // B2F78390-8D47-F111-A820-6045BD6C578C
+            String itemVendorUrl = "https://api.businesscentral.dynamics.com/v2.0/235ce906-04c4-4ee5-a705-c904b1fa3167/Plexus/api/NEL/AcessSystemAPI/v1.0/companies(B2F78390-8D47-F111-A820-6045BD6C578C)/ItemVendors";
+            String response = webClient.get()
+                    .uri(uriBuilder -> {
+                        return org.springframework.web.util.UriComponentsBuilder.fromHttpUrl(itemVendorUrl)
+                                .query(request.getQueryString())
+                                .build(true)
+                                .toUri();
+                    })
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+            return ResponseEntity.ok(response);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode()).body("Error: " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/emises/non-traitee")
+    public ResponseEntity<String> getEmisesNonTraitee(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders("status eq 'Draft' and ShippingAdvice eq 'Attente'", skip, top);
+    }
+
+    @GetMapping("/emises/en-cours")
+    public ResponseEntity<String> getEmisesEnCours(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders("status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle')",
+                skip, top);
+    }
+
+    @GetMapping("/emises/traitee")
+    public ResponseEntity<String> getEmisesTraitee(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders(
+                "fullyReceived eq false and status eq 'Draft' and ShippingAdvice eq 'Confirmé' and QtyReceived eq 'Oui'",
+                skip, top);
+    }
+
+    @GetMapping("/validation-reception")
+    public ResponseEntity<String> getValidationReception(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders(
+                "fullyReceived eq false and status eq 'Draft' and ShippingAdvice eq 'Confirmé' and QtyReceived ne 'Oui'",
+                skip, top);
+    }
+
+    @GetMapping("/recues/non-traitee")
+    public ResponseEntity<String> getRecuesNonTraitee(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders("status eq 'Draft' and ShippingAdvice eq 'Attente'", skip, top);
+    }
+
+    @GetMapping("/recues/en-cours")
+    public ResponseEntity<String> getRecuesEnCours(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders(
+                "status eq 'Draft' and (ShippingAdvice eq 'ConfirmationPartielle' or ShippingAdvice eq 'Totalité')",
+                skip, top);
+    }
+
+    @GetMapping("/recues/traitee")
+    public ResponseEntity<String> getRecuesTraitee(
+            @org.springframework.web.bind.annotation.RequestParam(name = "skip", defaultValue = "0") int skip,
+            @org.springframework.web.bind.annotation.RequestParam(name = "top", defaultValue = "10") int top) {
+        return getFilteredPurchaseOrders(
+                "fullyReceived eq false and status eq 'Open' and ShippingAdvice eq 'Confirmé'", skip, top);
+    }
+
+    private ResponseEntity<String> getFilteredPurchaseOrders(String filterValue, int skip, int top) {
+        String token = tokenService.getAccessToken();
+        try {
+            // URL-encode OData query values properly
+            String encodedFilter = java.net.URLEncoder.encode(filterValue, "UTF-8");
+            String encodedOrderBy = java.net.URLEncoder.encode("lastModifiedDateTime desc", "UTF-8");
+
+            String fullUrl = baseUrl + "/PlexuspurchaseOrders"
+                    + "?$filter=" + encodedFilter
+                    + "&$orderby=" + encodedOrderBy
+                    + "&$skip=" + skip
+                    + "&$top=" + top
+                    + "&$count=true"
+                    + "&$expand=PlexuspurchaseOrderLines";
+
+            System.out.println("[FILTER] Request URL: " + fullUrl);
+
+            String response = webClient.get()
+                    .uri(java.net.URI.create(fullUrl))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            return ResponseEntity.ok(response);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body("Error communicating with Business Central: " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error communicating with Business Central: " + e.getMessage());
+        }
+    }
+
+    private ResponseEntity<String> forwardRequest(HttpServletRequest request,
+            org.springframework.http.HttpMethod method, String body, String path) {
+        String token = tokenService.getAccessToken();
+
+        try {
+            WebClient.RequestBodySpec requestBuilder = webClient.method(method)
+                    .uri(uriBuilder -> {
+                        return org.springframework.web.util.UriComponentsBuilder.fromHttpUrl(baseUrl + path)
+                                .query(request.getQueryString())
+                                .build(true)
+                                .toUri();
+                    })
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+
+            // Add If-Match header for PATCH requests
+            if (method == org.springframework.http.HttpMethod.PATCH) {
+                requestBuilder.header("If-Match", "*");
+            }
+
+            if (body != null) {
+                requestBuilder.header(HttpHeaders.CONTENT_TYPE, "application/json");
+                requestBuilder.bodyValue(body);
+            }
+
+            String response = requestBuilder.retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            return ResponseEntity.ok(response);
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body("Error communicating with Business Central: " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error communicating with Business Central: " + e.getMessage());
+        }
+    }
+
+    // ===== Confirm Reception: Client validates received quantities =====
+    @org.springframework.web.bind.annotation.PostMapping("/confirm-reception")
+    public ResponseEntity<String> confirmReception(
+            @org.springframework.web.bind.annotation.RequestBody String body) {
+        String token = tokenService.getAccessToken();
+
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(body);
+
+            String orderId = rootNode.has("id") ? rootNode.get("id").asText() : null;
+            if (orderId == null || orderId.isEmpty()) {
+                return ResponseEntity.badRequest().body("{\"error\": \"Missing order id\"}");
+            }
+
+            System.out.println("[CONFIRM-RECEPTION] Confirming reception for order: " + orderId);
+
+            // Step 1: Get the etag
+            String orderResponse = webClient.get()
+                    .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            com.fasterxml.jackson.databind.JsonNode orderNode = mapper.readTree(orderResponse);
+            String etag = orderNode.has("@odata.etag") ? orderNode.get("@odata.etag").asText() : "*";
+
+            // Step 2: PATCH — client confirms reception
+            com.fasterxml.jackson.databind.node.ObjectNode patchPayload = mapper.createObjectNode();
+            patchPayload.put("QtyReceived", "Oui");
+            patchPayload.put("ReceivedPurchaseHeader", "Oui");
+            // Important: Set postingDate to today to prevent "Posting Date is not within
+            // range" error
+            patchPayload.put("postingDate", java.time.LocalDate.now().toString());
+
+            System.out.println("[CONFIRM-RECEPTION] Patching with: " + patchPayload.toString());
+
+            webClient.patch()
+                    .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                    .header("If-Match", etag)
+                    .bodyValue(patchPayload.toString())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            System.out.println("[CONFIRM-RECEPTION] Order header confirmed successfully for: " + orderId);
+
+            // Step 3: Fetch order lines to update Qty to Receive (API 56110 logic)
+            String linesResponse = webClient.get()
+                    .uri(java.net.URI
+                            .create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")/PlexuspurchaseOrderLines"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            com.fasterxml.jackson.databind.JsonNode linesNode = mapper.readTree(linesResponse);
+            com.fasterxml.jackson.databind.JsonNode linesArray = linesNode.has("value") ? linesNode.get("value")
+                    : linesNode;
+
+            for (com.fasterxml.jackson.databind.JsonNode lineNode : linesArray) {
+                String lineId = lineNode.has("id") ? lineNode.get("id").asText() : null;
+                double receiveQty = lineNode.has("receiveQuantity") ? lineNode.get("receiveQuantity").asDouble() : 0;
+                String lineEtag = lineNode.has("@odata.etag") ? lineNode.get("@odata.etag").asText() : "*";
+
+                if (lineId != null) {
+                    com.fasterxml.jackson.databind.node.ObjectNode linePatch = mapper.createObjectNode();
+                    // Set receiveQuantity (Qty To Receive) instead of receivedQuantity (which is
+                    // read-only)
+                    linePatch.put("receiveQuantity", receiveQty);
+
+                    try {
+                        webClient.patch()
+                                .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId
+                                        + ")/PlexuspurchaseOrderLines(" + lineId + ")"))
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                                .header("If-Match", lineEtag)
+                                .bodyValue(linePatch.toString())
+                                .retrieve()
+                                .bodyToMono(String.class)
+                                .block();
+                        System.out.println("[CONFIRM-RECEPTION] Line " + lineId + " QtyToReceive set to " + receiveQty
+                                + " via PATCH");
+                    } catch (org.springframework.web.reactive.function.client.WebClientResponseException wcEx) {
+                        System.out.println("[CONFIRM-RECEPTION] Failed to update line " + lineId + " via PATCH: "
+                                + wcEx.getStatusCode() + " - " + wcEx.getResponseBodyAsString());
+                    } catch (Exception lineEx) {
+                        System.out.println("[CONFIRM-RECEPTION] Failed to update line " + lineId + " via PATCH: "
+                                + lineEx.getMessage());
+                    }
+                }
+            }
+
+            // Step 4: Validate/Post the Purchase Order Reception (API 56109 logic)
+            try {
+                // The AL extension expects 'receiveAndInvoice' with NO parameters.
+                // The logical change to skip the invoice was handled directly inside the AL
+                // codeunit.
+                webClient.post()
+                        .uri(java.net.URI.create(
+                                baseUrl + "/PlexuspurchaseOrders(" + orderId + ")/Microsoft.NAV.receiveAndInvoice"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                        .bodyValue("{}")
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .block();
+                System.out.println("[CONFIRM-RECEPTION] Posting complete for Order " + orderId);
+            } catch (org.springframework.web.reactive.function.client.WebClientResponseException wcEx) {
+                System.out.println("[CONFIRM-RECEPTION] Failed to POST order " + orderId + ": " + wcEx.getStatusCode()
+                        + " - " + wcEx.getResponseBodyAsString());
+            } catch (Exception postEx) {
+                System.out.println("[CONFIRM-RECEPTION] Failed to POST order " + orderId + ": " + postEx.getMessage());
+            }
+
+            System.out.println("[CONFIRM-RECEPTION] All lines updated and posted");
+            return ResponseEntity.ok("{\"success\": true}");
+
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            System.out.println("[CONFIRM-RECEPTION] BC Error: " + e.getResponseBodyAsString());
+            return ResponseEntity.status(e.getStatusCode()).body(e.getResponseBodyAsString());
+        } catch (Exception e) {
+            System.out.println("[CONFIRM-RECEPTION] Error: " + e.getMessage());
+            return ResponseEntity.status(500).body("{\"error\": \"" + e.getMessage() + "\"}");
+        }
+    }
+
+    // ===== Validate Order: Update status in BC + Generate BL PDF =====
+    @org.springframework.web.bind.annotation.PostMapping("/validate-order")
+    public ResponseEntity<byte[]> validateOrder(
+            @org.springframework.web.bind.annotation.RequestBody String body) {
+        String token = tokenService.getAccessToken();
+
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(body);
+
+            String orderId = rootNode.has("id") ? rootNode.get("id").asText() : null;
+            if (orderId == null || orderId.isEmpty()) {
+                return ResponseEntity.status(400)
+                        .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+                        .body("Order ID is required".getBytes());
+            }
+
+            System.out.println("[VALIDATE] Validating order: " + orderId);
+
+            // Step 1: GET the order to retrieve its @odata.etag
+            String orderResponse = webClient.get()
+                    .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            com.fasterxml.jackson.databind.JsonNode orderNode = mapper.readTree(orderResponse);
+            String etag = orderNode.has("@odata.etag") ? orderNode.get("@odata.etag").asText() : "*";
+
+            System.out.println("[VALIDATE] Got etag: " + etag);
+
+            // Step 2: PATCH the order — supplier confirms, set ShippingAdvice + Delivred
+            // only
+            // QtyReceived and ReceivedPurchaseHeader are set later by client in Validation
+            // de la réception
+            com.fasterxml.jackson.databind.node.ObjectNode patchPayload = mapper.createObjectNode();
+            patchPayload.put("ShippingAdvice", "Confirm\u00e9");
+            patchPayload.put("Delivred", "Oui");
+
+            System.out.println("[VALIDATE] Patching order with: " + patchPayload.toString());
+
+            webClient.patch()
+                    .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                    .header("If-Match", etag)
+                    .bodyValue(patchPayload.toString())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+
+            System.out.println("[VALIDATE] Order patched successfully");
+
+            // Step 3: Generate BL PDF
+            String orderNumber = rootNode.has("number") ? rootNode.get("number").asText() : "N/A";
+            String orderDate = rootNode.has("orderDate") ? rootNode.get("orderDate").asText() : null;
+            String vendorName = rootNode.has("vendorName") ? rootNode.get("vendorName").asText() : null;
+            String vendorNumber = rootNode.has("payToVendorNumber") ? rootNode.get("payToVendorNumber").asText() : null;
+            com.fasterxml.jackson.databind.JsonNode lines = rootNode.has("plexuspurchaseOrderLines")
+                    ? rootNode.get("plexuspurchaseOrderLines")
+                    : null;
+
+            byte[] pdfBytes = blGeneratorService.generateBL(orderNumber, orderDate, vendorName, vendorNumber, lines);
+            String filename = "BL_" + orderNumber.replace("/", "-") + ".pdf";
+
+            System.out.println("[VALIDATE] BL generated: " + filename);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
+                    .body(pdfBytes);
+
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            System.out.println("[VALIDATE] BC Error: " + e.getResponseBodyAsString());
+            return ResponseEntity.status(e.getStatusCode())
+                    .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+                    .body(("Error: " + e.getResponseBodyAsString()).getBytes());
+        } catch (Exception e) {
+            System.out.println("[VALIDATE] Error: " + e.getMessage());
+            return ResponseEntity.status(500)
+                    .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+                    .body(("Error: " + e.getMessage()).getBytes());
+        }
+    }
+
+    // ===== BL (Bon de Livraison) PDF Generation =====
+    @org.springframework.web.bind.annotation.PostMapping("/generate-bl")
+    public ResponseEntity<byte[]> generateBL(
+            @org.springframework.web.bind.annotation.RequestBody String body) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(body);
+
+            String orderNumber = rootNode.has("number") ? rootNode.get("number").asText() : "N/A";
+            String orderDate = rootNode.has("orderDate") ? rootNode.get("orderDate").asText() : null;
+            String vendorName = rootNode.has("vendorName") ? rootNode.get("vendorName").asText() : null;
+            String vendorNumber = rootNode.has("payToVendorNumber") ? rootNode.get("payToVendorNumber").asText() : null;
+            com.fasterxml.jackson.databind.JsonNode lines = rootNode.has("plexuspurchaseOrderLines")
+                    ? rootNode.get("plexuspurchaseOrderLines")
+                    : null;
+
+            System.out.println("[BL] Generating BL for order: " + orderNumber + ", vendor: " + vendorName + ", lines: "
+                    + (lines != null ? lines.size() : 0));
+
+            byte[] pdfBytes = blGeneratorService.generateBL(orderNumber, orderDate, vendorName, vendorNumber, lines);
+
+            String filename = "BL_" + orderNumber.replace("/", "-") + ".pdf";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
+                    .body(pdfBytes);
+        } catch (Exception e) {
+            System.out.println("[BL] Error generating BL: " + e.getMessage());
+            return ResponseEntity.status(500)
+                    .header(HttpHeaders.CONTENT_TYPE, "text/plain")
+                    .body(("Error generating BL: " + e.getMessage()).getBytes());
+        }
+    }
+}
+n *cascade08n�*cascade08�� *cascade08��*cascade08�� *cascade08��*cascade08��	 *cascade08�	�	*cascade08�	�
+ *cascade08�
+� *cascade08�� *cascade08
+�� ������# *cascade08�#�$�$�* *cascade08�*�+�+�, *cascade08�,�-�-�. *cascade08
+�.�/ �/�5 *cascade08
+�5�6 �6�6 *cascade08�6�7�7�7 *cascade08�7�; *cascade08�;�; *cascade08�;�< *cascade08�<�<*cascade08�<�<*cascade08�<�< *cascade08�<�<*cascade08�<�< *cascade08�<�<*cascade08�<�< *cascade08�<�<*cascade08�<�< *cascade08�<�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�?*cascade08�?�? *cascade08�?�@*cascade08�@�@ *cascade08�@�@*cascade08�@�@ *cascade08�@�@*cascade08�@�@ *cascade08�@�@*cascade08�@�@ *cascade08�@�@*cascade08�@�@ *cascade08�@�@ *cascade08�@�@*cascade08�@�@ *cascade08�@�@ *cascade08�@�@*cascade08�@�@ *cascade08�@�A *cascade08�A�A*cascade08�A�A *cascade08�A�A*cascade08�A�A *cascade08�A�B*cascade08�B�B *cascade08�B�B*cascade08�B�B *cascade08�B�B*cascade08�B�B *cascade08�B�C*cascade08�C�C *cascade08�C�C*cascade08�C�C *cascade08�C�D*cascade08�D�D *cascade08�D�D*cascade08�D�D *cascade08�D�D*cascade08�D�D *cascade08�D�E*cascade08�E�E *cascade08�E�E*cascade08�E�E *cascade08�E�F*cascade08�F�F *cascade08�F�F *cascade08�F�G *cascade08�G�G*cascade08�G�H *cascade08�H�H*cascade08�H�I *cascade08�I�I*cascade08�I�K *cascade08�K�K*cascade08�K�K *cascade08�K�L*cascade08�L�N *cascade08�N�N*cascade08�N�O *cascade08�O�O*cascade08�O�P *cascade08�P�P*cascade08�P�P *cascade08�P�P*cascade08�P�P *cascade08�P�P*cascade08�P�P *cascade08�P�P*cascade08�P�P *cascade08�P�Q*cascade08�Q�Q *cascade08�Q�U*cascade08�U�V *cascade08�V�V*cascade08�V�W *cascade08�W�W*cascade08�W�X *cascade08�X�X*cascade08�X�Z *cascade08�Z�Z*cascade08�Z�Z *cascade08�Z�[*cascade08�[�\ *cascade08�\�\*cascade08�\�^ *cascade08�^�^*cascade08�^�^ *cascade08�^�_*cascade08�_�` *cascade08�`�`*cascade08�`�a *cascade08�a�a*cascade08�a�a *cascade08�a�a*cascade08�a�a *cascade08�a�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b *cascade08�b�b�b�b*cascade08�b�b *cascade08�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b*cascade08�b�b�b�b *cascade08�b�b *cascade08�b�b�b�b *cascade08�b�b*cascade08�b�b�b�b *cascade08�b�b�b�b *cascade08�b�b *cascade08
+�b�c �c�c *cascade08�c�c�c�c *cascade08�c�c�c�c *cascade08�c�c�c�c *cascade08
+�c�c �c�c*cascade08
+�c�c �c�c *cascade08�c�c*cascade08�c�c *cascade08�c�c*cascade08�c�d *cascade08�d�d *cascade08�d�d *cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d�d�d *cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d *cascade08�d�d*cascade08�d�d *cascade08�d�d*cascade08�d�d�d�d *cascade08�d�d�d�d *cascade08�d�d�d�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e *cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�e*cascade08�e�e *cascade08�e�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f*cascade08�f�f *cascade08�f�f *cascade08�f�f�f�f *cascade08�f�f *cascade08�f�g*cascade08�g�g *cascade08�g�g*cascade08�g�g *cascade08�g�g*cascade08�g�g *cascade08�g�g*cascade08�g�g *cascade08�g�g*cascade08�g�g�g�g *cascade08�g�g*cascade08�g�l *cascade08�l�m *cascade08�m�m *cascade08�m�m*cascade08�m�m *cascade08�m�m*cascade08�m�m *cascade08�m�m*cascade08�m�m *cascade08�m�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�n*cascade08�n�n *cascade08�n�p*cascade08�p�p*cascade08�p�p *cascade08�p�p*cascade08�p�p *cascade08�p�p*cascade08�p�p *cascade08�p�p*cascade08�p�p *cascade08�p�p*cascade08�p�p *cascade08�p�p*cascade08�p�p *cascade08�p�p*cascade08�p�q *cascade08�q�q*cascade08�q�q *cascade08�q�q*cascade08�q�q *cascade08�q�q*cascade08�q�q *cascade08�q�q*cascade08�q�q *cascade08�q�q*cascade08�q�q *cascade08�q�q*cascade08�q�q *cascade08�q�q*cascade08�q�r *cascade08�r�r*cascade08�r�r *cascade08�r�r*cascade08�r�r *cascade08�r�r*cascade08�r�r *cascade08�r�r*cascade08�r�r *cascade08�r�r*cascade08�r�r *cascade08�r�r*cascade08�r�r *cascade08�r�u*cascade08�u�v *cascade08�v�v*cascade08�v�v *cascade08�v�w*cascade08�w�w *cascade08�w�w*cascade08�w�w *cascade08�w�x*cascade08�x�x *cascade08�x�x*cascade08�x�x *cascade08�x�x*cascade08�x�x *cascade08�x�x*cascade08�x�y *cascade08�y�z *cascade08�z߇ *cascade08߇��*cascade08���� *cascade08����*cascade08��Ɏ *cascade08Ɏώ*cascade08ώЎ *cascade08Ўڎ*cascade08ڎ�� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08��Ȗ *cascade08Ȗ��*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08��٘ *cascade08٘ܘ *cascade08ܘݘ*cascade08ݘޘ *cascade08ޘߘ *cascade08ߘ�*cascade08�� *cascade08�� *cascade08��*cascade08��� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08��ę*cascade08ęř *cascade08řǙ*cascade08Ǚ� *cascade08�� *cascade08��� *cascade08��ɚ *cascade08ɚʚ*cascade08ʚ˚ *cascade08˚͚*cascade08͚�� *cascade08����*cascade08���� *cascade08����*cascade08��� *cascade08��*cascade08�� *cascade08��*cascade08�� *cascade08��*cascade08�� *cascade08���*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08��ܝ *cascade08ܝ��*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08��� *cascade08�� *cascade08��*cascade08�� *cascade08��*cascade08��� *cascade08��ԣ*cascade08ԣ�� *cascade08���� *cascade08����*cascade08��ͤ *cascade08ͤѤ *cascade08ѤҤ*cascade08ҤӤ *cascade08Ӥ֤*cascade08֤�� *cascade08���� *cascade08��ڥ*cascade08ڥۥ *cascade08ۥ�*cascade08�� *cascade08��*cascade08�� *cascade08��*cascade08��� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08��§*cascade08§ŧ *cascade08ŧǧ*cascade08ǧɧ *cascade08ɧʧ*cascade08ʧ̧ *cascade08̧Χ*cascade08Χϧ *cascade08ϧѧ*cascade08ѧէ *cascade08էק*cascade08קݧ *cascade08ݧߧ*cascade08ߧ� *cascade08���*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08��¨*cascade08¨è *cascade08èϨ *cascade08Ϩ�*cascade08��� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08��̪*cascade08̪ͪ *cascade08ͪӪ*cascade08Ӫ֪ *cascade08֪� *cascade08��� *cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08��« *cascade08«߫*cascade08߫�� *cascade08����*cascade08���� *cascade08��� *cascade08���*cascade08���� *cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08��ү*cascade08ү� *cascade08���*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08��ֵ *cascade08ֵ�� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08����*cascade08���� *cascade08���� *cascade08���� *cascade08"(205f21655bbd8b03eeac78f7a6e5e40b546708722�file:///Users/hemdaouitarek/Desktop/plexus-front/backend/src/main/java/com/plexus/backend/controller/PurchaseOrderController.java:0file:///Users/hemdaouitarek/Desktop/plexus-front

@@ -9,6 +9,9 @@ dist/
 **/build/
 backend/.venv/
 
+# Journal d'activité written locally (in prod it lives on the activity_logs volume)
+backend/logs/
+
 # OS metadata
 **/.DS_Store
 *.zip

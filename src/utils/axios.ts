@@ -74,8 +74,15 @@ if (typeof window !== 'undefined') {
       const config = error.config as AxiosRequestConfig & { __retryCount?: number };
 
       if (error.response?.status === 401 && !window.location.href.includes('/login')) {
-        await signOut();
-        window.location.pathname = '/login';
+        // Only destroy the session when the request actually carried a token that the
+        // backend rejected. A 401 on a token-less request means the token wasn't
+        // attached (session not ready / missing accessToken) — logging out for that
+        // causes a login→logout loop instead of surfacing the real error.
+        const sentAuthHeader = !!(config?.headers as any)?.['Authorization'];
+        if (sentAuthHeader) {
+          await signOut({ redirect: false });
+          window.location.href = '/login';
+        }
         return Promise.reject((error.response && error.response.data) || 'Wrong Services');
       }
 

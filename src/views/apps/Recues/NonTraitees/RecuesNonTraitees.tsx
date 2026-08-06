@@ -184,7 +184,6 @@ export default function RecuesNonTraitees() {
           })),
         );
         setTotalCount(result.totalCount || 0);
-        console.log("Fetched data:", result.data);
       } catch (err: any) {
         setError("Try Again Later");
         console.error("Error loading data:", err);
@@ -276,11 +275,6 @@ export default function RecuesNonTraitees() {
             </Typography>
           );
         },
-      },
-      {
-        header: "Immat",
-        accessorKey: "RegistrationNumber",
-        enableSorting: true,
       },
       {
         header: "Status",
@@ -413,12 +407,6 @@ export default function RecuesNonTraitees() {
           value={globalFilter}
           onFilterChange={(v) => setGlobalFilter(String(v))}
           placeholder="Chercher commandes..."
-        />
-        <Box sx={{ flexGrow: 1 }} />
-        <DebouncedInput
-          value={registrationFilter}
-          onFilterChange={(v) => setRegistrationFilter(String(v))}
-          placeholder="Chercher par immatriculation..."
         />
       </Stack>
 
@@ -1137,7 +1125,6 @@ export default function RecuesNonTraitees() {
                     lineUpdateBody.QuantityAvailable = Number(
                       line.deliveryQuantity,
                     );
-                    console.log(lineUpdateBody);
                     // Add Decision field based on confirmation status
                     if (line.confirmationStatus) {
                       switch (line.confirmationStatus) {
@@ -1152,11 +1139,6 @@ export default function RecuesNonTraitees() {
                           // Add delivery date to the line if this is the Liv pevu a date line
                           if (line.deliveryDate) {
                             lineUpdateBody.DeliveryDate = line.deliveryDate;
-                            console.log(
-                              "Adding delivery date to line:",
-                              line.id,
-                              line.deliveryDate,
-                            );
                           }
                           break;
                       }

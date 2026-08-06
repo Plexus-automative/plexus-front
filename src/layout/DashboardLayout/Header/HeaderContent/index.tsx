@@ -8,6 +8,7 @@ import Notification from './Notification';
 import Profile from './Profile';
 import Search from './Search';
 import PecNotification from './PecNotification';
+import BrisNotification from './BrisNotification';
 
 import { MenuOrientation } from 'config';
 import useConfig from 'hooks/useConfig';
@@ -33,7 +34,8 @@ export default function HeaderContent() {
       {downLG && <Box sx={{ width: 1, ml: 1 }} />}
 
       {userRole !== 'Fournisseur' && <Panier />}
-      {user?.customerNo === 'C0090' && <PecNotification />}
+      {(user?.customerNo === 'C0090' || user?.isPec) && <PecNotification />}
+      {user?.customerNo === 'C0090' && <BrisNotification />}
       {userRole !== 'Client' && <Recues />}
       {userRole !== 'Fournisseur' && <Emises />}
       {userRole !== 'Client' && <Livraison />}

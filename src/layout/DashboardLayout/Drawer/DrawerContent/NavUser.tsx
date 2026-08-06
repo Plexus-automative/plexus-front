@@ -64,7 +64,8 @@ export default function UserList() {
         await signOut({ callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/logout/cognito` });
         break;
       default:
-        await signOut({ callbackUrl: '/login' });
+        await signOut({ redirect: false });
+        window.location.href = '/login';
     }
   };
 

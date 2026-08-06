@@ -1,5 +1,10 @@
+'use client';
+
+// next
+import dynamic from 'next/dynamic';
+
 // project-imports
-import WidgetChart from 'views/widget/WidgetChart';
+const WidgetChart = dynamic(() => import('views/widget/WidgetChart'), { ssr: false });
 
 // ==============================|| WIDGET - CHARTS ||============================== //
 

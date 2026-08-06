@@ -43,7 +43,7 @@ export default function PecNotification() {
   useEffect(() => {
     const fetchPecCount = async () => {
       try {
-        const response = await axiosServices.get('/api/purchase-orders/pec?status=En%20cours&skip=0&top=5');
+        const response = await axiosServices.get('/api/purchase-orders/pec?status=ne:Réceptionné&skip=0&top=5');
 
         if (response.data && response.data['@odata.count'] !== undefined) {
           setPecCount(response.data['@odata.count']);
@@ -64,6 +64,15 @@ export default function PecNotification() {
     const intervalId = setInterval(fetchPecCount, 60000); // refresh every minute
     return () => clearInterval(intervalId);
   }, []);
+
+  const getStatusColor = (statusVal: string) => {
+    const status = statusVal?.toLowerCase().trim();
+    if (status === 'commandé' || status === 'commande') return 'info.main';
+    if (status === 'en cours de livraison') return 'secondary.main';
+    if (status === 'en cours de réception' || status === 'en cours de reception') return 'primary.main';
+    if (status === 'annulé' || status === 'annule') return 'error.main';
+    return 'warning.main';
+  };
 
   const handleToggle = () => setOpen((prev) => !prev);
   const handleClose = (event: MouseEvent | TouchEvent) => {
@@ -129,8 +138,26 @@ export default function PecNotification() {
                               <Avatar type="combined" color="error">{pec.number ? pec.number[0] : 'P'}</Avatar>
                             </ListItemAvatar>
                             <ListItemText
-                              primary={<Typography variant="h6">{pec.number || `PEC #${pec.id}`}</Typography>}
-                              secondary={`${pec.customerName || 'Client'} • Assuré: ${pec.insuredName || '-'} • Immat: ${pec.registrationNumber || '-'}`}
+                              primary={
+                                <Typography variant="h6">
+                                  {pec.insuredName ? (pec.insuredName.includes('|') ? pec.insuredName.split('|')[0] : pec.insuredName).split(' / ')[0] : '-'}
+                                </Typography>
+                              }
+                              secondary={
+                                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                                  {pec.insuredName && (pec.insuredName.includes('|') ? pec.insuredName.split('|')[0] : pec.insuredName).includes(' / ') && (
+                                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                                      Assuré: {(pec.insuredName.includes('|') ? pec.insuredName.split('|')[0] : pec.insuredName).split(' / ')[1]}
+                                    </Typography>
+                                  )}
+                                  <Typography variant="caption" color="text.secondary">
+                                    {pec.customerName || 'Client'} • Immat: {pec.registrationNumber || '-'}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ fontWeight: 600, color: getStatusColor(pec.status) }}>
+                                    Statut: {pec.status || 'En cours'}
+                                  </Typography>
+                                </Stack>
+                              }
                             />
                           </ListItem>
                         ))}
