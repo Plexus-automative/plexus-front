@@ -26,9 +26,15 @@
 #   ./scripts/deploy.sh --build-only        # build only, don't push or deploy
 #   SKIP_MVN=1 ./scripts/deploy.sh backend  # reuse the existing backend/target/*.jar
 #
+# After deploying, this script syncs PARTNER_API_KEY into AutoReport's own .env
+# (as PLEXUS_API_KEY) and recreates its container if the value changed. AutoReport
+# calls this backend's partner API, and a rotation here used to break it silently.
+# Skip that step with AUTOREPORT_DIR="" ./scripts/deploy.sh
+#
 # Override any config via env vars, e.g.:
 #   SERVERS="51.255.204.71 51.255.204.70" ./scripts/deploy.sh
 #   REMOTE_DOCKER_CMD="sudo docker" ./scripts/deploy.sh   # if ubuntu isn't in the docker group
+#   AUTOREPORT_DIR="" ./scripts/deploy.sh                 # don't touch AutoReport
 #
 set -euo pipefail
 
@@ -36,6 +42,13 @@ set -euo pipefail
 SERVERS="${SERVERS:-51.255.204.71}"            # space-separated list; add more if needed
 SSH_USER="${SSH_USER:-ubuntu}"
 DEPLOY_DIR="${DEPLOY_DIR:-/home/ubuntu/piece-app}"  # remote dir holding docker-compose.yml + .env
+# AutoReport (repo: Plexus-automative/app-plexus-tec) is a separate compose project that
+# calls this backend's partner API. It holds a COPY of PARTNER_API_KEY as PLEXUS_API_KEY,
+# so rotating the key here silently breaks it until that copy is updated too — which is
+# exactly what happened on 2026-08-06. See the sync step at the end of the deploy loop.
+# Set AUTOREPORT_DIR="" to skip the sync entirely.
+AUTOREPORT_DIR="${AUTOREPORT_DIR-/home/ubuntu/autoreport}"
+AUTOREPORT_COMPOSE="${AUTOREPORT_COMPOSE:-docker-compose.prod.yml}"
 DOCKER_USERNAME="${DOCKER_USERNAME:-plexusauto}"
 DOCKER_CMD="${DOCKER_CMD:-docker}"             # local docker command (Docker Desktop, no sudo)
 # Remote docker runs as ROOT: this server has no 'docker' group and the socket is root-only.
@@ -184,9 +197,66 @@ for host in $SERVERS; do
     $REMOTE_DOCKER_CMD compose ps
 REMOTE
   ok "deployed to $host"
+
+  # --- keep AutoReport's copy of the partner key in sync -----------------------
+  # PARTNER_API_KEY lives here; AutoReport reads the same secret as PLEXUS_API_KEY
+  # from its own .env. Nothing linked the two, so a rotation broke dossier
+  # submission silently — the API kept answering 200 and only the partner call
+  # 401'd, which is invisible until someone submits a dossier.
+  #
+  # Docker bakes env vars in at container CREATION, so editing .env is not enough:
+  # the container must be recreated. `compose up -d` does that; `restart` does not.
+  # Keys are compared and reported by sha256 prefix — the value is never printed.
+  if [ -n "$AUTOREPORT_DIR" ]; then
+    c "Syncing partner key to AutoReport on $host"
+    ssh "$SSH_USER@$host" bash -s <<REMOTE
+      set -euo pipefail
+      if [ ! -f "$AUTOREPORT_DIR/.env" ] || [ ! -f "$AUTOREPORT_DIR/$AUTOREPORT_COMPOSE" ]; then
+        echo "    AutoReport not installed here — skipping"
+        exit 0
+      fi
+      NEW=\$(sed -n 's/^PARTNER_API_KEY=//p' "$DEPLOY_DIR/.env" | head -1)
+      CUR=\$(sed -n 's/^PLEXUS_API_KEY=//p' "$AUTOREPORT_DIR/.env" | head -1)
+      if [ -z "\$NEW" ]; then
+        echo "    !! PARTNER_API_KEY is empty in $DEPLOY_DIR/.env — refusing to overwrite AutoReport's key"
+        exit 1
+      fi
+      if [ "\$NEW" = "\$CUR" ]; then
+        echo "    already in sync (\$(printf %s "\$NEW" | sha256sum | cut -c1-12))"
+        exit 0
+      fi
+      echo "    key changed: \$(printf %s "\$CUR" | sha256sum | cut -c1-12) -> \$(printf %s "\$NEW" | sha256sum | cut -c1-12)"
+      cd "$AUTOREPORT_DIR"
+      cp .env ".env.bak-keysync-\$(date +%Y%m%d-%H%M%S)"
+      # printf %s keeps the value literal; no shell or sed interpretation of its characters.
+      grep -v '^PLEXUS_API_KEY=' .env > .env.tmp
+      printf 'PLEXUS_API_KEY=%s\n' "\$NEW" >> .env.tmp
+      mv .env.tmp .env
+      chmod 600 .env
+      $REMOTE_DOCKER_CMD compose -f "$AUTOREPORT_COMPOSE" up -d
+      # Prove the new key actually authenticates, rather than assuming it does.
+      for i in \$(seq 1 24); do
+        [ "\$($REMOTE_DOCKER_CMD inspect -f '{{.State.Health.Status}}' autoreport-api 2>/dev/null)" = healthy ] && break
+        sleep 5
+      done
+      K=\$($REMOTE_DOCKER_CMD exec autoreport-api printenv PLEXUS_API_KEY)
+      CODE=\$($REMOTE_DOCKER_CMD exec autoreport-api curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+        -H "X-API-Key: \$K" https://www.plexus-tec.com/api/partner/v1/ping)
+      if [ "\$CODE" = 200 ]; then
+        echo "    AutoReport partner auth OK (200)"
+      else
+        echo "    !! AutoReport partner auth returned \$CODE — dossier submission will fail"
+        exit 1
+      fi
+REMOTE
+    ok "AutoReport key in sync on $host"
+  fi
 done
 
 echo
 c "Done. Verify:"
 echo "    - https://plexus-tec.com loads and login works"
 echo "    - curl -sI https://plexus-tec.com | grep -i strict-transport-security   # HSTS header present"
+if [ -n "$AUTOREPORT_DIR" ]; then
+echo "    - ssh $SSH_USER@${SERVERS%% *} 'curl -fsS -o /dev/null https://mobile.plexus-tec.com/api/garages && echo AutoReport OK'"
+fi
