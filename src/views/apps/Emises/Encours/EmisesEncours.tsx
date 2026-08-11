@@ -57,6 +57,7 @@ import {
 } from "components/third-party/react-table";
 
 import IconButton from "components/@extended/IconButton";
+import LastPriceUpdate from "components/prix/LastPriceUpdate";
 import {
   Eye,
   Edit,
@@ -861,6 +862,7 @@ function EmisesEncours() {
                                                         <Typography variant="body2" sx={{ fontWeight: "bold", color: "#2e7d32" }}>
                                                           {line.directUnitCost}
                                                         </Typography>
+                                                        <LastPriceUpdate itemNo={line.lineObjectNumber} />
                                                       </Stack>
                                                     </TableCell>
                                                     <TableCell>
@@ -944,6 +946,7 @@ function EmisesEncours() {
                                                             <Typography variant="body2" sx={{ color: "success.main", fontWeight: "bold" }}>
                                                               {line.AdaptablePrice?.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                                                             </Typography>
+                                                            <LastPriceUpdate itemNo={line.AdaptableItemNo} dense />
                                                           </Stack>
                                                         </Stack>
                                                       </TableCell>
@@ -1167,6 +1170,7 @@ function EmisesEncours() {
                                       <Typography variant="body2" sx={{ color: "#2e7d32", fontWeight: "bold" }}>
                                         {line.directUnitCost}
                                       </Typography>
+                                      <LastPriceUpdate itemNo={line.lineObjectNumber} />
                                     </Stack>
                                   </TableCell>
                                   <TableCell>
@@ -1364,6 +1368,7 @@ function EmisesEncours() {
                                         <Typography variant="body2" sx={{ color: "success.main", fontWeight: "bold" }}>
                                           {line.AdaptablePrice?.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                                         </Typography>
+                                        <LastPriceUpdate itemNo={line.AdaptableItemNo} dense />
                                       </Stack>
                                     </TableCell>
                                     <TableCell>

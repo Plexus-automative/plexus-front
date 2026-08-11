@@ -17,6 +17,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -30,6 +31,8 @@ import InputAdornment from '@mui/material/InputAdornment';
 
 // project-imports
 import MainCard from 'components/MainCard';
+import AssignDevisDialog from 'components/demandes-devis/AssignDevisDialog';
+import { DemandeDevis, assignOrderToDemande } from 'app/api/services/DemandeDevisService';
 
 // icons
 import { Trash, InfoCircle, Edit2, DocumentText, SearchNormal1, CloseCircle, ArrowRight2 } from '@wandersonalwes/iconsax-react';
@@ -63,6 +66,38 @@ export default function PanierPage() {
     React.useEffect(() => {
         setDossierData(prev => ({ ...prev, RegistrationNumber: registrationNumber }));
     }, [registrationNumber]);
+
+    // Demande de devis to attach to the order(s) this cart will create. Plexus (C0090)
+    // only — nobody else sees the demandes, so nobody else can link one.
+    const isPlexusPec = (session?.user as any)?.customerNo === 'C0090';
+    const [isDevisPickerOpen, setIsDevisPickerOpen] = useState(false);
+    const [selectedDevis, setSelectedDevis] = useState<DemandeDevis | null>(null);
+    /** What picking the devis filled in, so the reuse is visible rather than silent. */
+    const [devisPrefill, setDevisPrefill] = useState<string[]>([]);
+
+    /**
+     * Carries the vehicle over from the demande so it is not keyed in twice.
+     *
+     * The devis is the record of what the commercial actually saw on site, so it wins
+     * over whatever is currently in the fields — but every value it writes is listed
+     * underneath, so nothing changes without being visible.
+     */
+    const handleDevisSelected = (d: DemandeDevis) => {
+        setSelectedDevis(d);
+
+        const filled: string[] = [];
+        if (d.vehicle?.immatriculation) {
+            // Goes out on every order, insurance dossier or not.
+            setRegistrationNumber(d.vehicle.immatriculation);
+            filled.push('immatriculation');
+        }
+        if (d.vehicle?.vin) {
+            // Only reaches BC when the dossier assurance is ticked — see handleValidation.
+            setDossierData(prev => ({ ...prev, VIN: d.vehicle!.vin as string }));
+            filled.push('VIN');
+        }
+        setDevisPrefill(filled);
+    };
 
     // Chassis modal states
     const [isChassisModalOpen, setIsChassisModalOpen] = useState(false);
@@ -197,6 +232,9 @@ export default function PanierPage() {
             const today = new Date().toISOString().split('T')[0];
             let firstOrderData: any = null;
             const allLinesForDevis: any[] = [];
+            // One order per vendor, so a cart can produce several numbers — all of them
+            // get recorded on the demande rather than just the first.
+            const createdOrderNumbers: string[] = [];
 
             for (const [vendorNumber, items] of Object.entries(itemsByVendor)) {
                 // Incorporate the Dossier Assurance data if available and checked
@@ -229,6 +267,7 @@ export default function PanierPage() {
 
                 const orderData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
                 if (!firstOrderData) firstOrderData = orderData;
+                if (orderData?.number) createdOrderNumbers.push(orderData.number);
 
                 if (type === 'devis') {
                     allLinesForDevis.push(...payload.lines);
@@ -251,7 +290,27 @@ export default function PanierPage() {
                 link.remove();
             }
 
-            setSuccess(`Votre ${type === 'devis' ? 'devis' : 'commande'} a été ${type === 'devis' ? 'créé' : 'créée'} avec succès !`);
+            // Link the demande de devis, if one was picked. Done after the orders exist,
+            // because the number being assigned is theirs.
+            let devisMsg = '';
+            if (selectedDevis && createdOrderNumbers.length > 0) {
+                try {
+                    await assignOrderToDemande(selectedDevis.id, createdOrderNumbers.join(', '));
+                    devisMsg = ` La demande ${selectedDevis.number} a été rattachée et passée en traitée.`;
+                    setSelectedDevis(null);
+                } catch (assignErr: any) {
+                    // The order is already created — that must not read as a failure. Say
+                    // plainly what did and did not happen so it can be fixed by hand.
+                    devisMsg =
+                        ` En revanche, le rattachement à la demande ${selectedDevis.number} a échoué :` +
+                        ` assignez-la manuellement (commande ${createdOrderNumbers.join(', ')}).`;
+                }
+            }
+
+            setSuccess(
+                `Votre ${type === 'devis' ? 'devis' : 'commande'} a été ${type === 'devis' ? 'créé' : 'créée'} avec succès !` +
+                devisMsg
+            );
 
             if (type === 'demande') {
                 clearCart();
@@ -414,7 +473,39 @@ export default function PanierPage() {
                                         />
                                     </Stack>
 
-                                    <Stack direction="row" spacing={1}>
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                        {isPlexusPec && (
+                                            selectedDevis ? (
+                                                <Stack spacing={0.25}>
+                                                    <Chip
+                                                        color="primary"
+                                                        variant="outlined"
+                                                        label={`Devis ${selectedDevis.number}`}
+                                                        onDelete={() => { setSelectedDevis(null); setDevisPrefill([]); }}
+                                                        onClick={() => setIsDevisPickerOpen(true)}
+                                                    />
+                                                    {devisPrefill.length > 0 && (
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {devisPrefill.join(' et ')} repris du devis
+                                                            {devisPrefill.includes('VIN') && !isDossierChecked
+                                                                ? " — le VIN part avec le dossier assurance"
+                                                                : ''}
+                                                        </Typography>
+                                                    )}
+                                                </Stack>
+                                            ) : (
+                                                <Button
+                                                    variant="outlined"
+                                                    color="primary"
+                                                    onClick={() => setIsDevisPickerOpen(true)}
+                                                    disabled={loading}
+                                                    startIcon={<DocumentText variant="Bold" />}
+                                                    sx={{ borderWidth: 1, '&:hover': { borderWidth: 1 } }}
+                                                >
+                                                    Assigner devis
+                                                </Button>
+                                            )
+                                        )}
                                         <Button
                                             variant="outlined"
                                             color="success"
@@ -843,6 +934,14 @@ export default function PanierPage() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {isPlexusPec && (
+                <AssignDevisDialog
+                    open={isDevisPickerOpen}
+                    onClose={() => setIsDevisPickerOpen(false)}
+                    onSelect={handleDevisSelected}
+                />
+            )}
         </Box>
     );
 }

@@ -71,6 +71,19 @@
         <artifactId>dotenv-java</artifactId>
         <version>3.0.0</version>
     </dependency>
+    <!-- Web Push (VAPID). Brings its own BouncyCastle for the ECDH/HKDF encryption the
+         push payload requires — the browser vendors' push services reject anything else. -->
+    <dependency>
+      <groupId>nl.martijndwars</groupId>
+      <artifactId>web-push</artifactId>
+      <version>5.1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk18on</artifactId>
+      <version>1.78.1</version>
+    </dependency>
+
     <!-- Excel Processing -->
     <dependency>
       <groupId>org.apache.poi</groupId>

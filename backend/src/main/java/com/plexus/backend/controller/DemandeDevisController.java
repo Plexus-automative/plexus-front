@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.plexus.backend.dto.DemandeDevisRequest;
 import com.plexus.backend.dto.DemandeDevisResponse;
 import com.plexus.backend.service.BusinessCentralTokenService;
+import com.plexus.backend.service.PushNotificationService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,9 +19,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 /**
@@ -49,6 +49,7 @@ public class DemandeDevisController {
 
     private final WebClient webClient;
     private final BusinessCentralTokenService tokenService;
+    private final PushNotificationService pushService;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Value("${business-central.api.tarek-system-url}")
@@ -60,9 +61,11 @@ public class DemandeDevisController {
     @Value("${demande-devis.customer-no:C0090}")
     private String devisCustomerNo;
 
-    public DemandeDevisController(WebClient webClient, BusinessCentralTokenService tokenService) {
+    public DemandeDevisController(WebClient webClient, BusinessCentralTokenService tokenService,
+            PushNotificationService pushService) {
         this.webClient = webClient;
         this.tokenService = tokenService;
+        this.pushService = pushService;
     }
 
     @jakarta.annotation.PostConstruct
@@ -104,12 +107,13 @@ public class DemandeDevisController {
             }
 
             // 2. Create the record in BC.
-            String number = "DD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMddHHmmss"))
-                    + ((int) (Math.random() * 90) + 10);
+            //    The number is deliberately NOT set here: DV<yy>/<nnnn> is a sequence, and
+            //    only Business Central can hand out the next one safely — it locks the
+            //    table so two demandes arriving together queue instead of claiming the
+            //    same number. We read back whatever it assigned.
+            ObjectNode payload = buildPayload(externalRef, request);
 
-            ObjectNode payload = buildPayload(number, externalRef, request);
-
-            webClient.post()
+            String created = webClient.post()
                     .uri(java.net.URI.create(tarekSystemUrl + "/" + BC_ENTITY))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -118,9 +122,35 @@ public class DemandeDevisController {
                     .bodyToMono(String.class)
                     .block(Duration.ofSeconds(30));
 
+            String number = text(mapper.readTree(created), "number");
+            if (number == null || number.isBlank()) {
+                // The row exists but we cannot tell the caller what it is called. Failing
+                // loudly beats returning a blank number they would have to chase.
+                log.error("!!! BC accepted the demande but returned no number (externalReference={}): {}",
+                        externalRef, created);
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                        .body(Map.of("error", "upstream_error",
+                                "message", "Demande recorded but no number was returned. "
+                                        + "Retry with the same externalReference."));
+            }
+
             log.info("Demande devis created: {} (externalReference={}, garage={}, media={})",
                     number, externalRef, request.garage().name(),
                     request.media() == null ? 0 : request.media().size());
+
+            // Tell the Plexus desks a demande just landed. @Async, and the service swallows
+            // its own failures — the demande is already recorded and the partner must get
+            // their 201 whether or not a browser could be reached.
+            String plate = request.vehicle() == null ? null : request.vehicle().immatriculation();
+            // Carry the number so the click lands on this demande, not just the list.
+            // Encoded because the DV sequence contains a slash (DV26/0001).
+            String target = "/pages/demandes-devis?number="
+                    + java.net.URLEncoder.encode(number, StandardCharsets.UTF_8);
+            pushService.notifyCustomer(
+                    devisCustomerNo,
+                    "Nouvelle demande de devis",
+                    number + " — " + request.garage().name() + (plate != null ? " (" + plate + ")" : ""),
+                    target);
 
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(DemandeDevisResponse.created(number, externalRef));
@@ -197,9 +227,9 @@ public class DemandeDevisController {
         return null;
     }
 
-    private ObjectNode buildPayload(String number, String externalRef, DemandeDevisRequest r) {
+    /** Builds the BC payload. No {@code number}: BC assigns it from the DV sequence. */
+    private ObjectNode buildPayload(String externalRef, DemandeDevisRequest r) {
         ObjectNode payload = mapper.createObjectNode();
-        payload.put("number", number);
         payload.put("externalReference", externalRef);
         payload.put("customerNo", devisCustomerNo);
         payload.put("status", DemandeDevisResponse.STATUS_RECEIVED);

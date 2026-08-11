@@ -38,6 +38,7 @@ import { ColumnDef, flexRender, getCoreRowModel, getPaginationRowModel, useReact
 
 // project imports
 import MainCard from 'components/MainCard';
+import LastPriceUpdate from 'components/prix/LastPriceUpdate';
 import DebouncedInput from 'components/third-party/react-table/DebouncedInput';
 import CSVExport from 'components/third-party/react-table/CSVExport';
 import HeaderSort from 'components/third-party/react-table/HeaderSort';
@@ -253,6 +254,15 @@ export default function ArticlesListPage() {
       { header: 'Libellé article', accessorKey: 'description' },
       { header: 'Fournisseur', accessorKey: 'vendor' },
       { header: 'Prix', accessorKey: 'price' },
+      {
+        // Colonne à part plutôt que sous le prix : cet écran a la place, et la date se lit
+        // mieux alignée que glissée sous le nombre. Colonne d'affichage (pas d'accessorKey),
+        // donc ni tri ni colonne parasite dans l'export CSV.
+        header: 'Dernière MAJ prix',
+        id: 'lastPriceUpdate',
+        enableSorting: false,
+        cell: ({ row }) => <LastPriceUpdate itemNo={row.original.number} />
+      },
       {
         header: 'Actions',
         meta: { align: 'center' },

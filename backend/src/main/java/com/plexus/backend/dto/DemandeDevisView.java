@@ -20,6 +20,8 @@ public record DemandeDevisView(
         String number,
         String externalReference,
         String status,
+        /** Purchase order(s) created from this demande, comma-joined when several. */
+        String orderNo,
         boolean treated,
         String customerNo,
         String customerName,

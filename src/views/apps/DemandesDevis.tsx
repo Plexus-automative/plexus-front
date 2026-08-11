@@ -1,6 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// next
+import { useSearchParams } from 'next/navigation';
 
 // material-ui
 import Box from '@mui/material/Box';
@@ -35,6 +38,7 @@ import useUser from 'hooks/useUser';
 import {
   DemandeDevis,
   DemandeDevisFilters,
+  fetchDemandeDevis,
   fetchDemandesDevis,
   setDemandeTreated
 } from 'app/api/services/DemandeDevisService';
@@ -47,7 +51,6 @@ import {
   Microphone2,
   DocumentText,
   Car,
-  Clock,
   CloseCircle
 } from '@wandersonalwes/iconsax-react';
 
@@ -101,6 +104,9 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 
 export default function DemandesDevis() {
   const user = useUser();
+  const searchParams = useSearchParams();
+  /** Set by a notification click: /pages/demandes-devis?number=DV26%2F0001 */
+  const wantedNumber = searchParams.get('number');
 
   const [rows, setRows] = useState<DemandeDevis[]>([]);
   const [total, setTotal] = useState(0);
@@ -112,7 +118,9 @@ export default function DemandesDevis() {
   const [savingId, setSavingId] = useState<string | null>(null);
 
   // Filters. `treated` is a tri-state: '' = all, 'false' = à traiter, 'true' = traitées.
-  const [treated, setTreated] = useState<string>('false');
+  // Defaults to all: a demande that has just been handled stays on screen with its status
+  // visibly changed, instead of vanishing from the list the moment you act on it.
+  const [treated, setTreated] = useState<string>('');
   const [garage, setGarage] = useState('');
   const [immatriculation, setImmatriculation] = useState('');
   const [from, setFrom] = useState('');
@@ -155,16 +163,54 @@ export default function DemandesDevis() {
     if (isPlexus) load();
   }, [isPlexus, load]);
 
+  // Opened once per `?number=`, otherwise re-running the list (filters, paging, treating)
+  // would keep re-opening a dialog the user has deliberately closed.
+  const openedNumber = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isPlexus || !wantedNumber || openedNumber.current === wantedNumber) return;
+    openedNumber.current = wantedNumber;
+
+    // Usually already on screen — the notification fires for a demande that is, by
+    // definition, the newest and untreated. Fall back to fetching it so an older link
+    // still opens rather than silently doing nothing.
+    const inList = rows.find((r) => r.number === wantedNumber);
+    if (inList) {
+      setSelected(inList);
+      return;
+    }
+    fetchDemandeDevis(wantedNumber)
+      .then(setSelected)
+      .catch(() => setError(`La demande ${wantedNumber} est introuvable.`));
+  }, [isPlexus, wantedNumber, rows]);
+
   const toggleTreated = async (row: DemandeDevis) => {
     setSavingId(row.id);
+    setError(null);
     try {
       const updated = await setDemandeTreated(row.id, !row.treated);
-      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, treated: updated.treated } : r)));
-      if (selected?.id === row.id) setSelected({ ...selected, treated: updated.treated });
-      // A row filtered out by the current view shouldn't linger after being handled.
-      if (treated !== '') load();
-    } catch {
-      setError('La mise à jour du statut a échoué.');
+      // Trust the value the server just confirmed. Re-fetching here used to undo the
+      // change on screen: Business Central can still serve the pre-PATCH value for a
+      // moment, so the reloaded row came back untreated and the chip flipped straight
+      // back to "À traiter".
+      const now = typeof updated?.treated === 'boolean' ? updated.treated : !row.treated;
+
+      setRows((prev) => {
+        const next = prev.map((r) => (r.id === row.id ? { ...r, treated: now } : r));
+        // While a status filter is active, a row that no longer matches it should leave
+        // the list — done locally rather than by reloading, for the same reason.
+        if (treated !== '') {
+          const keep = treated === 'true';
+          const filtered = next.filter((r) => r.treated === keep);
+          setTotal((t) => Math.max(0, t - (next.length - filtered.length)));
+          return filtered;
+        }
+        return next;
+      });
+
+      setSelected((cur) => (cur && cur.id === row.id ? { ...cur, treated: now } : cur));
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'La mise à jour du statut a échoué.');
     } finally {
       setSavingId(null);
     }
@@ -290,8 +336,8 @@ export default function DemandesDevis() {
                 <TableCell>Garage</TableCell>
                 <TableCell>Véhicule</TableCell>
                 <TableCell>Commercial</TableCell>
-                <TableCell align="center">Articles</TableCell>
                 <TableCell align="center">Médias</TableCell>
+                <TableCell>Commande</TableCell>
                 <TableCell align="center">Statut</TableCell>
                 <TableCell align="right">Action</TableCell>
               </TableRow>
@@ -340,7 +386,6 @@ export default function DemandesDevis() {
                         )}
                       </TableCell>
                       <TableCell>{row.commercial?.name || '—'}</TableCell>
-                      <TableCell align="center">{row.items?.length || 0}</TableCell>
                       <TableCell align="center">
                         {(() => {
                           const b = mediaBreakdown(row.media);
@@ -380,6 +425,22 @@ export default function DemandesDevis() {
                             </Stack>
                           );
                         })()}
+                      </TableCell>
+                      <TableCell>
+                        {row.orderNo ? (
+                          // Several numbers when the cart spanned more than one vendor.
+                          <Stack spacing={0.25}>
+                            {row.orderNo.split(',').map((n, i) => (
+                              <Typography key={i} variant="body2" sx={{ fontWeight: 500 }}>
+                                {n.trim()}
+                              </Typography>
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell align="center">
                         <Chip
@@ -493,6 +554,9 @@ export default function DemandesDevis() {
                   <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                     <Field label="Commercial" value={selected.commercial?.name} />
                   </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                    <Field label="Commande" value={selected.orderNo} />
+                  </Grid>
                 </Grid>
 
                 <Divider textAlign="left">
@@ -519,75 +583,51 @@ export default function DemandesDevis() {
                   </Grid>
                 </Grid>
 
-                <Divider textAlign="left">
-                  <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Clock size={14} />
-                    <Typography variant="caption" color="text.secondary">
-                      HORODATAGE
-                    </Typography>
-                  </Stack>
-                </Divider>
-
-                <Grid container spacing={2.5}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Field label="Saisie sur le terrain" value={formatDateTime(selected.createdOnDevice)} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Field label="Reçue par Plexus" value={formatDateTime(selected.receivedAt)} />
-                  </Grid>
-                </Grid>
-
                 {selected.notes && (
                   <>
                     <Divider textAlign="left">
                       <Typography variant="caption" color="text.secondary">
-                        NOTES DU COMMERCIAL
+                        NOTES
                       </Typography>
                     </Divider>
-                    <Box
+                    {/* Read as a quote from the commercial, not an alert — this is what
+                        they observed on site, so it carries attribution rather than a
+                        warning colour. */}
+                    <Stack
+                      direction="row"
+                      spacing={1.5}
                       sx={{
-                        p: 2,
+                        p: 2.5,
                         borderRadius: 2,
-                        bgcolor: (t) => alpha(t.palette.warning.main, 0.06),
-                        borderLeft: (t) => `3px solid ${t.palette.warning.main}`
+                        bgcolor: (t) => alpha(t.palette.text.primary, 0.03),
+                        border: (t) => `1px solid ${t.palette.divider}`
                       }}
                     >
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {selected.notes}
+                      <Typography
+                        aria-hidden
+                        sx={{
+                          fontFamily: 'Georgia, serif',
+                          fontSize: 38,
+                          lineHeight: 0.9,
+                          color: 'text.disabled',
+                          userSelect: 'none'
+                        }}
+                      >
+                        &ldquo;
                       </Typography>
-                    </Box>
+                      <Stack spacing={1} sx={{ pt: 0.5 }}>
+                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {selected.notes}
+                        </Typography>
+                        {selected.commercial?.name && (
+                          <Typography variant="caption" color="text.secondary">
+                            — {selected.commercial.name}
+                            {selected.createdOnDevice ? `, ${formatDateTime(selected.createdOnDevice)}` : ''}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Stack>
                   </>
-                )}
-
-                <Divider textAlign="left">
-                  <Typography variant="caption" color="text.secondary">
-                    ARTICLES DEMANDÉS
-                  </Typography>
-                </Divider>
-
-                {selected.items?.length ? (
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Désignation</TableCell>
-                        <TableCell align="center">Qté</TableCell>
-                        <TableCell align="right">Ajouté</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {selected.items.map((it, i) => (
-                        <TableRow key={i}>
-                          <TableCell>{it.description}</TableCell>
-                          <TableCell align="center">{it.quantity ?? 1}</TableCell>
-                          <TableCell align="right">{formatDateTime(it.addedAt)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Aucun article transmis avec cette demande.
-                  </Typography>
                 )}
 
                 <Divider textAlign="left">

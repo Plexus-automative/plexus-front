@@ -56,6 +56,8 @@ import {
 } from 'components/third-party/react-table';
 
 import IconButton from 'components/@extended/IconButton';
+import LastPriceUpdate from 'components/prix/LastPriceUpdate';
+import { invalidatePriceUpdate } from 'app/api/services/PriceHistoryService';
 import { Eye, Edit, DocumentDownload, Printer } from '@wandersonalwes/iconsax-react';
 import { CSVLink } from "react-csv";
 
@@ -317,6 +319,10 @@ export default function RecuesEncours() {
                     timeout: 120000 // 2 minutes to prevent automatic client-side retries
                 }
             );
+
+            // La validation peut avoir modifié des prix : BC a écrit de nouvelles entrées
+            // d'historique, on vide le cache pour que les puces « MAJ prix » les relisent.
+            invalidatePriceUpdate();
 
             const blob = new Blob([response.data], { type: 'application/pdf' });
             const filename = 'BL_' + (editedOrderLocal.number || '').replace(/\//g, '-') + '.pdf';
@@ -763,6 +769,7 @@ export default function RecuesEncours() {
                                                                                                         <Typography variant="body2" sx={{ fontWeight: "bold", color: "#2e7d32" }}>
                                                                                                             {line.directUnitCost}
                                                                                                         </Typography>
+                                                                                                        <LastPriceUpdate itemNo={line.lineObjectNumber} />
                                                                                                     </Stack>
                                                                                                 </TableCell>
                                                                                                 <TableCell>{line.quantity}</TableCell>
@@ -928,6 +935,9 @@ export default function RecuesEncours() {
                                                             }}
                                                             sx={{ width: 100 }}
                                                         />
+                                                        <Box sx={{ mt: 0.5 }}>
+                                                            <LastPriceUpdate itemNo={line.lineObjectNumber} />
+                                                        </Box>
                                                     </TableCell>
                                                     <TableCell>
                                                         <TextField

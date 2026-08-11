@@ -50,6 +50,8 @@ import {
 } from "components/third-party/react-table";
 
 import IconButton from "components/@extended/IconButton";
+import LastPriceUpdate from "components/prix/LastPriceUpdate";
+import { invalidatePriceUpdate } from "app/api/services/PriceHistoryService";
 import {
   Eye,
   Edit,
@@ -847,6 +849,9 @@ export default function RecuesNonTraitees() {
                                       }}
                                       sx={{ width: 100 }}
                                     />
+                                    <Box sx={{ mt: 0.5 }}>
+                                      <LastPriceUpdate itemNo={line.lineObjectNumber} />
+                                    </Box>
                                   </TableCell>
 
                                   <TableCell>
@@ -1105,6 +1110,9 @@ export default function RecuesNonTraitees() {
                         line.directUnitCost,
                       );
                       lineUpdateBody.OldUnitPrice = originalLine.directUnitCost; // Send old price
+                      // BC va enregistrer une nouvelle entrée d'historique : la puce « MAJ prix »
+                      // doit la relire au lieu de rester sur la date en cache.
+                      invalidatePriceUpdate(line.lineObjectNumber);
                     }
 
                     // Check if description changed

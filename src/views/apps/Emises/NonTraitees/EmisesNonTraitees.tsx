@@ -49,6 +49,7 @@ import {
 } from "components/third-party/react-table";
 
 import IconButton from "components/@extended/IconButton";
+import LastPriceUpdate from "components/prix/LastPriceUpdate";
 import {
   Eye,
   Edit,
@@ -489,6 +490,7 @@ export default function EmisesNonTraitees() {
                                                         {line.lineObjectNumber}
                                                       </Typography>
                                                     )}
+                                                    <LastPriceUpdate itemNo={line.lineObjectNumber} />
                                                   </Stack>
                                                 </TableCell>
                                                 <TableCell>

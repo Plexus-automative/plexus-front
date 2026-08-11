@@ -16,15 +16,17 @@ import java.util.Map;
 /**
  * Turns validation and malformed-JSON failures on the partner API into a legible body.
  *
- * <p>Scoped to {@link DemandeDevisController} via {@code assignableTypes} rather than
- * applied globally: the portal controllers have their own error conventions and this
- * must not quietly change what the frontend receives.
+ * <p>Scoped to the partner controllers via {@code assignableTypes} rather than applied
+ * globally: the portal controllers have their own error conventions and this must not
+ * quietly change what the frontend receives. Every partner endpoint taking a
+ * {@code @Valid} body belongs in the list, or its rejections come back in Spring's default
+ * shape instead of the documented one.
  *
  * <p>The partner team cannot read our logs, so field-level messages are returned to
  * them. That is safe here because the messages come from our own DTO constraints and
  * describe the request they just sent — no internal state is disclosed.
  */
-@RestControllerAdvice(assignableTypes = DemandeDevisController.class)
+@RestControllerAdvice(assignableTypes = { DemandeDevisController.class, PartnerOrderController.class })
 @Slf4j
 public class PartnerApiExceptionHandler {
 

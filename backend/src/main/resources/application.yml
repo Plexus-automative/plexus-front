@@ -80,6 +80,14 @@ partner:
   # Generate with: openssl rand -base64 32
   api-key: ${PARTNER_API_KEY:}
 
+push:
+  vapid:
+    # Web Push (VAPID). Generate a pair with: npx web-push generate-vapid-keys
+    # Unset => push is disabled and the portal falls back to the in-page notification.
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:mailto:contact@plexus-tec.com}
+
 demande-devis:
   # PLEXUSPEC — demandes from the commercial mobile app are booked against this customer.
   customer-no: ${DEMANDE_DEVIS_CUSTOMER_NO:C0090}

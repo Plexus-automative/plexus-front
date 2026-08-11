@@ -85,7 +85,7 @@ export default function Navigation() {
           if (userRole === 'Client and Fournisseur') return true;
 
           if (userRole === 'Fournisseur') {
-            return ['dashboard', 'commandes-recus', 'commandes-livrees', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')].includes(child.id!);
+            return ['dashboard', 'commandes-recus', 'commandes-livrees', 'mes-bl', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')].includes(child.id!);
           }
           if (userRole === 'Client') {
             const allowed = [

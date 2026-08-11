@@ -27,6 +27,8 @@ export interface DemandeDevis {
   number: string;
   externalReference: string;
   status: string;
+  /** Purchase order(s) created from this demande — comma-joined when the cart spanned several vendors. */
+  orderNo?: string | null;
   treated: boolean;
   customerNo?: string | null;
   customerName?: string | null;
@@ -94,13 +96,28 @@ export const fetchDemandesDevis = async (
   }
 };
 
+/**
+ * One demande by its Plexus number. Query parameter rather than a path segment because
+ * numbers contain a slash (DV26/0001), which a path cannot carry.
+ */
 export const fetchDemandeDevis = async (numero: string): Promise<DemandeDevis> => {
-  const response = await axiosServices.get(`/api/demandes-devis/${encodeURIComponent(numero)}`);
+  const response = await axiosServices.get(`/api/demandes-devis/lookup?number=${encodeURIComponent(numero)}`);
   return response.data as DemandeDevis;
 };
 
 /** Marks a demande handled (or puts it back). Returns the updated demande. */
 export const setDemandeTreated = async (id: string, treated: boolean): Promise<DemandeDevis> => {
   const response = await axiosServices.post(`/api/demandes-devis/${encodeURIComponent(id)}/treat?treated=${treated}`);
+  return response.data as DemandeDevis;
+};
+
+/**
+ * Links the purchase order(s) just created from the cart to a demande, and marks it
+ * handled. Only callable after checkout — the order number does not exist before that.
+ */
+export const assignOrderToDemande = async (id: string, orderNo: string): Promise<DemandeDevis> => {
+  const response = await axiosServices.post(
+    `/api/demandes-devis/${encodeURIComponent(id)}/assign-order?orderNo=${encodeURIComponent(orderNo)}`
+  );
   return response.data as DemandeDevis;
 };

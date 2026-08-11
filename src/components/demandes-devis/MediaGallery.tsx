@@ -110,22 +110,34 @@ function PhotoTile({
       }}
     >
       {state === 'loading' && (
-        <Skeleton variant="rectangular" width="100%" height="100%" animation="wave" />
+        <Skeleton
+          variant="rectangular"
+          animation="wave"
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        />
       )}
 
       {state !== 'error' && (
+        // The image must keep a layout box while loading. Hiding it with `display: none`
+        // means lazy-loading never considers it near the viewport, so it is never
+        // fetched, `onLoad` never fires, and the skeleton spins forever. Fading it in
+        // over the skeleton keeps the box and still avoids showing a half-painted image.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={media.url}
           alt={prettyLabel(media.label, media.url)}
           loading="lazy"
+          decoding="async"
           onLoad={() => setState('ok')}
           onError={() => setState('error')}
           style={{
+            position: 'absolute',
+            inset: 0,
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            display: state === 'ok' ? 'block' : 'none'
+            opacity: state === 'ok' ? 1 : 0,
+            transition: 'opacity .25s ease'
           }}
         />
       )}

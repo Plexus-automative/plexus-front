@@ -48,6 +48,7 @@ import {
 } from "components/third-party/react-table";
 
 import IconButton from "components/@extended/IconButton";
+import LastPriceUpdate from "components/prix/LastPriceUpdate";
 import { InfoCircle, DocumentDownload } from "@wandersonalwes/iconsax-react";
 import { CSVLink } from "react-csv";
 
@@ -498,6 +499,7 @@ export default function RecuesTraitees() {
                                                           {line.lineObjectNumber}
                                                         </Typography>
                                                       )}
+                                                      <LastPriceUpdate itemNo={line.lineObjectNumber} />
                                                     </Stack>
                                                   </TableCell>
                                                   <TableCell>

@@ -158,6 +158,14 @@ const applications: NavItemType = {
       url: "/pages/validation-reception",
     },
     {
+      id: "mes-bl",
+      title: "mes-bl",
+      type: "item",
+      breadcrumbs: false,
+      icon: icons.truck,
+      url: "/pages/mes-bl",
+    },
+    {
       id: "rapport-assurance",
       title: "rapport-assurance",
       type: "item",

@@ -40,6 +40,7 @@ import {
 } from '@tanstack/react-table';
 
 import MainCard from 'components/MainCard';
+import LastPriceUpdate from 'components/prix/LastPriceUpdate';
 import {
     DebouncedInput,
     HeaderSort,
@@ -444,6 +445,7 @@ export default function CommandesLivrees() {
                                                             {line.lineObjectNumber}
                                                         </Typography>
                                                     )}
+                                                    <LastPriceUpdate itemNo={line.lineObjectNumber} />
                                                 </Stack>
                                             </TableCell>
                                             <TableCell>{line.description}</TableCell>

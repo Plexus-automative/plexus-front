@@ -28,6 +28,7 @@ public class PurchaseOrderController {
         private final BLGeneratorService blGeneratorService;
         private final DevisGeneratorService devisGeneratorService;
         private final FactureGeneratorService factureGeneratorService;
+        private final com.plexus.backend.service.PriceHistoryService priceHistoryService;
         private final java.util.Map<String, Long> activeValidations = new java.util.concurrent.ConcurrentHashMap<>();
 
         @Value("${business-central.api.base-url}")
@@ -59,12 +60,14 @@ public class PurchaseOrderController {
 
         public PurchaseOrderController(WebClient webClient, BusinessCentralTokenService tokenService,
                         BLGeneratorService blGeneratorService, DevisGeneratorService devisGeneratorService,
-                        FactureGeneratorService factureGeneratorService) {
+                        FactureGeneratorService factureGeneratorService,
+                        com.plexus.backend.service.PriceHistoryService priceHistoryService) {
                 this.webClient = webClient;
                 this.tokenService = tokenService;
                 this.blGeneratorService = blGeneratorService;
                 this.devisGeneratorService = devisGeneratorService;
                 this.factureGeneratorService = factureGeneratorService;
+                this.priceHistoryService = priceHistoryService;
         }
 
         @GetMapping
@@ -1854,6 +1857,67 @@ public class PurchaseOrderController {
                 return getFilteredPurchaseOrders(request,
                                 "ShippingAdvice eq 'Confirmé' and Delivred eq 'Oui' and QtyReceived ne 'Oui'",
                                 skip, top, "vendor", null);
+        }
+
+        // ==================== DERNIÈRE MAJ DE PRIX (par article) ====================
+        // Répond à « sur cette ligne de commande, quand le prix a-t-il bougé pour la dernière
+        // fois ? ». La source est la table AL 52250 "Plexus Price History", alimentée
+        // automatiquement par le subscriber Item."Unit Price" de la codeunit Plexus Price Mgt —
+        // et comme Purchase Line."Direct Unit Cost" pousse le prix vers l'article, toute modif
+        // de prix faite depuis le dashboard y atterrit aussi.
+        //
+        // ATTENTION : l'historique est tenu PAR ARTICLE, pas par ligne de commande. Deux lignes
+        // portant la même référence, dans deux commandes différentes, renvoient donc la même
+        // dernière MAJ. C'est bien « le prix de cet article a changé le … », pas « quelqu'un a
+        // touché cette ligne-là ». Pour l'audit par ligne (avec le vrai utilisateur), c'est le
+        // journal d'activité (/api/activity) qui porte l'information.
+        //
+        // Le front appelle avec les références d'UNE commande dépliée :
+        //   GET /api/purchase-orders/price-history?items=3G1941005C,3G0807889
+        //   → {"value":{"3G1941005C":{"itemNo","oldPrice","newPrice","dateTime","userId",
+        //                             "changeCount","daysAgo","freshness"}, ...}}
+        // Un article jamais modifié est simplement absent de la map.
+        //
+        // La lecture elle-même vit dans PriceHistoryService, partagé avec l'API partenaire de
+        // l'app commerciale : les deux surfaces doivent dater un prix de la même façon.
+        @GetMapping("/price-history")
+        public ResponseEntity<String> getLastPriceUpdates(
+                        @org.springframework.web.bind.annotation.RequestParam(name = "items", required = false) String items) {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                try {
+                        java.util.List<String> refs = items == null || items.isBlank()
+                                        ? java.util.List.of()
+                                        : java.util.Arrays.asList(items.split(","));
+                        com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
+                        result.set("value", mapper.valueToTree(priceHistoryService.lastUpdates(refs)));
+                        return ResponseEntity.ok(result.toString());
+                } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+                        return ResponseEntity.status(e.getStatusCode())
+                                        .body("Error fetching price history: " + e.getResponseBodyAsString());
+                } catch (Exception e) {
+                        return ResponseEntity.status(500).body("Error fetching price history: " + e.getMessage());
+                }
+        }
+
+        // Historique complet d'UNE référence, du plus récent au plus ancien — alimente le détail
+        // ouvert depuis la puce « MAJ prix » d'une ligne.
+        @GetMapping("/price-history/{itemNo}")
+        public ResponseEntity<String> getPriceHistoryForItem(
+                        @org.springframework.web.bind.annotation.PathVariable("itemNo") String itemNo) {
+                if (itemNo == null || itemNo.isEmpty() || itemNo.contains("'"))
+                        return ResponseEntity.badRequest().body("{\"error\":\"référence invalide\"}");
+
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                try {
+                        com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
+                        result.set("value", mapper.valueToTree(priceHistoryService.history(itemNo)));
+                        return ResponseEntity.ok(result.toString());
+                } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+                        return ResponseEntity.status(e.getStatusCode())
+                                        .body("Error fetching price history: " + e.getResponseBodyAsString());
+                } catch (Exception e) {
+                        return ResponseEntity.status(500).body("Error fetching price history: " + e.getMessage());
+                }
         }
 
         private ResponseEntity<String> getFilteredPurchaseOrders(HttpServletRequest request, String filterValue,

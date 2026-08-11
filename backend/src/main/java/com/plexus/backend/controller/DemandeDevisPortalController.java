@@ -2,6 +2,7 @@ package com.plexus.backend.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.plexus.backend.dto.DemandeDevisView;
 import com.plexus.backend.security.JwtUtil;
 import com.plexus.backend.service.BusinessCentralTokenService;
@@ -165,9 +166,16 @@ public class DemandeDevisPortalController {
         }
     }
 
-    /** One demande, by its Plexus number. */
-    @GetMapping("/{number}")
-    public ResponseEntity<?> getOne(HttpServletRequest request, @PathVariable String number) {
+    /**
+     * One demande, by its Plexus number.
+     *
+     * <p>The number travels as a query parameter, not a path segment: since the DV
+     * sequence contains a slash ({@code DV26/0001}), a path variant either splits into
+     * two segments and misses the route, or arrives percent-encoded and is refused with
+     * 400 — Spring rejects encoded slashes in paths by default.
+     */
+    @GetMapping("/lookup")
+    public ResponseEntity<?> getOne(HttpServletRequest request, @RequestParam String number) {
         ResponseEntity<?> denied = requirePlexusAccount(request);
         if (denied != null) {
             return denied;
@@ -228,6 +236,61 @@ public class DemandeDevisPortalController {
         }
     }
 
+    /**
+     * Links a demande to the purchase order(s) created from the cart, and marks it handled.
+     *
+     * <p>Called once the cart has been validated and Business Central has issued the order
+     * number(s) — which is why the demande can only be assigned after checkout, never
+     * before: the number does not exist until then.
+     *
+     * @param orderNo one or more order numbers; a cart spanning several vendors produces
+     *                one order per vendor, so all of them are recorded.
+     */
+    @PostMapping("/{id}/assign-order")
+    public ResponseEntity<?> assignOrder(HttpServletRequest request, @PathVariable String id,
+            @RequestParam String orderNo) {
+
+        ResponseEntity<?> denied = requirePlexusAccount(request);
+        if (denied != null) {
+            return denied;
+        }
+
+        String cleaned = orderNo == null ? "" : orderNo.trim();
+        if (cleaned.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "N° de commande manquant."));
+        }
+        if (cleaned.length() > 250) {
+            cleaned = cleaned.substring(0, 250);
+        }
+
+        try {
+            ObjectNode patch = mapper.createObjectNode();
+            patch.put("orderNo", cleaned);
+            // Assigning an order IS the act of handling the demande, so the two move
+            // together — a demande linked to a commande but still sitting in the "à
+            // traiter" queue would be handled twice.
+            patch.put("treated", true);
+
+            String response = webClient.patch()
+                    .uri(java.net.URI.create(tarekSystemUrl + "/" + BC_ENTITY + "(" + id + ")"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header("If-Match", "*")
+                    .bodyValue(patch.toString())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block(Duration.ofSeconds(30));
+
+            log.info("Demande devis {} assigned to order(s) {}", id, cleaned);
+            return ResponseEntity.ok(toView(mapper.readTree(response)));
+
+        } catch (Exception e) {
+            log.error("!!! Error assigning order {} to demande {}: {}", cleaned, id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(Map.of("message", "Impossible d'assigner la commande à la demande."));
+        }
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -265,6 +328,7 @@ public class DemandeDevisPortalController {
                 text(n, "number"),
                 text(n, "externalReference"),
                 text(n, "status"),
+                text(n, "orderNo"),
                 n.hasNonNull("treated") && n.get("treated").asBoolean(),
                 text(n, "customerNo"),
                 text(n, "customerName"),
