@@ -93,8 +93,10 @@ export default function NavItem({ item, level, isParents = false, setSelectedID,
     
     if (downLG) handlerDrawerOpen(false);
 
+    let newWindow: Window | null = null;
+
     try {
-      const newWindow = window.open('', '_blank');
+      newWindow = window.open('', '_blank');
       if (newWindow) {
         newWindow.document.write('<html><body style="background: #111; color: #eee; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;"><div>Connexion au catalogue en cours...</div></body></html>');
       }

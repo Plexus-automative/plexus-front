@@ -27,6 +27,13 @@ function isFound(arr: any, str: string) {
   });
 }
 
+// BC renvoie les valeurs d'option avec les espaces encodés (« Catalogue_x0020_nouveau »),
+// et les sessions déjà ouvertes gardent cette forme dans leur JWT — on normalise avant de comparer.
+function hasNouveauCatalogue(user: { catalogType?: string } | null | undefined | false) {
+  if (!user) return false;
+  return (user?.catalogType || '').replace(/_x0020_/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase() === 'catalogue nouveau';
+}
+
 // ==============================|| DRAWER CONTENT - NAVIGATION ||============================== //
 
 export default function Navigation() {
@@ -85,7 +92,7 @@ export default function Navigation() {
           if (userRole === 'Client and Fournisseur') return true;
 
           if (userRole === 'Fournisseur') {
-            return ['dashboard', 'commandes-recus', 'commandes-livrees', 'mes-bl', 'panier', 'add-reference', (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')].includes(child.id!);
+            return ['dashboard', 'commandes-recus', 'commandes-livrees', 'mes-bl', 'panier', 'add-reference', (hasNouveauCatalogue(user) ? 'connexion-catalogue' : '')].includes(child.id!);
           }
           if (userRole === 'Client') {
             const allowed = [
@@ -96,7 +103,7 @@ export default function Navigation() {
               'panier',
               'add-reference',
               'plexus-pec-commandes',
-              (user && user.catalogType?.toLowerCase() === 'catalogue nouveau' ? 'connexion-catalogue' : '')
+              (hasNouveauCatalogue(user) ? 'connexion-catalogue' : '')
             ];
             return allowed.includes(child.id!);
           }

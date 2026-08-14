@@ -102,6 +102,17 @@ public class AuthController {
         }
     }
 
+    /**
+     * BC sérialise les valeurs d'option avec les espaces encodés (« Catalogue_x0020_nouveau »),
+     * et l'option vide arrive comme « _x0020_ » : décoder avant toute comparaison ou exposition.
+     */
+    private static String decodeBcOption(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.replace("_x0020_", " ").trim();
+    }
+
     @PostMapping("/account/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> request,
             HttpServletRequest httpRequest) {
@@ -175,8 +186,24 @@ public class AuthController {
             boolean isFournisseur = userNode.has("vendorNo") && !userNode.get("vendorNo").isNull()
                     && !userNode.get("vendorNo").asText().isEmpty();
 
+            // Le chauffeur-livreur n'a ni n° client ni n° fournisseur : sans ce test il
+            // ressortirait en rôle « Unknown ». Son rôle vient du champ Role de BC (enum
+            // "Plexus B2B User Role"), et il prime — un livreur n'est pas un client.
+            boolean isLivreur = "Livreur".equalsIgnoreCase(decodeBcOption(userNode.path("role").asText("")));
+
+            // Le portail ne regarde pas « Utilisateur bloqué » (comportement historique, non
+            // touché ici). L'app livreur, elle, ouvre l'écriture d'avoirs sur n'importe quel
+            // BL : bloquer un compte doit réellement lui fermer la porte.
+            if (isLivreur && userNode.path("isBlocked").asBoolean(false)) {
+                logAuth(httpRequest, email, "Échec de connexion", false, "Compte livreur bloqué", null);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("message", "Ce compte livreur est bloqué."));
+            }
+
             String role = "Unknown";
-            if (isClient && isFournisseur) {
+            if (isLivreur) {
+                role = "Livreur";
+            } else if (isClient && isFournisseur) {
                 role = "Client and Fournisseur";
             } else if (isClient) {
                 role = "Client";
@@ -234,6 +261,8 @@ public class AuthController {
                     break;
                 }
             }
+
+            catalogType = decodeBcOption(catalogType);
 
             userData.put("catalogType", catalogType);
 

@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.plexus.backend.dto.PartnerBatchRequest;
+import com.plexus.backend.dto.PartnerBatchResponse;
+import com.plexus.backend.dto.PartnerOrderCancelRequest;
+import com.plexus.backend.dto.PartnerOrderCancelResponse;
 import com.plexus.backend.dto.PartnerOrderRequest;
 import com.plexus.backend.dto.PartnerOrderResponse;
 import com.plexus.backend.dto.PartnerOrderStatusResponse;
@@ -90,6 +94,23 @@ public class PartnerOrderController {
 
     /** Item Vendor entity — the catalogue rows behind {@code GET /articles}. */
     private static final String ITEM_VENDORS = "plexusItemVendors";
+
+    /**
+     * Cause stamped on every commande dropped through this API.
+     *
+     * <p>Nothing here is a cancellation in the business sense: no order was ever placed, a
+     * devis simply did not convert. Real cancellations — the ones an expert, a client or the
+     * insurer decided — are made from the dashboard and keep their own reasons, so the two
+     * never mix in the reporting.
+     *
+     * <p>{@code ShippingAdvice} still becomes {@code Annulation}: that Option belongs to
+     * another extension and cannot be extended, and it is also what keeps the commande out of
+     * the suppliers' and clients' screens — wanted here too. The distinction lives in the
+     * cause, which the export query {@code plexusExportOrderLines} already carries as
+     * {@code causeOfCancellation}. One exact word, no punctuation: the dashboard splits on
+     * equality, and a value typed by a caller would eventually drift.
+     */
+    private static final String CANCEL_CAUSE_DEVIS = "Devis";
 
     private final WebClient webClient;
     private final BusinessCentralTokenService tokenService;
@@ -439,23 +460,10 @@ public class PartnerOrderController {
 
         try {
             String token = tokenService.getAccessToken();
-            String filter = "number eq '" + orderNo.replace("'", "''") + "'";
-            JsonNode value = mapper.readTree(get(tarekSystemUrl + "/plexusPurchaseOrderPatches?$filter="
-                    + DemandeDevisPortalController.odataEncode(filter), token)).get("value");
-
-            JsonNode row = value != null && value.isArray() && !value.isEmpty() ? value.get(0) : null;
+            JsonNode row = findPartnerOrder(orderNo, token);
             if (row == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                        "error", "not_found", "message", "No commande with that number."));
+                return notFound(orderNo);
             }
-            if (blank(text(row, "pecDossier"))) {
-                // Deliberately the same status as an unknown number: whether a commande
-                // exists that this key may not read is itself none of the caller's business.
-                log.warn("Partner asked for commande {} which was not created through the API", orderNo);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                        "error", "not_found", "message", "No commande with that number."));
-            }
-
             return ResponseEntity.ok(readOrder(text(row, "id"), token));
 
         } catch (WebClientResponseException e) {
@@ -466,6 +474,34 @@ public class PartnerOrderController {
             log.error("!!! Error reading commande {}: {}", orderNo, e.getMessage(), e);
             return upstreamError("Could not read the commande. Retry.");
         }
+    }
+
+    /**
+     * The patch-page row of a commande this API is allowed to touch, or null.
+     *
+     * <p>"Allowed" means it carries a {@code pecDossier}, i.e. it was created here. A commande
+     * keyed in on the dashboard is treated as unknown rather than forbidden: whether one
+     * exists that this key may not read is itself none of the caller's business.
+     */
+    private JsonNode findPartnerOrder(String orderNo, String token) throws Exception {
+        String filter = "number eq '" + orderNo.replace("'", "''") + "'";
+        JsonNode value = mapper.readTree(get(tarekSystemUrl + "/plexusPurchaseOrderPatches?$filter="
+                + DemandeDevisPortalController.odataEncode(filter), token)).get("value");
+
+        JsonNode row = value != null && value.isArray() && !value.isEmpty() ? value.get(0) : null;
+        if (row == null) {
+            return null;
+        }
+        if (blank(text(row, "pecDossier"))) {
+            log.warn("Partner asked for commande {} which was not created through the API", orderNo);
+            return null;
+        }
+        return row;
+    }
+
+    private ResponseEntity<Map<String, String>> notFound(String orderNo) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "not_found", "message", "No commande with that number."));
     }
 
     private ResponseEntity<?> readDossier(String pecDossier) {
@@ -671,18 +707,14 @@ public class PartnerOrderController {
         JsonNode patchRow;
         try {
             token = tokenService.getAccessToken();
-            String filter = "number eq '" + orderNo.replace("'", "''") + "'";
-            JsonNode value = mapper.readTree(get(tarekSystemUrl + "/plexusPurchaseOrderPatches?$filter="
-                    + DemandeDevisPortalController.odataEncode(filter), token)).get("value");
-            patchRow = value != null && value.isArray() && !value.isEmpty() ? value.get(0) : null;
+            patchRow = findPartnerOrder(orderNo, token);
         } catch (Exception e) {
             log.error("!!! Error looking up commande {} to validate: {}", orderNo, e.getMessage(), e);
             return upstreamError("Could not read the commande. Retry.");
         }
 
-        if (patchRow == null || blank(text(patchRow, "pecDossier"))) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "error", "not_found", "message", "No commande with that number."));
+        if (patchRow == null) {
+            return notFound(orderNo);
         }
         String orderId = text(patchRow, "id");
 
@@ -729,6 +761,17 @@ public class PartnerOrderController {
 
             for (int i = 0; i < request.lines().size(); i++) {
                 PartnerOrderValidationRequest.Line asked = request.lines().get(i);
+
+                // A line asked for at 0 that is no longer on the commande has already had its
+                // effect. That happens on a retry after a validation that died between
+                // deleting the lines and moving the header — refusing here would leave the
+                // caller with no way forward, since his payload still names what he dropped.
+                if (asked.quantity().signum() == 0 && !onCommande(asked, byId, byReference)) {
+                    log.info("Line {} of {} was already removed — skipping",
+                            blank(asked.lineId()) ? asked.reference() : asked.lineId(), orderNo);
+                    continue;
+                }
+
                 JsonNode row = resolveLine(asked, byId, byReference, i, violations);
                 if (row == null) {
                     continue;
@@ -800,37 +843,22 @@ public class PartnerOrderController {
                 return ResponseEntity.badRequest().body(body);
             }
 
-            // 1. Drop the lines kept at 0, whichever path follows. Doing it first means the
-            //    split below only ever sees lines the commercial actually buys.
             List<PartnerOrderValidationResponse.RemovedLine> removed = new ArrayList<>();
-            for (Map.Entry<String, BigDecimal> kept : keptById.entrySet()) {
-                if (kept.getValue().signum() != 0) {
-                    continue;
-                }
-                JsonNode row = byId.get(kept.getKey());
-                webClient.method(HttpMethod.DELETE)
-                        .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrderLines(" + kept.getKey() + ")"))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .header("If-Match", "*")
-                        .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(60));
-                removed.add(new PartnerOrderValidationResponse.RemovedLine(
-                        kept.getKey(), text(row, "lineObjectNumber"), text(row, "description"),
-                        decimal(row, "quantity")));
-            }
-
             PartnerOrderStatusResponse.Order splitOrder = null;
 
             if (deferred.isEmpty()) {
-                // 2a. Nothing deferred: the dashboard's "Totalité de disponible", verbatim.
-                //     Header first — the supplier must not answer a line being removed.
+                // The dashboard's "Totalité de disponible", verbatim — and in its order.
+                //
+                // The header moves FIRST. Deleting lines makes Business Central recompute the
+                // document, and a header PATCH fired straight after can block long enough to
+                // time out: the lines would be gone, the commande still open, and the caller
+                // holding a 502 for a validation that half happened. Moving the header first
+                // also closes the commande to the supplier before its lines start vanishing.
                 String etag = header.has("@odata.etag") ? header.get("@odata.etag").asText() : "*";
-                webClient.method(HttpMethod.PATCH)
-                        .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                        .header("If-Match", etag)
-                        .bodyValue("{\"ShippingAdvice\":\"Totalité\"}")
-                        .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(60));
+                bcWrite(HttpMethod.PATCH, baseUrl + "/PlexuspurchaseOrders(" + orderId + ")",
+                        "{\"ShippingAdvice\":\"Totalité\"}", etag);
+
+                removed.addAll(dropZeroLines(keptById, byId, token));
 
                 for (Map.Entry<String, BigDecimal> kept : keptById.entrySet()) {
                     if (kept.getValue().signum() == 0) {
@@ -839,17 +867,17 @@ public class PartnerOrderController {
                     ObjectNode linePatch = mapper.createObjectNode();
                     linePatch.put("receiveQuantity", kept.getValue());
                     linePatch.put("Decision", "Disponible");
-                    webClient.method(HttpMethod.PATCH)
-                            .uri(java.net.URI.create(
-                                    baseUrl + "/PlexuspurchaseOrderLines(" + kept.getKey() + ")"))
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                            .header("If-Match", "*")
-                            .bodyValue(linePatch.toString())
-                            .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(60));
+                    bcWrite(HttpMethod.PATCH,
+                            baseUrl + "/PlexuspurchaseOrderLines(" + kept.getKey() + ")",
+                            linePatch.toString(), null);
                 }
             } else {
-                // 2b. Some lines are promised for a date. This is the dashboard's "Valider le
+                // Here the lines go first: the split routine reads the commande's lines from
+                // Business Central, and a line the commercial dropped must not be carried into
+                // the new commande.
+                removed.addAll(dropZeroLines(keptById, byId, token));
+
+                // Some lines are promised for a date. This is the dashboard's "Valider le
                 //     disponible", and it is a 500-line rule: it clones the header field by
                 //     field onto a new commande, moves the deferred lines, confirms the rest
                 //     and cancels the original when nothing is left. Re-implementing it here
@@ -961,9 +989,268 @@ public class PartnerOrderController {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Batch — settle a whole dossier in one call
+    // ------------------------------------------------------------------
+
+    /**
+     * Validates and cancels several commandes in one request.
+     *
+     * <p>A dossier splits into one commande per supplier and the commercial settles them
+     * together — two validated, one cancelled. Doing that one HTTP call at a time means N
+     * round trips for a single decision, so this takes the whole list.
+     *
+     * <p>It <b>delegates to the single-commande endpoints</b> rather than reimplementing them:
+     * same guards, same statuses, same bodies. A batch can therefore never drift from what
+     * {@code /orders/validate} and {@code /orders/cancel} do on their own — which is the only
+     * reason this endpoint is safe to add next to them.
+     *
+     * <p><b>Not transactional.</b> Business Central settles each commande on its own; one
+     * refusal leaves the others done. Every commande gets its own result, so the caller knows
+     * exactly what to resend rather than having to guess from one overall verdict.
+     */
+    @PostMapping(value = "/orders/batch", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> settleBatch(@Valid @RequestBody PartnerBatchRequest request,
+            jakarta.servlet.http.HttpServletRequest servletRequest) {
+
+        List<PartnerBatchResponse.Result> results = new ArrayList<>();
+        int ok = 0;
+
+        for (PartnerBatchRequest.Entry entry : request.orders()) {
+            String number = entry.number() == null ? "" : entry.number().trim();
+            String action = entry.action() == null ? "" : entry.action().trim().toLowerCase();
+
+            ResponseEntity<?> answer;
+            if (PartnerBatchRequest.Entry.VALIDATE.equals(action)) {
+                if (entry.lines() == null || entry.lines().isEmpty()) {
+                    answer = ResponseEntity.badRequest().body(Map.of(
+                            "error", "validation_failed",
+                            "message", "lines is required when action is \"validate\"."));
+                } else {
+                    List<PartnerOrderValidationRequest.Line> lines = entry.lines().stream()
+                            .map(l -> new PartnerOrderValidationRequest.Line(
+                                    l.lineId(), l.reference(), l.quantity()))
+                            .toList();
+                    answer = validateOrder(new PartnerOrderValidationRequest(
+                            number, entry.splitDeferredLines(), lines), servletRequest);
+                }
+            } else if (PartnerBatchRequest.Entry.CANCEL.equals(action)) {
+                answer = cancelOrder(new PartnerOrderCancelRequest(number));
+            } else {
+                answer = ResponseEntity.badRequest().body(Map.of(
+                        "error", "validation_failed",
+                        "message", "action must be \"validate\" or \"cancel\", got: " + entry.action()));
+            }
+
+            boolean success = answer.getStatusCode().is2xxSuccessful();
+            if (success) {
+                ok++;
+            }
+            results.add(new PartnerBatchResponse.Result(
+                    number, action, answer.getStatusCode().value(), success, answer.getBody()));
+        }
+
+        int failed = results.size() - ok;
+        log.info("Batch settled — {} ok, {} failed: {}", ok, failed,
+                results.stream().map(r -> r.number() + "=" + r.status()).toList());
+
+        PartnerBatchResponse body = new PartnerBatchResponse(ok, failed, results);
+        if (failed == 0) {
+            return ResponseEntity.ok(body);
+        }
+        // Mixed or total failure both keep the per-commande detail; the status only says
+        // whether anything got through, so a caller never has to diff two reads to find out.
+        return ResponseEntity.status(ok > 0 ? HttpStatus.MULTI_STATUS : HttpStatus.BAD_REQUEST)
+                .body(body);
+    }
+
+    // ------------------------------------------------------------------
+    // Cancel — the commande that is not placed after all
+    // ------------------------------------------------------------------
+
+    /**
+     * Cancels a commande, the way the dashboard's "Annulation commande" does:
+     * {@code ShippingAdvice = Annulation} plus the reason, nothing deleted.
+     *
+     * <p>This is the other half of {@code /orders/validate}. A cart split across two
+     * suppliers where the commercial buys everything from the first leaves the second
+     * commande with nothing to keep — and validating it with every line at 0 is refused on
+     * purpose, so that dropping a commande stays a deliberate act rather than the side effect
+     * of an empty list. This is that act.
+     */
+    @PostMapping(value = "/orders/cancel", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> cancelOrder(@Valid @RequestBody PartnerOrderCancelRequest request) {
+        String orderNo = request.number().trim();
+        try {
+            String token = tokenService.getAccessToken();
+            JsonNode patchRow = findPartnerOrder(orderNo, token);
+            if (patchRow == null) {
+                return notFound(orderNo);
+            }
+            String orderId = text(patchRow, "id");
+            JsonNode header = mapper.readTree(get(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")", token));
+            String status = text(header, "ShippingAdvice");
+
+            // A retry must not fail: report the commande as it stands.
+            if ("Annulation".equalsIgnoreCase(status == null ? "" : status.trim())) {
+                log.info("Commande {} was already cancelled", orderNo);
+                return ResponseEntity.ok(new PartnerOrderCancelResponse(
+                        orderNo, false, true, readOrderQuietly(orderId, token)));
+            }
+
+            // Goods that have moved cannot be un-ordered by flipping a flag — that needs a
+            // return, which is a different operation entirely. Refuse rather than leave the
+            // commande and the stock telling two different stories.
+            boolean shipped = "Oui".equalsIgnoreCase(String.valueOf(text(header, "Delivred")));
+            boolean received = "Oui".equalsIgnoreCase(String.valueOf(text(header, "QtyReceived")));
+            if (shipped || received) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                        "error", "not_cancellable",
+                        "message", received
+                                ? "This commande has already been received; it cannot be cancelled."
+                                : "This commande has already been shipped; it cannot be cancelled."));
+            }
+
+            ObjectNode patch = mapper.createObjectNode();
+            patch.put("ShippingAdvice", "Annulation");
+            patch.put("CauseofCancellation", CANCEL_CAUSE_DEVIS);
+            String etag = header.has("@odata.etag") ? header.get("@odata.etag").asText() : "*";
+            webClient.method(HttpMethod.PATCH)
+                    .uri(java.net.URI.create(baseUrl + "/PlexuspurchaseOrders(" + orderId + ")"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header("If-Match", etag)
+                    .bodyValue(patch.toString())
+                    .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(60));
+
+            // Le statut que lit le reporting : le ghost field reste 'Annulation' (il cache la
+            // commande aux fournisseurs et aux clients, et son option ne peut pas être
+            // étendue), celui-ci dit ce que c'était vraiment. Une garde dans
+            // PlexusDashboardMgt empêche le mirroring de l'écraser à la modification suivante
+            // — sans elle cette écriture ne tiendrait pas.
+            try {
+                ObjectNode statusPatch = mapper.createObjectNode();
+                statusPatch.put("plxShippingAdvice", CANCEL_CAUSE_DEVIS);
+                webClient.method(HttpMethod.PATCH)
+                        .uri(java.net.URI.create(
+                                tarekSystemUrl + "/plexusPurchaseOrderPatches(" + orderId + ")"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .header("If-Match", "*")
+                        .bodyValue(statusPatch.toString())
+                        .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(30));
+            } catch (Exception e) {
+                // La commande est bien retirée ; seul son étiquetage a échoué. Le dire fort
+                // plutôt que d'annuler ce qui a marché — mais elle comptera comme une vraie
+                // annulation dans le reporting tant que ce n'est pas corrigé à la main.
+                log.error("!!! {} dropped but not tagged '{}' in PLX_ShippingAdvice: {} — it will "
+                        + "count as a real cancellation in the reporting", orderNo,
+                        CANCEL_CAUSE_DEVIS, e.getMessage());
+            }
+
+            log.info("Commande {} dropped as {}", orderNo, CANCEL_CAUSE_DEVIS);
+            return ResponseEntity.ok(new PartnerOrderCancelResponse(
+                    orderNo, true, false, readOrderQuietly(orderId, token)));
+
+        } catch (WebClientResponseException e) {
+            log.error("!!! BC refused the cancellation of {}: {} {}",
+                    orderNo, e.getStatusCode(), e.getResponseBodyAsString());
+            return upstreamError("Business Central refused the cancellation.");
+        } catch (Exception e) {
+            log.error("!!! Error cancelling {}: {}", orderNo, e.getMessage(), e);
+            return upstreamError("Could not cancel the commande.");
+        }
+    }
+
     /** Header values that mean the commande has already been committed. */
     private static final java.util.Set<String> VALIDATED_ADVICES = java.util.Set.of(
             "Totalité", "LivraisonDispo", "Confirmé");
+
+    /**
+     * A write to Business Central, retried once on a timeout.
+     *
+     * <p>Writing a purchase document here is not a quick call: every PATCH and DELETE fires the
+     * dashboard-sync subscribers and makes BC recompute the document, and a minute is not
+     * always enough — measured on real commandes, a line delete after a header change has gone
+     * past it. A blown deadline was then surfacing as a {@code 502} on work that had actually
+     * gone through, which is the worst thing this API can tell a caller.
+     *
+     * <p>Retrying is safe because all three writes are idempotent: the same status, the same
+     * quantity, or a line that is already gone.
+     */
+    private void bcWrite(HttpMethod method, String url, String body, String etag) throws Exception {
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                WebClient.RequestBodySpec spec = webClient.method(method)
+                        .uri(java.net.URI.create(url))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
+                        .header("If-Match", etag == null ? "*" : etag);
+                if (body != null) {
+                    spec.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                    spec.bodyValue(body);
+                }
+                spec.retrieve().bodyToMono(String.class).block(Duration.ofSeconds(150));
+                return;
+            } catch (WebClientResponseException.NotFound gone) {
+                // Deleting a line that is no longer there is the outcome we wanted. This is
+                // exactly what the retry below runs into: the first attempt timed out on the
+                // wire while Business Central went ahead and deleted it.
+                if (method == HttpMethod.DELETE) {
+                    log.info("BC line already gone, treating the delete as done: {}", url);
+                    return;
+                }
+                throw gone;
+            } catch (WebClientResponseException refused) {
+                // Business Central answered and said no. Repeating the call will not change
+                // its mind, and hiding a refusal behind a retry would be worse than failing.
+                throw refused;
+            } catch (RuntimeException broken) {
+                // Everything else is the connection giving up before the answer came back —
+                // a netty read timeout, whose message is null and which Reactor may have
+                // wrapped, so it is caught by shape rather than by type. BC has very likely
+                // carried the write out anyway, and all three writes here are idempotent, so
+                // trying once more is safe.
+                log.warn("BC write did not come back (attempt {}/2): {} {} — {}",
+                        attempt, method, url, broken.toString());
+                last = broken;
+            }
+        }
+        throw last;
+    }
+
+    /** Whether the line the caller names is still on the commande. */
+    private boolean onCommande(PartnerOrderValidationRequest.Line asked,
+            Map<String, JsonNode> byId, Map<String, List<JsonNode>> byReference) {
+        if (!blank(asked.lineId())) {
+            return byId.containsKey(asked.lineId().trim());
+        }
+        if (blank(asked.reference())) {
+            return true; // malformed; let resolveLine produce the proper violation
+        }
+        List<JsonNode> matches = byReference.get(asked.reference().trim().toUpperCase());
+        return matches != null && !matches.isEmpty();
+    }
+
+    /** Deletes every line the caller kept at 0, and reports what left the commande. */
+    private List<PartnerOrderValidationResponse.RemovedLine> dropZeroLines(
+            Map<String, BigDecimal> keptById, Map<String, JsonNode> byId, String token)
+            throws Exception {
+
+        List<PartnerOrderValidationResponse.RemovedLine> removed = new ArrayList<>();
+        for (Map.Entry<String, BigDecimal> kept : keptById.entrySet()) {
+            if (kept.getValue().signum() != 0) {
+                continue;
+            }
+            JsonNode row = byId.get(kept.getKey());
+            bcWrite(HttpMethod.DELETE,
+                    baseUrl + "/PlexuspurchaseOrderLines(" + kept.getKey() + ")", null, null);
+            removed.add(new PartnerOrderValidationResponse.RemovedLine(
+                    kept.getKey(), text(row, "lineObjectNumber"), text(row, "description"),
+                    decimal(row, "quantity")));
+        }
+        return removed;
+    }
 
     /** Matches one payload line to one commande line, or records why it could not. */
     private JsonNode resolveLine(PartnerOrderValidationRequest.Line asked,

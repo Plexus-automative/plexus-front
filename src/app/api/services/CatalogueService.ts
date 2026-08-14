@@ -22,7 +22,16 @@ export interface CatalogueLoginResponse {
 
 export const catalogueApi = {
   login: async (): Promise<CatalogueLoginResponse> => {
-    const response = await axiosInstance.post('/api/catalogue/login');
-    return response.data;
+    try {
+      const response = await axiosInstance.post('/api/catalogue/login');
+      return response.data;
+    } catch (err: any) {
+      // remonter le message du backend au lieu du « Request failed with status code ... »
+      const backendMessage = err?.response?.data?.message;
+      if (backendMessage) {
+        throw new Error(`${backendMessage} (HTTP ${err?.response?.status})`);
+      }
+      throw err;
+    }
   },
 };

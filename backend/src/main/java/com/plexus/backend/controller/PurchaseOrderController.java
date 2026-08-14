@@ -2944,8 +2944,11 @@ public class PurchaseOrderController {
                         // Enrichment: Fetch missing TVA/Phone and Custom Metadata (VIN, BL Number)
                         String token = tokenService.getAccessToken();
                         enrichWithCustomerData(rootNode, token);
-                        enrichWithSalesDiscount(rootNode, lines, token);
+                        // Avant la remise : les métadonnées portent le n° d'expédition validée, seule
+                        // piste vers la remise quand la commande vente a déjà été facturée (BC la
+                        // supprime alors de l'API).
                         enrichWithPlexusMetadata(rootNode, token);
+                        enrichWithSalesDiscount(rootNode, lines, token);
 
                         byte[] pdfBytes = blGeneratorService.generateBL(orderNumber, orderDate, vendorName,
                                         vendorNumber, lines, rootNode);
@@ -3898,7 +3901,22 @@ public class PurchaseOrderController {
                 }
         }
 
+        // La remise imprimée sur le BL vient du flux VENTE, jamais de la ligne d'achat : la
+        // remise fournisseur (celle négociée sur le CA) et la remise client n'ont aucune raison
+        // d'être égales, et seule la seconde a sa place sur un document remis au client.
+        //
+        // Source de vérité = l'expédition validée (posted sales shipment), exactement ce que BC
+        // imprime : quantités, prix et remise y sont figés pour CETTE livraison. La commande
+        // vente ne sert plus que de repli, car elle se dérobe dans deux cas fréquents — un CA
+        // livré en plusieurs fois porte plusieurs commandes vente, et une commande facturée
+        // disparaît de l'API. Dans ces deux cas la remise retombait silencieusement à 0.
         private void enrichWithSalesDiscount(com.fasterxml.jackson.databind.JsonNode rootNode,
+                        com.fasterxml.jackson.databind.JsonNode poLines, String token) {
+                enrichFromSalesOrder(rootNode, poLines, token);
+                applyShipmentDiscounts(rootNode, poLines, token);
+        }
+
+        private void enrichFromSalesOrder(com.fasterxml.jackson.databind.JsonNode rootNode,
                         com.fasterxml.jackson.databind.JsonNode poLines, String token) {
                 try {
                         String orderNumber = rootNode.has("number") ? rootNode.get("number").asText() : "";
@@ -3937,7 +3955,15 @@ public class PurchaseOrderController {
                                         : salesData;
 
                         if (salesOrders.isArray() && salesOrders.size() > 0) {
-                                com.fasterxml.jackson.databind.JsonNode salesOrder = salesOrders.get(0);
+                                // Un CA livré en plusieurs fois porte une commande vente par livraison,
+                                // toutes avec le même PurchaseHeaderNoNew : c'est la dernière qui décrit
+                                // le BL qu'on est en train d'éditer.
+                                com.fasterxml.jackson.databind.JsonNode salesOrder = latestByNumber(salesOrders);
+                                if (salesOrders.size() > 1) {
+                                        log.info(">>> {} commandes vente rattachées à {} — retenue : {}",
+                                                        salesOrders.size(), orderNumber,
+                                                        salesOrder.path("number").asText(""));
+                                }
                                 // Inject Sales Order number into rootNode for BL number generation
                                 if (salesOrder.has("number") && !salesOrder.get("number").asText().isEmpty()) {
                                         String salesOrderNo = salesOrder.get("number").asText();
@@ -3971,7 +3997,8 @@ public class PurchaseOrderController {
                                                                                 : shipmentsData;
 
                                                 if (shipments.isArray() && shipments.size() > 0) {
-                                                        String shipmentNo = shipments.get(0).get("number").asText();
+                                                        String shipmentNo = latestByNumber(shipments).path("number")
+                                                                        .asText("");
                                                         ((com.fasterxml.jackson.databind.node.ObjectNode) rootNode)
                                                                         .put("postedSalesShipmentNumber", shipmentNo);
                                                         log.info(">>> Found and Injected postedSalesShipmentNumber for BL: {}",
@@ -4047,6 +4074,144 @@ public class PurchaseOrderController {
                         }
                 } catch (Exception e) {
                         log.warn(">>> Sales discount enrichment failed: {}", e.getMessage());
+                }
+        }
+
+        // Le plus récent d'une liste de documents BC : les numéros sont séquentiels et de largeur
+        // fixe (CV26/00573), l'ordre lexicographique suit donc l'ordre de création.
+        private com.fasterxml.jackson.databind.JsonNode latestByNumber(
+                        com.fasterxml.jackson.databind.JsonNode docs) {
+                com.fasterxml.jackson.databind.JsonNode latest = docs.get(0);
+                for (com.fasterxml.jackson.databind.JsonNode doc : docs) {
+                        if (doc.path("number").asText("").compareTo(latest.path("number").asText("")) > 0) {
+                                latest = doc;
+                        }
+                }
+                return latest;
+        }
+
+        // Recopie sur les lignes d'achat le prix et la remise de l'expédition validée, qui est le
+        // document que BC imprime. Écrase ce que la commande vente avait pu fournir : elle peut
+        // décrire une autre livraison du même CA. Tous les champs lus ici sont côté vente.
+        private void applyShipmentDiscounts(com.fasterxml.jackson.databind.JsonNode rootNode,
+                        com.fasterxml.jackson.databind.JsonNode poLines, String token) {
+                if (poLines == null || !poLines.isArray() || poLines.size() == 0) {
+                        return;
+                }
+                String shipmentNo = rootNode.path("postedSalesShipmentNumber").asText("");
+                if (shipmentNo.isEmpty()) {
+                        log.warn(">>> [BL] Aucune expédition validée connue pour {} : remise issue de la commande vente",
+                                        rootNode.path("number").asText(""));
+                        return;
+                }
+
+                try {
+                        String standardSalesBase = baseUrl
+                                        .replace("AcessPurchasesAPI", "AcessSalesAPI")
+                                        .replace("/api/NEL/AcessSalesAPI/v2.0", "/api/v2.0");
+
+                        java.net.URI uri = org.springframework.web.util.UriComponentsBuilder
+                                        .fromHttpUrl(standardSalesBase + "/salesShipments")
+                                        .queryParam("$filter", "number eq '" + shipmentNo + "'")
+                                        .queryParam("$expand", "salesShipmentLines")
+                                        .build()
+                                        .encode()
+                                        .toUri();
+
+                        String response = webClient.get()
+                                        .uri(uri)
+                                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                                        .retrieve()
+                                        .bodyToMono(String.class)
+                                        .block(Duration.ofSeconds(15));
+
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        com.fasterxml.jackson.databind.JsonNode data = mapper.readTree(response);
+                        com.fasterxml.jackson.databind.JsonNode shipments = data.has("value") ? data.get("value")
+                                        : data;
+
+                        if (!shipments.isArray() || shipments.size() == 0) {
+                                log.error(">>> [BL] Expédition {} introuvable : la remise du BL retombe sur la commande vente",
+                                                shipmentNo);
+                                return;
+                        }
+
+                        com.fasterxml.jackson.databind.JsonNode shipLines = shipments.get(0).get("salesShipmentLines");
+                        if (shipLines == null || !shipLines.isArray() || shipLines.size() == 0) {
+                                log.error(">>> [BL] Expédition {} sans lignes exploitables : remise issue de la commande vente",
+                                                shipmentNo);
+                                return;
+                        }
+
+                        // Une ligne d'expédition ne sert qu'une fois : un même article peut figurer sur
+                        // deux lignes du CA, chacune doit récupérer sa propre remise.
+                        java.util.Set<Integer> consumed = new java.util.HashSet<>();
+                        int matched = 0;
+
+                        for (com.fasterxml.jackson.databind.JsonNode poLine : poLines) {
+                                String itemNo = poLine.path("lineObjectNumber").asText("");
+                                if (itemNo.isEmpty()) {
+                                        continue;
+                                }
+                                for (com.fasterxml.jackson.databind.JsonNode shipLine : shipLines) {
+                                        int seq = shipLine.path("sequence").asInt(-1);
+                                        if (consumed.contains(seq)
+                                                        || !itemNo.equals(shipLine.path("lineObjectNumber").asText(""))) {
+                                                continue;
+                                        }
+                                        consumed.add(seq);
+
+                                        com.fasterxml.jackson.databind.node.ObjectNode target = (com.fasterxml.jackson.databind.node.ObjectNode) poLine;
+                                        double shipUnitPrice = shipLine.path("unitPrice").asDouble(0);
+                                        target.put("salesShippedQuantity", shipLine.path("quantity").asDouble(0));
+                                        if (shipUnitPrice > 0) {
+                                                target.put("salesUnitPrice", shipUnitPrice);
+                                        }
+
+                                        // Sur une ligne expédiée, BC n'expose que le pourcentage de remise —
+                                        // le montant, lui, est absent de cette API. On n'écrase donc les
+                                        // valeurs de la commande vente que si l'expédition porte vraiment une
+                                        // remise, sinon on les garde comme repli.
+                                        double shipPct = shipLine.path("discountPercent").asDouble(0);
+                                        boolean shipHasAmount = shipLine.has("discountAmount");
+                                        if (shipPct > 0 || shipHasAmount) {
+                                                target.put("salesDiscountPercent", shipPct);
+                                                if (shipHasAmount) {
+                                                        target.put("salesDiscountAmount",
+                                                                        shipLine.get("discountAmount").asDouble());
+                                                } else {
+                                                        target.remove("salesDiscountAmount");
+                                                }
+                                                target.put("salesDiscountSource", "expédition " + shipmentNo);
+                                        } else {
+                                                log.info(">>> [BL] {} sans remise sur l'expédition {} — valeurs de la commande vente conservées",
+                                                                itemNo, shipmentNo);
+                                        }
+
+                                        // Le prix vente est recopié du coût d'achat à la création de la commande
+                                        // vente : un écart signale que BC a retarifé la ligne, auquel cas le BL
+                                        // doit suivre la vente sous peine d'afficher un prix et une remise qui
+                                        // ne se rapportent pas au même document.
+                                        double directUnitCost = poLine.path("directUnitCost").asDouble(0);
+                                        if (shipUnitPrice > 0 && Math.abs(shipUnitPrice - directUnitCost) > 0.01) {
+                                                log.warn(">>> [BL] {} — prix vente {} ≠ coût d'achat {} sur l'expédition {}",
+                                                                itemNo, shipUnitPrice, directUnitCost, shipmentNo);
+                                        }
+                                        matched++;
+                                        break;
+                                }
+                        }
+
+                        if (matched == 0) {
+                                log.error(">>> [BL] Expédition {} : aucune ligne appariée sur {} lignes d'achat — remise issue de la commande vente",
+                                                shipmentNo, poLines.size());
+                        } else {
+                                log.info(">>> [BL] Remise lue sur l'expédition {} : {}/{} lignes appariées", shipmentNo,
+                                                matched, poLines.size());
+                        }
+                } catch (Exception e) {
+                        log.error(">>> [BL] Lecture de l'expédition {} impossible ({}) — remise issue de la commande vente",
+                                        shipmentNo, e.getMessage());
                 }
         }
 

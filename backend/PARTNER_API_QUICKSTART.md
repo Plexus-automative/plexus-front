@@ -102,6 +102,43 @@ POST /orders/validate
 `quantity: 0` **removes the line from the commande** — that is how you drop a part you are
 buying from another supplier. Identify lines by the `lineId` you got from step 3.
 
+**Keeping nothing is a cancellation, not a validation.** If the commercial takes none of a
+commande's lines, `POST /orders/validate` refuses (`400`) and you call this instead:
+
+```json
+POST /orders/cancel
+{ "number": "CA26/1423" }
+```
+
+**The number is all this takes.** Everything dropped through this API is a devis that never
+converted — no order was ever placed, a quote simply did not turn into one — so Plexus records
+the cause itself, always as the word `Devis`. Real cancellations, decided by an expert or a
+client, are made from the Plexus dashboard and keep their own reasons; the two never mix in
+the reporting.
+
+The commande still ends up `Annulation` in Business Central: that status is what hides it from
+suppliers and clients, which is wanted here too. A retry answers `200` with
+`"alreadyCancelled": true`.
+
+### 5. Settle the whole dossier in one call
+
+A dossier splits into one commande per supplier, and they are settled together. Rather than
+one call per commande:
+
+```json
+POST /orders/batch
+{ "orders": [
+    { "number": "CA26/1426", "action": "validate", "splitDeferredLines": false,
+      "lines": [ { "lineId": "dce…", "quantity": 2 } ] },
+    { "number": "CA26/1427", "action": "cancel" }
+] }
+```
+
+Each result carries its own `status` and **the very body the single endpoint would have
+returned**, so you read it the same way. `200` if all went through, `207` if some did not,
+`400` if none. Resend only the entries whose `ok` is `false` — both operations are idempotent,
+so resending one that actually succeeded is harmless.
+
 ---
 
 ## Six things that will bite you

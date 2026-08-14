@@ -26,6 +26,14 @@
 #   ./scripts/deploy.sh --build-only        # build only, don't push or deploy
 #   SKIP_MVN=1 ./scripts/deploy.sh backend  # reuse the existing backend/target/*.jar
 #
+# Which backend gets it (production, the api-dev sandbox, or both):
+#   ./scripts/deploy.sh backend             # both  — same build, tagged :latest and :dev
+#   ./scripts/deploy.sh backend --dev       # the sandbox only; :latest is left untouched
+#   ./scripts/deploy.sh backend --prod      # production only
+# The two run the same image from the same source; only the tag and the Business Central
+# company differ. So "try it on dev, then promote" is the same build pushed twice — and
+# --dev deliberately never pushes :latest, which is what production pulls.
+#
 # After deploying, this script syncs PARTNER_API_KEY into AutoReport's own .env
 # (as PLEXUS_API_KEY) and recreates its container if the value changed. AutoReport
 # calls this backend's partner API, and a rotation here used to break it silently.
@@ -83,16 +91,33 @@ err(){ printf '\033[1;31m    ✗ %s\033[0m\n' "$*" >&2; }
 die(){ err "$*"; exit 1; }
 
 # ------------------------------------------------------------------ args -----
-TARGET="all"; DO_PUSH=1; DO_DEPLOY=1
+# SCOPE picks which backend gets the build: production, the api-dev sandbox, or both.
+# They run the SAME image built from the same source — only the tag and the BC company
+# differ — so "test on dev first, then promote" is just pushing the same build twice.
+TARGET="all"; DO_PUSH=1; DO_DEPLOY=1; SCOPE="both"
 for a in "$@"; do
   case "$a" in
     frontend|backend|all) TARGET="$a" ;;
+    --dev)                SCOPE="dev" ;;
+    --prod)               SCOPE="prod" ;;
     --no-deploy)          DO_DEPLOY=0 ;;
     --build-only)         DO_DEPLOY=0; DO_PUSH=0 ;;
-    -h|--help)            sed -n '2,30p' "$0"; exit 0 ;;
-    *) die "unknown arg: $a (use frontend|backend|all|--no-deploy|--build-only)" ;;
+    -h|--help)            sed -n '2,34p' "$0"; exit 0 ;;
+    *) die "unknown arg: $a (use frontend|backend|all|--dev|--prod|--no-deploy|--build-only)" ;;
   esac
 done
+
+# --dev only concerns the backend: there is no frontend sandbox. Refuse rather than quietly
+# build something else — `deploy.sh frontend --dev` reads like a request this cannot honour.
+if [ "$SCOPE" = "dev" ]; then
+  case "$TARGET" in
+    frontend) die "--dev applies to the backend only (there is no frontend sandbox)" ;;
+    all)      TARGET="backend" ;;
+  esac
+fi
+
+BACKEND_DEV_TAG="${BACKEND_DEV_TAG:-dev}"
+BE_DEV_IMAGE="${DOCKER_USERNAME}/plexus-backend:${BACKEND_DEV_TAG}"
 build_fe=0; build_be=0
 case "$TARGET" in
   all)      build_fe=1; build_be=1 ;;
@@ -126,6 +151,12 @@ if [ "$build_be" = 1 ]; then
   ls backend/target/*.jar >/dev/null 2>&1 || die "no backend/target/*.jar — run Maven (unset SKIP_MVN)"
   c "Building backend image  ($BE_IMAGE)"
   $DOCKER_CMD build -t "$BE_IMAGE" ./backend
+  # One build, tagged for whichever side is being served. Tagging is free — the layers are
+  # shared — and it guarantees dev and prod run byte-identical code when both are deployed.
+  if [ "$SCOPE" != "prod" ]; then
+    $DOCKER_CMD tag "$BE_IMAGE" "$BE_DEV_IMAGE"
+    ok "also tagged $BE_DEV_IMAGE"
+  fi
   ok "backend image built"
 fi
 
@@ -146,7 +177,12 @@ fi
 
 # ------------------------------------------------------------------- push ----
 if [ "$DO_PUSH" = 1 ]; then
-  if [ "$build_be" = 1 ]; then c "Pushing $BE_IMAGE"; $DOCKER_CMD push "$BE_IMAGE"; ok "pushed backend"; fi
+  if [ "$build_be" = 1 ]; then
+    # --dev must NOT touch :latest. That tag is what production pulls, and pushing it here
+    # would hand the sandbox's build to prod on its next restart.
+    if [ "$SCOPE" != "dev" ]; then c "Pushing $BE_IMAGE"; $DOCKER_CMD push "$BE_IMAGE"; ok "pushed backend"; fi
+    if [ "$SCOPE" != "prod" ]; then c "Pushing $BE_DEV_IMAGE"; $DOCKER_CMD push "$BE_DEV_IMAGE"; ok "pushed backend (dev)"; fi
+  fi
   if [ "$build_fe" = 1 ]; then c "Pushing $FE_IMAGE"; $DOCKER_CMD push "$FE_IMAGE"; ok "pushed frontend"; fi
 else
   c "Skipping push (--build-only)"
@@ -162,10 +198,17 @@ c "About to deploy to: $SERVERS  (user: $SSH_USER, dir: $DEPLOY_DIR)"
 read -r -p "    Proceed? [y/N] " ans
 [ "$ans" = "y" ] || [ "$ans" = "Y" ] || { echo "    aborted."; exit 0; }
 
-# Which compose services to pull/refresh based on the target
+# Which compose services to pull/refresh based on the target and the scope
 PULL_SERVICES=""
-if [ "$build_be" = 1 ]; then PULL_SERVICES="$PULL_SERVICES backend"; fi
+if [ "$build_be" = 1 ] && [ "$SCOPE" != "dev" ];  then PULL_SERVICES="$PULL_SERVICES backend"; fi
+if [ "$build_be" = 1 ] && [ "$SCOPE" != "prod" ]; then PULL_SERVICES="$PULL_SERVICES backend-dev"; fi
 if [ "$build_fe" = 1 ]; then PULL_SERVICES="$PULL_SERVICES frontend"; fi
+
+# With a scope, recreate ONLY the services concerned — a bare `up -d` would also recreate
+# the other backend, which is exactly what --dev and --prod exist to avoid. Without one,
+# keep the old behaviour: bring the whole file up, so anything missing gets started.
+UP_SERVICES=""
+if [ "$SCOPE" != "both" ]; then UP_SERVICES="$PULL_SERVICES"; fi
 
 for host in $SERVERS; do
   c "Deploying to $host"
@@ -186,7 +229,8 @@ for host in $SERVERS; do
     [ -f .env ] || { echo "    !! no .env in \$(pwd) — refusing to deploy (wrong DEPLOY_DIR?)"; exit 1; }
     echo "    pulling:${PULL_SERVICES:- (none)}"
     [ -n "${PULL_SERVICES// /}" ] && $REMOTE_DOCKER_CMD compose pull$PULL_SERVICES || true
-    $REMOTE_DOCKER_CMD compose up -d
+    echo "    recreating:${UP_SERVICES:- (all services)}"
+    $REMOTE_DOCKER_CMD compose up -d$UP_SERVICES
     # Apply nginx.conf changes (mounted file — container isn't recreated on its own)
     if $REMOTE_DOCKER_CMD compose exec -T nginx nginx -t; then
       $REMOTE_DOCKER_CMD compose exec -T nginx nginx -s reload

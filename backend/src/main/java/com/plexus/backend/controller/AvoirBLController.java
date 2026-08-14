@@ -14,12 +14,16 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import com.plexus.backend.service.AvoirGeneratorService;
+
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +53,7 @@ public class AvoirBLController {
 
     private final WebClient webClient;
     private final BusinessCentralTokenService tokenService;
+    private final AvoirGeneratorService avoirGeneratorService;
     private final ObjectMapper mapper = new ObjectMapper();
 
     /**
@@ -65,9 +70,11 @@ public class AvoirBLController {
     @Value("${business-central.api.company-id}")
     private String companyId;
 
-    public AvoirBLController(WebClient webClient, BusinessCentralTokenService tokenService) {
+    public AvoirBLController(WebClient webClient, BusinessCentralTokenService tokenService,
+            AvoirGeneratorService avoirGeneratorService) {
         this.webClient = webClient;
         this.tokenService = tokenService;
+        this.avoirGeneratorService = avoirGeneratorService;
     }
 
     @jakarta.annotation.PostConstruct
@@ -102,8 +109,9 @@ public class AvoirBLController {
         try {
             List<JsonNode> lines = fetchAvoirableLines(scopedVendor);
             Set<String> invoicedPurchaseOrders = fetchInvoicedPurchaseOrders(scopedVendor);
-            return ResponseEntity.ok(mapper.writeValueAsString(
-                    groupByReceipt(lines, invoicedPurchaseOrders)));
+            ObjectNode result = groupByReceipt(lines, invoicedPurchaseOrders);
+            attachAvoirNumbers(result, scopedVendor);
+            return ResponseEntity.ok(mapper.writeValueAsString(result));
         } catch (WebClientResponseException e) {
             log.error("BC API Error listing avoirable receipts for {}: (HTTP {}) {}", scopedVendor,
                     e.getStatusCode(), e.getResponseBodyAsString());
@@ -210,6 +218,169 @@ public class AvoirBLController {
      * Le fournisseur de la session. Plexus (C0090) peut viser un fournisseur précis via
      * ?vendorNo= ; un fournisseur connecté est enfermé sur le sien, le paramètre est ignoré.
      */
+    /**
+     * Le document « Avoir fournisseur » en PDF, à remettre avec le bon de livraison : c'est
+     * lui qui explique à la comptabilité l'écart entre le BL et la facture.
+     *
+     * Ouvert à Plexus comme au fournisseur concerné — ce dernier ne peut tirer que les avoirs
+     * portant son propre n° de fournisseur, contrôle fait sur les lignes du journal.
+     *
+     * Le n° passe en paramètre et NON dans le chemin : il contient un slash (AVF26/0001), que
+     * Tomcat refuse même encodé en %2F, et que Spring tronquerait sinon à « AVF26 ».
+     */
+    @GetMapping("/document")
+    public ResponseEntity<byte[]> avoirDocument(HttpServletRequest request, @RequestParam String avoirNo) {
+        if (!featureEnabled) {
+            return ResponseEntity.status(503).body("Indisponible".getBytes(StandardCharsets.UTF_8));
+        }
+
+        try {
+            List<JsonNode> all = fetchAvoirLog(avoirNo);
+            if (all.isEmpty()) {
+                return ResponseEntity.status(404).body(("Avoir introuvable : " + avoirNo).getBytes(StandardCharsets.UTF_8));
+            }
+
+            String sessionVendor = request.getHeader("X-Vendor-No");
+            String avoirVendor = all.get(0).path("vendorNo").asText("");
+            boolean isPlexus = PLEXUS_CUSTOMER_NO.equals(request.getHeader("X-Customer-No"));
+            if (!isPlexus && sessionVendor != null && !sessionVendor.isBlank()
+                    && !sessionVendor.trim().equals(avoirVendor)) {
+                return ResponseEntity.status(403).body("Accès refusé".getBytes(StandardCharsets.UTF_8));
+            }
+
+            // Le document reprend le volet VENTE : c'est le BL remis au client qui est corrigé.
+            List<JsonNode> salesLines = new ArrayList<>();
+            for (JsonNode line : all) {
+                if ("Vente".equalsIgnoreCase(line.path("side").asText(""))) {
+                    salesLines.add(line);
+                }
+            }
+            if (salesLines.isEmpty()) {
+                salesLines = all;
+            }
+
+            JsonNode first = salesLines.get(0);
+            ObjectNode context = mapper.createObjectNode();
+            context.put("shipmentNo", first.path("shipmentNo").asText(""));
+            context.put("purchaseOrderNo", first.path("purchaseOrderNo").asText(""));
+            context.put("salesOrderNo", first.path("salesOrderNo").asText(""));
+            context.put("appliedAt", first.path("appliedAt").asText(""));
+            JsonNode shipmentInfo = fetchShipmentInfo(first.path("shipmentNo").asText(""));
+            context.put("vendorNo", first.path("vendorNo").asText(""));
+            context.put("vendorName", resolveVendorName(first.path("vendorNo").asText("")));
+            context.put("customerNo", shipmentInfo.path("sellToCustomerNo").asText(""));
+            context.put("customerName", shipmentInfo.path("sellToCustomerName").asText(""));
+
+            byte[] pdf = avoirGeneratorService.generateAvoir(avoirNo, salesLines, context);
+            String filename = "Avoir_" + avoirNo.replace("/", "-") + ".pdf";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/pdf")
+                    .body(pdf);
+
+        } catch (Exception e) {
+            log.error("Error generating avoir document {}: {}", avoirNo, e.getMessage());
+            return ResponseEntity.status(500)
+                    .body(("Erreur génération avoir : " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Accroche à chaque BL les n° d'avoir déjà émis, pour que le fournisseur puisse
+     * retélécharger le document remis avec le bon de livraison.
+     */
+    private void attachAvoirNumbers(ObjectNode result, String vendorNo) {
+        Map<String, Set<String>> byShipment = new LinkedHashMap<>();
+        try {
+            String filter = "vendorNo eq '" + vendorNo.replace("'", "''") + "'";
+            for (JsonNode entry : fetchQueryPaged("/plexusAvoirBLLogs", filter)) {
+                String avoirNo = entry.path("avoirNo").asText("");
+                String shipmentNo = entry.path("shipmentNo").asText("");
+                if (!avoirNo.isEmpty() && !shipmentNo.isEmpty()) {
+                    byShipment.computeIfAbsent(shipmentNo, k -> new LinkedHashSet<>()).add(avoirNo);
+                }
+            }
+        } catch (Exception e) {
+            // Sans ces numéros la liste reste utilisable : on n'échoue pas pour un libellé.
+            log.warn("N° d'avoir indisponibles pour {} : {}", vendorNo, e.getMessage());
+            return;
+        }
+
+        for (JsonNode shipment : result.path("receipts")) {
+            Set<String> numbers = byShipment.get(shipment.path("documentNo").asText(""));
+            ArrayNode arr = mapper.createArrayNode();
+            if (numbers != null) {
+                numbers.forEach(arr::add);
+            }
+            ((ObjectNode) shipment).set("avoirNos", arr);
+        }
+    }
+
+    private List<JsonNode> fetchAvoirLog(String avoirNo) throws Exception {
+        String url = tarekSystemUrl + "/plexusAvoirBLLogs"
+                + "?$filter=" + odataEncode("avoirNo eq '" + avoirNo.replace("'", "''") + "'")
+                + "&$top=" + PAGE_SIZE;
+
+        String response = webClient.get()
+                .uri(URI.create(url))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
+                .retrieve()
+                .bodyToMono(String.class)
+                .block(Duration.ofSeconds(120));
+
+        List<JsonNode> out = new ArrayList<>();
+        for (JsonNode line : mapper.readTree(response).path("value")) {
+            out.add(line);
+        }
+        return out;
+    }
+
+    /** Le nom du fournisseur, pour l'en-tête du document. Silencieux si indisponible. */
+    private String resolveVendorName(String vendorNo) {
+        if (vendorNo == null || vendorNo.isBlank()) {
+            return "";
+        }
+        try {
+            String url = tarekSystemUrl + "/plexusVendors?$filter="
+                    + odataEncode("number eq '" + vendorNo.replace("'", "''") + "'") + "&$top=1";
+            String response = webClient.get()
+                    .uri(URI.create(url))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block(Duration.ofSeconds(60));
+            JsonNode values = mapper.readTree(response).path("value");
+            return values.isEmpty() ? vendorNo : values.get(0).path("name").asText(vendorNo);
+        } catch (Exception e) {
+            log.warn("Nom fournisseur {} indisponible : {}", vendorNo, e.getMessage());
+            return vendorNo;
+        }
+    }
+
+    /** Une ligne du BL, pour en tirer le client livré. Objet vide si indisponible. */
+    private JsonNode fetchShipmentInfo(String shipmentNo) {
+        if (shipmentNo == null || shipmentNo.isBlank()) {
+            return mapper.createObjectNode();
+        }
+        try {
+            String url = tarekSystemUrl + "/plexusAvoirBLLines?$filter="
+                    + odataEncode("shipmentNo eq '" + shipmentNo.replace("'", "''") + "'") + "&$top=1";
+            String response = webClient.get()
+                    .uri(URI.create(url))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block(Duration.ofSeconds(60));
+            JsonNode values = mapper.readTree(response).path("value");
+            return values.isEmpty() ? mapper.createObjectNode() : values.get(0);
+        } catch (Exception e) {
+            // Le document reste imprimable sans le nom du client : on ne bloque pas pour ça.
+            log.warn("Infos client du BL {} indisponibles : {}", shipmentNo, e.getMessage());
+            return mapper.createObjectNode();
+        }
+    }
+
     private ResponseEntity<String> featureDisabled() {
         return ResponseEntity.status(503)
                 .body("{\"error\": \"L'avoir sur BL n'est pas encore disponible.\"}");
@@ -229,19 +400,38 @@ public class AvoirBLController {
 
     private List<JsonNode> fetchAvoirableLines(String vendorNo) throws Exception {
         // AND entre champs distincts uniquement : BC rejette le OR sur des champs différents.
-        // Le "déjà facturé" n'est PAS filtré ici : c'est une règle par BL, pas par ligne
-        // (voir groupByReceipt). Un $filter ligne à ligne afficherait un BL partiellement
-        // facturé amputé de ses lignes facturées, avant que le codeunit ne le refuse.
+        //
+        // quantityInvoiced eq 0 est indispensable, pas cosmétique : sans lui un fournisseur
+        // installé depuis 2020 ramène des milliers de lignes (mesuré : 500 contre 66 pour
+        // F0018), la lecture est tronquée, et comme les lignes sortent dans l'ordre de la
+        // table ce sont les BL RÉCENTS qui disparaissent — exactement le symptôme constaté.
+        //
+        // Contrepartie assumée : un BL partiellement facturé n'arrive ici qu'avec ses lignes
+        // saines. C'est rare (BC facture une expédition entière via Get Shipment Lines) et le
+        // codeunit refuse alors l'avoir avec un message explicite.
         String filter = "vendorNo eq '" + vendorNo.replace("'", "''") + "'"
-                + " and quantity gt 0";
+                + " and quantity gt 0 and quantityInvoiced eq 0";
 
-        String url = tarekSystemUrl + "/plexusAvoirBLLines"
-                + "?$filter=" + odataEncode(filter)
-                + "&$top=" + PAGE_SIZE;
+        return fetchQueryPaged("/plexusAvoirBLLines", filter);
+    }
 
+    /**
+     * Lecture paginée d'une query API.
+     *
+     * <p>Les query objects de BC ne renvoient PAS de {@code @odata.nextLink} : se fier à ce
+     * lien fait croire à une lecture complète alors que $top a silencieusement coupé. On
+     * pagine donc sur $skip, et on s'arrête quand une page revient incomplète.
+     */
+    private List<JsonNode> fetchQueryPaged(String entity, String filter) throws Exception {
         List<JsonNode> all = new ArrayList<>();
-        int pages = 0;
-        while (url != null && pages < MAX_PAGES) {
+        int page = 0;
+
+        while (page < MAX_PAGES) {
+            String url = tarekSystemUrl + entity
+                    + "?$filter=" + odataEncode(filter)
+                    + "&$top=" + PAGE_SIZE
+                    + "&$skip=" + (page * PAGE_SIZE);
+
             String response = webClient.get()
                     .uri(URI.create(url))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
@@ -249,16 +439,21 @@ public class AvoirBLController {
                     .bodyToMono(String.class)
                     .block(Duration.ofSeconds(120));
 
-            JsonNode root = mapper.readTree(response);
-            for (JsonNode line : root.path("value")) {
+            JsonNode values = mapper.readTree(response).path("value");
+            int count = 0;
+            for (JsonNode line : values) {
                 all.add(line);
+                count++;
             }
-            url = root.hasNonNull("@odata.nextLink") ? root.get("@odata.nextLink").asText() : null;
-            pages++;
+
+            if (count < PAGE_SIZE) {
+                return all;
+            }
+            page++;
         }
-        if (url != null) {
-            log.warn("Avoir BL: arrêt à {} pages pour le fournisseur {} — liste tronquée", MAX_PAGES, vendorNo);
-        }
+
+        log.warn("Avoir BL: {} arrêté à {} pages ({} lignes) — lecture tronquée",
+                entity, MAX_PAGES, all.size());
         return all;
     }
 
@@ -271,29 +466,12 @@ public class AvoirBLController {
         String filter = "buyFromVendorNo eq '" + vendorNo.replace("'", "''") + "'"
                 + " and quantityInvoiced gt 0";
 
-        String url = tarekSystemUrl + "/plexusPurchReceiptLines"
-                + "?$filter=" + odataEncode(filter)
-                + "&$top=" + PAGE_SIZE;
-
         Set<String> orders = new HashSet<>();
-        int pages = 0;
-        while (url != null && pages < MAX_PAGES) {
-            String response = webClient.get()
-                    .uri(URI.create(url))
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.getAccessToken())
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block(Duration.ofSeconds(120));
-
-            JsonNode root = mapper.readTree(response);
-            for (JsonNode line : root.path("value")) {
-                String orderNo = line.path("orderNo").asText("");
-                if (!orderNo.isEmpty()) {
-                    orders.add(orderNo);
-                }
+        for (JsonNode line : fetchQueryPaged("/plexusPurchReceiptLines", filter)) {
+            String orderNo = line.path("orderNo").asText("");
+            if (!orderNo.isEmpty()) {
+                orders.add(orderNo);
             }
-            url = root.hasNonNull("@odata.nextLink") ? root.get("@odata.nextLink").asText() : null;
-            pages++;
         }
         return orders;
     }
@@ -304,14 +482,13 @@ public class AvoirBLController {
         // fois que la commande achat a de lignes. On dédoublonne sur (BL, ligne).
         Set<String> seenLines = new HashSet<>();
 
-        // Dès qu'une facture existe sur le BL — vente OU achat, sur n'importe quelle ligne —
-        // le BL entier sort de la liste : l'avoir est alors impossible et le codeunit le
-        // refuserait. Passe préalable, car une ligne facturée peut apparaître après une autre
-        // qui ne l'est pas.
+        // Un BL dont la commande achat est déjà facturée sort en entier : l'avoir devrait
+        // alors corriger une facture achat existante, ce que le codeunit refuse.
+        // (Le côté vente, lui, est déjà écarté par le $filter quantityInvoiced eq 0.)
+        // Passe préalable : la ligne qui disqualifie le BL peut arriver après les autres.
         Set<String> invoicedShipments = new HashSet<>();
         for (JsonNode line : lines) {
-            if (line.path("quantityInvoiced").asDouble(0) != 0
-                    || invoicedPurchaseOrders.contains(line.path("purchOrderNo").asText(""))) {
+            if (invoicedPurchaseOrders.contains(line.path("purchOrderNo").asText(""))) {
                 invoicedShipments.add(line.path("shipmentNo").asText(""));
             }
         }

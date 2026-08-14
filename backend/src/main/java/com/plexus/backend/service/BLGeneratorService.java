@@ -392,8 +392,12 @@ public class BLGeneratorService {
                 String itemNo = lineData.has("lineObjectNumber") ? lineData.get("lineObjectNumber").asText() : "";
                 String desc = lineData.has("description") ? lineData.get("description").asText() : "";
 
+                // Quantité de l'expédition validée en premier : c'est ce qui est réellement parti,
+                // et c'est la base sur laquelle BC a calculé la remise de ce BL.
                 double qty = 0;
-                if (lineData.has("receivedQuantity") && lineData.get("receivedQuantity").asDouble() > 0) {
+                if (lineData.path("salesShippedQuantity").asDouble(0) > 0) {
+                    qty = lineData.get("salesShippedQuantity").asDouble();
+                } else if (lineData.has("receivedQuantity") && lineData.get("receivedQuantity").asDouble() > 0) {
                     qty = lineData.get("receivedQuantity").asDouble();
                 } else if (lineData.has("receiveQuantity") && lineData.get("receiveQuantity").asDouble() > 0) {
                     qty = lineData.get("receiveQuantity").asDouble();
@@ -402,22 +406,39 @@ public class BLGeneratorService {
                 } else if (lineData.has("invoiceQuantity")) {
                     qty = lineData.get("invoiceQuantity").asDouble();
                 }
-                double price = lineData.has("directUnitCost") ? lineData.get("directUnitCost").asDouble() : 0;
+                // Prix unitaire côté vente dès qu'il est connu (expédition validée) : le coût
+                // d'achat ne sert que de repli. Prix et remise doivent sortir du même document,
+                // sinon on afficherait un tarif fournisseur diminué d'une remise client.
+                double price = lineData.path("salesUnitPrice").asDouble(0);
+                if (price <= 0) {
+                    price = lineData.path("directUnitCost").asDouble(0);
+                }
                 double lineTotal = qty * price;
                 totalHT += lineTotal;
 
+                // La remise se calcule sur la base réellement imprimée (qté livrée x PU). Le
+                // pourcentage prime sur le montant : celui de BC porte sur la quantité de son
+                // propre document, qui diffère de la ligne du BL en livraison partielle.
                 double lineDiscount = 0;
-                if (lineData.has("salesDiscountAmount")) {
+                double discountPct = lineData.path("salesDiscountPercent").asDouble(0);
+                String source = lineData.path("salesDiscountSource").asText("commande vente");
+                if (discountPct > 0) {
+                    lineDiscount = lineTotal * (discountPct / 100.0);
+                    log.info(">>> [BL] Ligne {} : remise {} % = {} ({})", itemNo, discountPct, lineDiscount, source);
+                } else if (lineData.has("salesDiscountAmount")) {
                     lineDiscount = lineData.get("salesDiscountAmount").asDouble();
-                    log.info(">>> [BL] Line {}: using salesDiscountAmount = {}", itemNo, lineDiscount);
+                    log.info(">>> [BL] Ligne {} : remise {} en montant ({})", itemNo, lineDiscount, source);
                 } else if (lineData.has("sales_discountAmount")) {
-                    // Use the CLIENT discount from Sales Order line (injected by
-                    // enrichWithSalesDiscount)
+                    // Remise CLIENT relevée sur la ligne de commande vente (injectée par
+                    // enrichWithSalesDiscount) — jamais la remise fournisseur de la ligne d'achat.
                     lineDiscount = lineData.get("sales_discountAmount").asDouble();
-                    log.info(">>> [BL] Line {}: using sales_discountAmount = {}", itemNo, lineDiscount);
+                    log.info(">>> [BL] Ligne {} : remise {} en montant (sales_discountAmount)", itemNo, lineDiscount);
                 } else if (lineData.has("sales_lineDiscountAmount")) {
                     lineDiscount = lineData.get("sales_lineDiscountAmount").asDouble();
-                    log.info(">>> [BL] Line {}: using sales_lineDiscountAmount = {}", itemNo, lineDiscount);
+                    log.info(">>> [BL] Ligne {} : remise {} en montant (sales_lineDiscountAmount)", itemNo,
+                            lineDiscount);
+                } else {
+                    log.warn(">>> [BL] Ligne {} : aucune remise vente trouvée, imprimée à 0", itemNo);
                 }
 
                 remise += lineDiscount;

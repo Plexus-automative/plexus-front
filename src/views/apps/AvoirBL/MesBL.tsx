@@ -30,6 +30,7 @@ import {
     AvoirBLLine,
     AvoirBLReceipt,
     applyAvoir,
+    downloadAvoirDocument,
     fetchAvoirableReceipts
 } from 'app/api/services/AvoirBL/AvoirBLService';
 
@@ -71,6 +72,7 @@ export default function MesBL() {
     const [submitting, setSubmitting] = useState(false);
 
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
+    const [lastAvoirNo, setLastAvoirNo] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const loadReceipts = useCallback(async () => {
@@ -99,6 +101,16 @@ export default function MesBL() {
                 .some((field) => (field ?? '').toLowerCase().includes(needle))
         );
     }, [receipts, search]);
+
+    // Le téléchargement doit remonter ses échecs : sans ça un refus du backend ne produisait
+    // qu'une promesse rejetée dans la console, et le bouton semblait ne rien faire.
+    const handleDownload = async (avoirNo: string) => {
+        try {
+            await downloadAvoirDocument(avoirNo);
+        } catch (err: any) {
+            setErrorMsg(readServerMessage(err));
+        }
+    };
 
     const openReceipt = (receipt: AvoirBLReceipt) => {
         setSelected(receipt);
@@ -147,9 +159,10 @@ export default function MesBL() {
         try {
             const result = await applyAvoir(selected.documentNo, changedLines);
             setSuccessMsg(
-                `Avoir enregistré sur le BL ${result.receiptNo}. La facture reprendra les quantités nettes`
-                + (result.orderNo ? ` (commande achat ${result.orderNo}).` : '.')
+                `Avoir ${result.avoirNo} enregistré sur le BL ${result.receiptNo}. `
+                + 'La facture reprendra les quantités nettes.'
             );
+            setLastAvoirNo(result.avoirNo || null);
             setSelected(null);
             setNewQtyByLine({});
             await loadReceipts();
@@ -184,7 +197,25 @@ export default function MesBL() {
             {/* Alertes en flux, pas en Snackbar flottante : un parent transformé casse le
                 positionnement fixed de MUI et le message venait recouvrir le tableau. */}
             {successMsg && (
-                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMsg(null)}>
+                <Alert
+                    severity="success"
+                    sx={{ mb: 2 }}
+                    onClose={() => {
+                        setSuccessMsg(null);
+                        setLastAvoirNo(null);
+                    }}
+                    action={
+                        lastAvoirNo ? (
+                            <Button
+                                color="inherit"
+                                size="small"
+                                onClick={() => handleDownload(lastAvoirNo)}
+                            >
+                                Télécharger l&apos;avoir
+                            </Button>
+                        ) : undefined
+                    }
+                >
                     {successMsg}
                 </Alert>
             )}
@@ -263,9 +294,27 @@ export default function MesBL() {
                                             .toLocaleString('fr-FR', { maximumFractionDigits: 3 })}
                                     </TableCell>
                                     <TableCell align="right">
-                                        <Button size="small" variant="contained" onClick={() => openReceipt(receipt)}>
-                                            {totalAvoirOf(receipt) > 0 ? 'Compléter l’avoir' : 'Saisir un avoir'}
-                                        </Button>
+                                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                            {(receipt.avoirNos ?? []).map((no) => (
+                                                <Tooltip key={no} title={`Télécharger le document ${no}`}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        color="warning"
+                                                        onClick={() => handleDownload(no)}
+                                                    >
+                                                        {no}
+                                                    </Button>
+                                                </Tooltip>
+                                            ))}
+                                            <Button
+                                                size="small"
+                                                variant="contained"
+                                                onClick={() => openReceipt(receipt)}
+                                            >
+                                                {totalAvoirOf(receipt) > 0 ? 'Compléter l’avoir' : 'Saisir un avoir'}
+                                            </Button>
+                                        </Stack>
                                     </TableCell>
                                 </TableRow>
                             ))}

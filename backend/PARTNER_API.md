@@ -426,7 +426,7 @@ Also refused, with nothing written:
 |---|---|
 | The supplier has not answered yet (`Attente`) | `409 not_validatable` |
 | `quantity` above what the supplier has | `400`, naming the line and his quantity |
-| Every line at `0` | `400` — an empty commande has to be cancelled, not validated |
+| Every line at `0` | `400` — use `POST /orders/cancel`, see below |
 | Already validated | `200` with `"alreadyValidated": true`, nothing touched |
 
 That last one makes retries safe: a replayed payload still names lines the first call
@@ -435,6 +435,85 @@ removed, and re-running it must not delete a second round.
 **After validation, `GET /orders` shows both figures**: `quantity` is what was ordered,
 `validatedQuantity` what was retained. Business Central deliberately keeps the ordered
 quantity — accounting has to see what was asked for next to what was kept.
+
+### `POST /orders/cancel`
+
+**The commande that is not placed after all.** A cart split across two suppliers where the
+commercial ends up buying everything from the first leaves the second commande with nothing
+to keep — that one is cancelled, not validated with zeros.
+
+```json
+POST /orders/cancel
+{ "number": "CA26/1423" }
+```
+
+**`200 OK`**
+```json
+{ "number": "CA26/1423", "cancelled": true, "alreadyCancelled": false,
+  "order": { "status": "Annulation", "state": "CANCELLED", … } }
+```
+
+**The number is all this takes** — no reason to send. Everything dropped through this API is a
+**devis that never converted**: no order was ever placed, a quote simply did not turn into
+one. Plexus records the cause itself, always as the word `Devis`, so it can tell these apart
+from real cancellations — the ones an expert, a client or the insurer decided, which are made
+from the dashboard and keep their own reasons.
+
+The commande still becomes `Annulation` in Business Central. That status is what keeps it out
+of the suppliers' and clients' screens — wanted here too — and the value cannot be extended
+anyway; it is the cause that carries the distinction.
+
+Nothing is deleted: the commande keeps its lines and moves to `Annulation`, exactly as the
+dashboard's "Annulation commande" does.
+
+| Situation | Answer |
+|---|---|
+| Already cancelled | `200` with `"alreadyCancelled": true` — a retry is harmless |
+| Already shipped or received | `409 not_cancellable` — goods that moved need a return, not a flag |
+| Unknown number, or not created through this API | `404` |
+
+### `POST /orders/batch`
+
+**Settle a whole dossier in one call.** A dossier splits into one commande per supplier and
+the commercial settles them together — two validated, one cancelled. Rather than one HTTP
+call per commande, send the list:
+
+```json
+POST /orders/batch
+{ "orders": [
+    { "number": "CA26/1426", "action": "validate", "splitDeferredLines": false,
+      "lines": [ { "lineId": "dce…", "quantity": 2 } ] },
+    { "number": "CA26/1427", "action": "cancel" }
+] }
+```
+
+**`200 OK`** when every commande went through, **`207`** when some did not, **`400`** when
+none did. The body is the same either way:
+
+```json
+{ "okCount": 1, "failedCount": 1,
+  "results": [
+    { "number": "CA26/1426", "action": "validate", "status": 200, "ok": true,
+      "body": { … exactly what /orders/validate returns … } },
+    { "number": "CA99/9999", "action": "cancel", "status": 404, "ok": false,
+      "body": { "error": "not_found", "message": "No commande with that number." } }
+  ] }
+```
+
+Each entry carries **the very body the single-commande endpoint would have returned**, and
+its own status — so you read a batch result exactly as you read a single one, and a failure
+never hides behind an overall verdict.
+
+`action` is `validate` or `cancel`, and the rules of each apply unchanged: `lines` required on
+a validate (every line of the commande named), `splitDeferredLines` required as soon as a kept
+line answers `LivPrevuaDate`, and nothing but the `number` needed on a cancel.
+
+> **Not transactional.** Business Central settles each commande on its own; one refusal leaves
+> the others done. Resend only the entries whose `ok` is `false` — and since validate and
+> cancel are both idempotent, resending an entry that actually succeeded is harmless
+> (`alreadyValidated` / `alreadyCancelled`).
+
+At most 50 commandes per batch.
 
 ### Errors
 | Code | `error` | Meaning |
@@ -446,6 +525,7 @@ quantity — accounting has to see what was asked for next to what was kept.
 | 200 | — | `POST /orders` only: every commande of this dossier already existed, nothing created |
 | 207 | — | `POST /orders` only: partial creation, see `orders[]` and `failed[]` |
 | 409 | `not_validatable` | `POST /orders/validate` only: the supplier has not answered, or the commande is in a state that cannot be validated |
+| 409 | `not_cancellable` | `POST /orders/cancel` only: the commande has already shipped or been received |
 | 502 | `upstream_error` | Business Central unreachable — **retry with the same reference** |
 | 500 | `internal_error` | Same: retry with the same reference |
 

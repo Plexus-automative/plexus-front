@@ -52,7 +52,11 @@ services:
   # La clé partenaire est différente exprès : si le développeur se trompe d'URL, il prend
   # un 401 au lieu de créer une commande en production.
   backend-dev:
-    image: ${DOCKER_USERNAME:-plexusauto}/plexus-backend:latest
+    # Tag distinct de la production, exprès. Avec un `:latest` partagé, pousser une image
+    # pour tester ici la mettrait aussi sous le nez de la prod, qui la prendrait au premier
+    # redémarrage venu — un correctif à moitié testé passerait en production sans que
+    # personne l'ait décidé.
+    image: ${DOCKER_USERNAME:-plexusauto}/plexus-backend:${BACKEND_DEV_TAG:-dev}
     container_name: plexus-backend-dev
     environment:
       BC_CLIENT_ID: ${BC_CLIENT_ID}

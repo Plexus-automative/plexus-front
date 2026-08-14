@@ -94,6 +94,7 @@ export const printOrder = (order: any) => {
                             <th style="width: 10%;">Quantité reçue</th>
                             <th style="width: 10%;">Remarque</th>
                             <th style="width: 10%;">Date livraison</th>
+                            <th style="width: 10%;">Disponible</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,6 +109,7 @@ export const printOrder = (order: any) => {
                                 <td>${line.receivedQuantity || 0}</td>
                                 <td>${line.Decision || (line.confirmationStatus === 'Disponible' ? 'Disponible' : '-')}</td>
                                 <td>${line.DeliveryDate || '-'}</td>
+                                <td></td>
                             </tr>
                         `).join('')}
                     </tbody>
