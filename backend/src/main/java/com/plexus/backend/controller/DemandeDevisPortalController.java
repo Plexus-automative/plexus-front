@@ -376,7 +376,7 @@ public class DemandeDevisPortalController {
      * as a space, so a multi-clause filter like {@code contains(a,'x') or contains(b,'x')}
      * comes back 501 Not Implemented. Spaces must be {@code %20}.
      */
-    static String odataEncode(String filter) {
+    public static String odataEncode(String filter) {
         return URLEncoder.encode(filter, StandardCharsets.UTF_8).replace("+", "%20");
     }
 }

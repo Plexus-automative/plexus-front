@@ -26,9 +26,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
     }
 
     private final ActivityLogInterceptor activityLogInterceptor;
+    private final PartnerWebhookInterceptor partnerWebhookInterceptor;
 
-    public WebMvcConfig(ActivityLogInterceptor activityLogInterceptor) {
+    public WebMvcConfig(ActivityLogInterceptor activityLogInterceptor, PartnerWebhookInterceptor partnerWebhookInterceptor) {
         this.activityLogInterceptor = activityLogInterceptor;
+        this.partnerWebhookInterceptor = partnerWebhookInterceptor;
     }
 
     @Override
@@ -36,5 +38,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(activityLogInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/activity-log/**");
+        // Bris dossiers of the partner: tell it at once when one changes (see PartnerWebhookService).
+        registry.addInterceptor(partnerWebhookInterceptor)
+                .addPathPatterns("/api/purchase-orders/**", "/api/bris-de-glace/dossiers/**");
     }
 }

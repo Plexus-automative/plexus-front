@@ -18,6 +18,9 @@ services:
       APP_CORS_ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://plexus-tec.com,https://www.plexus-tec.com}
       # Partner API (commercial mobile app backend). Unset => /api/partner/** stays closed.
       PARTNER_API_KEY: ${PARTNER_API_KEY:-}
+      # Webhook to DigiAssist when one of its bris dossiers changes. Unset => it polls.
+      PARTNER_WEBHOOK_URL: ${PARTNER_WEBHOOK_URL:-}
+      PARTNER_WEBHOOK_SECRET: ${PARTNER_WEBHOOK_SECRET:-}
       # Web Push (VAPID). Unset => push is disabled and the portal falls back to the
       # in-page notification, which only works while a tab is open.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -77,6 +80,10 @@ services:
       BC_TOKEN_URI: ${BC_TOKEN_URI}
       JWT_SECRET: ${JWT_SECRET_DEV:?JWT_SECRET_DEV must be set — distinct from prod}
       PARTNER_API_KEY: ${PARTNER_API_KEY_DEV:-}
+      # Webhook to DigiAssist's TEST backend (never production's: a sandbox dossier must not
+      # reach a real claim). Unset => it polls.
+      PARTNER_WEBHOOK_URL: ${PARTNER_WEBHOOK_URL_DEV:-}
+      PARTNER_WEBHOOK_SECRET: ${PARTNER_WEBHOOK_SECRET_DEV:-}
       DEMANDE_DEVIS_CUSTOMER_NO: ${DEMANDE_DEVIS_CUSTOMER_NO:-C0090}
       SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED_DEV:-false}
       BRIS_UPLOADS_DIR: /data/uploads/bris-de-glace
