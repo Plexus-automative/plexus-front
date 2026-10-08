@@ -515,6 +515,33 @@ line answers `LivPrevuaDate`, and nothing but the `number` needed on a cancel.
 
 At most 50 commandes per batch.
 
+### Webhook — `bris-dossier.updated` (Plexus → partner)
+
+Polling the GET above is enough, but a dossier the supplier has just answered then reaches
+the partner up to one polling interval late. With `PARTNER_WEBHOOK_URL` and
+`PARTNER_WEBHOOK_SECRET` set, Plexus also POSTs to the partner whenever one of *its* dossiers
+(`createdBy` = the partner login, with an `externalReference`) may have changed: desk
+chiffrage (`PUT …/lines`), « Envoyer au fournisseur » (`POST …/commander`), the supplier's
+answer on a commande line or header, his final confirmation, a split.
+
+```http
+POST <PARTNER_WEBHOOK_URL>
+Content-Type: application/json
+X-Plexus-Timestamp: 1790946000
+X-Plexus-Signature: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<body>")>
+
+{ "event": "bris-dossier.updated", "externalReference": "DIGI-80", "number": "BG26100212575322" }
+```
+
+- **No data on purpose**: the partner re-reads `GET /bris-dossiers/{externalReference}`. A
+  replayed or forged call can at worst cause one extra read; keep polling as the safety net.
+- **Debounced** per dossier (5 s): a supplier answering a commande sends the header then one
+  PATCH per line, and the dossier is PRICED only after the last one.
+- Verify the signature in constant time and reject a timestamp older than 5 minutes.
+- Up to 3 attempts (2 s, 4 s apart); a call that still fails is left to the polling.
+- The sandbox uses `PARTNER_WEBHOOK_URL_DEV` / `PARTNER_WEBHOOK_SECRET_DEV`, pointed at the
+  partner's **test** backend only.
+
 ### Errors
 | Code | `error` | Meaning |
 |---|---|---|
@@ -602,6 +629,8 @@ changed through the actions.
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `PARTNER_API_KEY` | to enable | *(empty)* | Shared key. Empty = surface closed |
+| `PARTNER_WEBHOOK_URL` | no | *(empty)* | Partner endpoint for `bris-dossier.updated` (e.g. `https://digiassist.tn/apis/webhooks/plexus`). Empty = no webhook |
+| `PARTNER_WEBHOOK_SECRET` | with the URL | *(empty)* | Shared HMAC key, same value on the partner side (`openssl rand -hex 32`) |
 | `DEMANDE_DEVIS_CUSTOMER_NO` | no | `C0090` | Customer the demandes are booked against |
 | `JWT_SECRET` | **yes** | *none* | Portal signing key — backend refuses to start without it |
 | `ALLOWED_ORIGINS` | no | `https://plexus-tec.com,https://www.plexus-tec.com` | Browser CORS allowlist (portal only) |

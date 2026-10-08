@@ -79,6 +79,13 @@ partner:
   # X-API-Key. Unset => that surface rejects every request (it never opens up).
   # Generate with: openssl rand -base64 32
   api-key: ${PARTNER_API_KEY:}
+  # Webhook to the partner (DigiAssist) when one of its bris dossiers changes: it re-reads
+  # the dossier at once instead of waiting for its next poll. URL = the partner's endpoint
+  # (https://digiassist.tn/webhooks/plexus), secret = shared HMAC key, same value on both
+  # sides. Either unset => no webhook, the partner keeps polling.
+  webhook:
+    url: ${PARTNER_WEBHOOK_URL:}
+    secret: ${PARTNER_WEBHOOK_SECRET:}
 
 push:
   vapid:
